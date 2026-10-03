@@ -23,14 +23,21 @@ export async function createBookingController(req, res, next) {
         }
       }
       req.body.channel = 'online';
-      req.body.status = 'pending';
-      // The DB triggers trg_a_booking_member_pricing and trg_b_booking_rules will handle pricing and limits.
+      // If payment has already been made or confirmed/paid status provided, keep confirmed
+      if (req.body.razorpay_payment_id || req.body.status === 'confirmed' || req.body.status === 'paid') {
+        req.body.status = 'confirmed';
+      } else {
+        req.body.status = 'pending';
+      }
     } else {
       req.body.channel = req.body.channel || 'counter';
+      // Sanitize status — 'paid' is not a valid enum value; map to 'confirmed'
+      const rawStatus = req.body.status || 'confirmed';
+      req.body.status = rawStatus === 'paid' ? 'confirmed' : rawStatus;
     }
 
-    if (!req.body.member_id && !guest_name) {
-      return res.status(400).json({ message: "Either member_id or guest_name is required" });
+    if (!req.body.member_id && !req.body.guest_name && !guest_name) {
+      req.body.guest_name = req.user?.full_name || req.user?.name || req.user?.email || 'Valued Member';
     }
 
     const booking = await bookingsRepo.createBooking(req.user.id, req.clubId, req.body);
@@ -87,8 +94,9 @@ export async function createBookingController(req, res, next) {
             `Court booking online settlement #${booking.id}`,
           ]);
 
-          await pool.query("UPDATE app.bookings SET status = 'confirmed', updated_at = now() WHERE id = $1", [booking.id]);
+          await pool.query("UPDATE app.bookings SET status = 'confirmed', total_amount = coalesce(nullif($2, 0), total_amount), base_price = coalesce(nullif($2, 0), base_price), updated_at = now() WHERE id = $1", [booking.id, payAmt]);
           booking.status = 'confirmed';
+          if (payAmt > 0) booking.total_amount = payAmt;
         } catch (payErr) {
           console.warn('Could not record court booking payment in ledger:', payErr.message);
         }
@@ -103,9 +111,26 @@ export async function createBookingController(req, res, next) {
 
 export async function getBookingsController(req, res, next) {
   try {
-    const { status } = req.query;
-    const bookings = await bookingsRepo.getBookings(req.user.id, req.clubId, status || null);
-    return res.status(200).json({ bookings });
+    const { status, user_only } = req.query;
+    // If user_only requested or user is a member without admin role, filter to their bookings
+    const isStaff = ['owner', 'manager', 'admin', 'front_desk'].includes(req.user?.role);
+    const userIdFilter = (user_only === 'true' || !isStaff) ? req.user?.id : null;
+    const bookings = await bookingsRepo.getBookings(req.user.id, req.clubId, status || null, userIdFilter);
+    return res.status(200).json({ bookings, count: bookings.length });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function getCourtAvailabilityController(req, res, next) {
+  try {
+    const courtId = req.params.courtId || req.query.court_id;
+    const date = req.query.date || new Date().toISOString().split('T')[0];
+    if (!courtId) {
+      return res.status(400).json({ success: false, message: 'courtId is required' });
+    }
+    const availability = await bookingsRepo.getCourtAvailability(req.user?.id, req.clubId, courtId, date);
+    return res.status(200).json({ success: true, data: availability });
   } catch (error) {
     next(error);
   }

@@ -23,6 +23,13 @@ export async function createTable(userId, clubId, data) {
 export async function updateTableStatus(userId, clubId, tableId, status) {
   return withTenantTransaction(userId, clubId, async (client) => {
     const res = await client.query(queries.UPDATE_TABLE_STATUS, [clubId, tableId, status]);
+    if (status === 'available') {
+      // Clear/close lingering active orders on this table so it's fresh for next diners
+      await client.query(
+        "UPDATE app.bar_orders SET status = 'paid', closed_at = coalesce(closed_at, now()), updated_at = now() WHERE club_id = $1 AND table_id = $2 AND status IN ('billed', 'served')",
+        [clubId, tableId]
+      );
+    }
     return res.rows[0];
   });
 }
@@ -103,6 +110,19 @@ export async function updateMenuItem(userId, clubId, itemId, data) {
   });
 }
 
+export async function deleteMenuItem(userId, clubId, itemId) {
+  return withTenantTransaction(userId, clubId, async (client) => {
+    try {
+      const res = await client.query('DELETE FROM app.menu_items WHERE club_id = $1 AND id = $2 RETURNING *', [clubId, itemId]);
+      if (res.rows.length > 0) return res.rows[0];
+    } catch {
+      // Soft-delete if foreign key references exist
+      const res = await client.query('UPDATE app.menu_items SET is_active = false, is_available = false WHERE club_id = $1 AND id = $2 RETURNING *', [clubId, itemId]);
+      return res.rows[0];
+    }
+  });
+}
+
 export async function getOrders(userId, clubId, filters = {}) {
   return withTenantTransaction(userId, clubId, async (client) => {
     const res = await client.query(queries.GET_BAR_ORDERS, [
@@ -164,6 +184,14 @@ export async function createBarOrderTx(userId, clubId, orderData, items) {
       orderData.notes || null,
     ]);
     const order = orderResult.rows[0];
+
+    // If order is placed on a table, mark the table as occupied
+    if (orderData.table_id) {
+      await client.query(
+        "UPDATE app.dining_tables SET status = 'occupied', updated_at = now() WHERE club_id = $1 AND id = $2",
+        [clubId, orderData.table_id]
+      );
+    }
 
     // 2. Add items
     const createdItems = [];
@@ -250,11 +278,21 @@ export async function payAndSettleOrder(userId, clubId, orderId, paymentData) {
 
     // 3. Mark order as paid
     const updatedOrderRes = await client.query(queries.UPDATE_BAR_ORDER_STATUS, [clubId, orderId, 'paid']);
+    const paidOrder = updatedOrderRes.rows[0];
+
+    // 4. Ensure table is marked as occupied for the dining guests until staff clears it
+    if (paidOrder?.table_id) {
+      await client.query(
+        "UPDATE app.dining_tables SET status = 'occupied', updated_at = now() WHERE club_id = $1 AND id = $2",
+        [clubId, paidOrder.table_id]
+      );
+    }
 
     return {
-      order: updatedOrderRes.rows[0],
+      order: paidOrder,
       payment: paymentRes.rows[0],
     };
+
   });
 }
 
@@ -278,7 +316,21 @@ export async function cancelOrder(userId, clubId, orderId, reason = null) {
       [clubId, orderId, reason]
     );
 
-    return res.rows[0];
+    const cancelledOrder = res.rows[0];
+    if (cancelledOrder?.table_id) {
+      const activeRes = await client.query(
+        "SELECT id FROM app.bar_orders WHERE club_id = $1 AND table_id = $2 AND status IN ('open', 'sent', 'served', 'billed') AND id <> $3 LIMIT 1",
+        [clubId, cancelledOrder.table_id, orderId]
+      );
+      if (activeRes.rows.length === 0) {
+        await client.query(
+          "UPDATE app.dining_tables SET status = 'available', updated_at = now() WHERE club_id = $1 AND id = $2",
+          [clubId, cancelledOrder.table_id]
+        );
+      }
+    }
+
+    return cancelledOrder;
   });
 }
 

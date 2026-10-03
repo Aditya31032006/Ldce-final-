@@ -45,7 +45,7 @@ CREATE TYPE sub_status        AS ENUM ('trialing','active','past_due','cancelled
 CREATE TYPE member_status     AS ENUM ('active','inactive','blocked');
 CREATE TYPE membership_status AS ENUM ('scheduled','active','expired','cancelled');
 CREATE TYPE booking_channel   AS ENUM ('online','counter','phone');
-CREATE TYPE booking_status    AS ENUM ('pending','confirmed','completed','cancelled','no_show');
+CREATE TYPE booking_status    AS ENUM ('pending','confirmed','completed','cancelled','no_show','paid');
 CREATE TYPE reservation_kind  AS ENUM ('booking','social_session','maintenance','block');
 CREATE TYPE reservation_status AS ENUM ('active','released');
 CREATE TYPE payment_method    AS ENUM ('cash','card','upi','online','wallet','bank_transfer','other');

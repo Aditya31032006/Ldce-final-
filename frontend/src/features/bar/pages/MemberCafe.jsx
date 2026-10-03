@@ -118,6 +118,21 @@ export default function MemberCafe({ club, membership }) {
   useEffect(() => {
     loadData();
     loadMyOrders();
+
+    const handleTablesUpdated = () => {
+      loadData();
+    };
+    window.addEventListener('tables-updated', handleTablesUpdated);
+    const handleStorage = (e) => {
+      if (e.key === 'ldce_tables_updated') {
+        loadData();
+      }
+    };
+    window.addEventListener('storage', handleStorage);
+    return () => {
+      window.removeEventListener('tables-updated', handleTablesUpdated);
+      window.removeEventListener('storage', handleStorage);
+    };
   }, [loadData, loadMyOrders]);
 
   // Poll orders and tables when active view is 'orders' or 'occupancy'
@@ -168,9 +183,9 @@ export default function MemberCafe({ club, membership }) {
 
   const occupancyStats = useMemo(() => {
     const total = tables.length;
-    const available = tables.filter((t) => t.status === 'available').length;
     const occupied = tables.filter((t) => t.status === 'occupied').length;
     const reserved = tables.filter((t) => t.status === 'reserved' || t.status === 'billed').length;
+    const available = tables.filter((t) => t.status !== 'occupied' && t.status !== 'reserved' && t.status !== 'billed').length;
     const totalSeats = tables.reduce((acc, t) => acc + (Number(t.capacity) || 0), 0);
     return { total, available, occupied, reserved, totalSeats };
   }, [tables]);
@@ -288,7 +303,10 @@ export default function MemberCafe({ club, membership }) {
           setIsCartOpen(false);
           loadMyOrders();
           loadData();
-          showToast('Payment successful! Your order has been sent to the kitchen.', 'success');
+          window.dispatchEvent(new CustomEvent('tables-updated'));
+          window.dispatchEvent(new CustomEvent('order-placed'));
+          localStorage.setItem('ldce_tables_updated', Date.now().toString());
+          showToast('Payment successful! Your order has been placed and table is now occupied.', 'success');
         },
         onDismiss: async () => {
           if (createdOrder?.id) {
@@ -301,6 +319,8 @@ export default function MemberCafe({ club, membership }) {
           showToast('Payment cancelled. Order was not sent to kitchen.', 'error');
           loadData();
           loadMyOrders();
+          window.dispatchEvent(new CustomEvent('tables-updated'));
+          localStorage.setItem('ldce_tables_updated', Date.now().toString());
         },
       });
     } catch (err) {
@@ -315,6 +335,8 @@ export default function MemberCafe({ club, membership }) {
       showToast(err.customMessage || err.message || 'Payment failed. Order not placed.', 'error');
       loadData();
       loadMyOrders();
+      window.dispatchEvent(new CustomEvent('tables-updated'));
+      localStorage.setItem('ldce_tables_updated', Date.now().toString());
     } finally {
       setSubmitting(false);
     }
@@ -349,7 +371,11 @@ export default function MemberCafe({ club, membership }) {
       setCart([]);
       setIsCartOpen(false);
       loadMyOrders();
-      showToast('Order placed & charged to your club account tab!', 'success');
+      loadData();
+      window.dispatchEvent(new CustomEvent('tables-updated'));
+      window.dispatchEvent(new CustomEvent('order-placed'));
+      localStorage.setItem('ldce_tables_updated', Date.now().toString());
+      showToast('Order placed & charged to your club account tab! Table is now occupied.', 'success');
     } catch (err) {
       console.error('Tab checkout error:', err);
       showToast(err.customMessage || 'Could not charge to tab.', 'error');
@@ -959,7 +985,7 @@ export default function MemberCafe({ club, membership }) {
               <div style={{ background: '#EBFDF5', padding: '0.65rem 0.85rem', borderRadius: '6px' }}>
                 <span style={{ fontSize: '0.7rem', color: '#047857' }}>Available Seats</span>
                 <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#059669' }}>
-                  {tables.filter((t) => t.status === 'available').reduce((a, b) => a + (Number(b.capacity) || 0), 0)} Seats
+                  {tables.filter((t) => t.status !== 'occupied' && t.status !== 'reserved' && t.status !== 'billed').reduce((a, b) => a + (Number(b.capacity) || 0), 0)} Seats
                 </div>
               </div>
               <div style={{ background: '#FAF9F6', padding: '0.65rem 0.85rem', borderRadius: '6px' }}>
@@ -1004,10 +1030,10 @@ export default function MemberCafe({ club, membership }) {
             }}
           >
             {filteredTables.map((table) => {
-              const isAvail = table.status === 'available';
               const isOccupied = table.status === 'occupied';
               const isBilled = table.status === 'billed';
               const isReserved = table.status === 'reserved';
+              const isAvail = !isOccupied && !isBilled && !isReserved;
 
               let statusColor = '#10B981';
               let statusBg = '#EBFDF5';

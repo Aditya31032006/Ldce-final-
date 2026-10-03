@@ -10,6 +10,7 @@ import {
   createMenuCategoryController,
   createMenuItemController,
   updateMenuItemController,
+  deleteMenuItemController,
   getOrdersController,
   getOrderByIdController,
   createBarOrderController,
@@ -33,14 +34,15 @@ router.use(verifyToken, resolveClubScope);
 
 // Menu & Tables
 router.get("/menu", getMenuController);
-router.post("/menu/category", requireRole('owner', 'manager'), createMenuCategoryController);
-router.post("/menu/item", requireRole('owner', 'manager', 'bar_staff'), createMenuItemController);
-router.put("/menu/item/:id", requireRole('owner', 'manager', 'bar_staff'), updateMenuItemController);
+router.post("/menu/category", requireRole('admin', 'owner', 'manager'), createMenuCategoryController);
+router.post("/menu/item", requireRole('admin', 'owner', 'manager', 'bar_staff', 'cafe_staff'), createMenuItemController);
+router.put("/menu/item/:id", requireRole('admin', 'owner', 'manager', 'bar_staff', 'cafe_staff'), updateMenuItemController);
+router.delete("/menu/item/:id", requireRole('admin', 'owner', 'manager', 'bar_staff', 'cafe_staff'), deleteMenuItemController);
 
 router.get("/tables", getTablesController);
-router.post("/tables", requireRole('owner', 'manager', 'bar_staff', 'front_desk'), createTableController);
-router.put("/tables/:id", requireRole('owner', 'manager', 'bar_staff'), updateTableController);
-router.put("/tables/:id/status", requireRole('owner', 'manager', 'bar_staff', 'front_desk'), updateTableStatusController);
+router.post("/tables", requireRole('admin', 'owner', 'manager', 'bar_staff', 'cafe_staff', 'front_desk'), createTableController);
+router.put("/tables/:id", requireRole('admin', 'owner', 'manager', 'bar_staff', 'cafe_staff', 'front_desk'), updateTableController);
+router.put("/tables/:id/status", requireRole('admin', 'owner', 'manager', 'bar_staff', 'cafe_staff', 'front_desk'), updateTableStatusController);
 
 // Orders & Billing
 router.get("/orders", getOrdersController);
@@ -48,7 +50,7 @@ router.get("/orders/:id", getOrderByIdController);
 router.post("/orders", createBarOrderController);
 router.post("/orders/:id/items", addItemsToOrderController);
 router.post("/orders/:id/cancel", cancelOrderController);
-router.post("/orders/:id/bill", requireRole('owner', 'manager', 'front_desk', 'bar_staff'), billOrderController);
+router.post("/orders/:id/bill", requireRole('admin', 'owner', 'manager', 'front_desk', 'bar_staff', 'cafe_staff'), billOrderController);
 router.post("/orders/:id/pay", payAndSettleOrderController);
 
 // Razorpay Online Payments

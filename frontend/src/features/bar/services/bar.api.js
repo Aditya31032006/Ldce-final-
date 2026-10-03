@@ -60,6 +60,12 @@ export const barApi = {
     return res.data.data;
   },
 
+  deleteMenuItem: async (itemId, clubId) => {
+    const config = clubId ? { headers: { 'x-club-id': clubId } } : {};
+    const res = await apiClient.delete(`/bar/menu/item/${itemId}`, config);
+    return res.data.data;
+  },
+
   // Orders
   getOrders: async (filters = {}, clubId) => {
     const config = clubId ? { headers: { 'x-club-id': clubId } } : {};

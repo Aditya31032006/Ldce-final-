@@ -9,7 +9,7 @@ export const GET_TABLES = `
   FROM app.dining_tables t
   LEFT JOIN LATERAL (
     SELECT o.* FROM app.bar_orders o
-    WHERE o.table_id = t.id AND o.status IN ('open', 'sent', 'served', 'billed')
+    WHERE o.table_id = t.id AND o.status IN ('open', 'sent', 'served', 'billed', 'paid')
     ORDER BY o.opened_at DESC LIMIT 1
   ) o ON true
   LEFT JOIN app.members m ON m.id = o.member_id
@@ -18,8 +18,8 @@ export const GET_TABLES = `
 `;
 
 export const INSERT_TABLE = `
-  INSERT INTO app.dining_tables (club_id, name, zone, capacity, is_active)
-  VALUES ($1, $2, $3, coalesce($4, 4), true)
+  INSERT INTO app.dining_tables (club_id, name, zone, capacity, status, is_active)
+  VALUES ($1, $2, $3, coalesce($4, 4), 'available', true)
   RETURNING *;
 `;
 
@@ -214,17 +214,10 @@ export const GET_KDS_ITEMS = `
   WHERE oi.club_id = $1
     AND ($2::text IS NULL OR oi.station = $2::app.station_type)
     AND oi.kds_status IN ('new', 'preparing', 'ready')
-    AND o.status <> 'void'
-    AND (
-      o.status = 'paid'
-      OR o.tab_id IS NOT NULL
-      OR EXISTS (
-        SELECT 1 FROM app.payments p
-        WHERE p.bar_order_id = o.id AND p.status = 'completed'
-      )
-    )
+    AND o.status NOT IN ('void', 'paid')
   ORDER BY oi.created_at ASC;
 `;
+
 
 export const UPDATE_KDS_STATUS = `
   UPDATE app.bar_order_items

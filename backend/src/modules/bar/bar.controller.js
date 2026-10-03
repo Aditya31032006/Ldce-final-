@@ -105,6 +105,16 @@ export async function updateMenuItemController(req, res, next) {
   }
 }
 
+export async function deleteMenuItemController(req, res, next) {
+  try {
+    const { id } = req.params;
+    const item = await barRepo.deleteMenuItem(req.user.id, req.clubId, id);
+    return res.status(200).json({ success: true, message: 'Menu item removed successfully', data: item });
+  } catch (error) {
+    next(error);
+  }
+}
+
 export async function getOrdersController(req, res, next) {
   try {
     let memberFilter = req.query.member_id || null;

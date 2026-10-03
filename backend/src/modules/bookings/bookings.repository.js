@@ -49,10 +49,40 @@ export async function createBooking(userId, clubId, bookingData) {
   });
 }
 
-export async function getBookings(userId, clubId, status = null) {
+export async function getBookings(userId, clubId, status = null, userIdFilter = null) {
   return withTenantTransaction(userId, clubId, async (client) => {
-    const res = await client.query(queries.GET_BOOKINGS, [clubId, status]);
+    const res = await client.query(queries.GET_BOOKINGS, [clubId, status, userIdFilter]);
     return res.rows || [];
+  });
+}
+
+export async function getCourtAvailability(userId, clubId, courtId, date) {
+  return withTenantTransaction(userId, clubId, async (client) => {
+    const res = await client.query(queries.GET_COURT_AVAILABILITY, [courtId, date]);
+    const reservations = res.rows || [];
+    
+    // Extract formatted time slot strings (e.g., '09:00', '14:00')
+    const bookedSlots = [];
+    reservations.forEach(r => {
+      const d = new Date(r.start_at);
+      const utcHours = String(d.getUTCHours()).padStart(2, '0');
+      const utcMinutes = String(d.getUTCMinutes()).padStart(2, '0');
+      const utcSlot = `${utcHours}:${utcMinutes}`;
+      if (!bookedSlots.includes(utcSlot)) bookedSlots.push(utcSlot);
+
+      const istDate = new Date(d.getTime() + (5.5 * 60 * 60 * 1000));
+      const istHours = String(istDate.getUTCHours()).padStart(2, '0');
+      const istMinutes = String(istDate.getUTCMinutes()).padStart(2, '0');
+      const istSlot = `${istHours}:${istMinutes}`;
+      if (!bookedSlots.includes(istSlot)) bookedSlots.push(istSlot);
+    });
+
+    return {
+      courtId,
+      date,
+      bookedSlots,
+      reservations,
+    };
   });
 }
 

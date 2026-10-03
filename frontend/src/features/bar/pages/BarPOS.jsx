@@ -27,6 +27,7 @@ import {
   ArrowRight,
   Receipt,
   Percent,
+  Trash2,
 } from 'lucide-react';
 import barApi from '../services/bar.api.js';
 import { openRazorpayCheckout } from '../../../shared/utils/razorpay.util.js';
@@ -146,6 +147,16 @@ export default function BarPOS() {
 
   useEffect(() => {
     loadPOSData();
+    const handleTablesUpdated = () => loadPOSData();
+    window.addEventListener('tables-updated', handleTablesUpdated);
+    const handleStorage = (e) => {
+      if (e.key === 'ldce_tables_updated') loadPOSData();
+    };
+    window.addEventListener('storage', handleStorage);
+    return () => {
+      window.removeEventListener('tables-updated', handleTablesUpdated);
+      window.removeEventListener('storage', handleStorage);
+    };
   }, [loadPOSData]);
 
   // Tab change effects
@@ -166,6 +177,7 @@ export default function BarPOS() {
   // Filtered Menu Items
   const filteredMenuItems = useMemo(() => {
     return menuItems.filter((item) => {
+      if (item.is_active === false) return false;
       const matchesCategory =
         activeCategory === 'all' || item.category_id === activeCategory;
       const matchesSearch =
@@ -321,6 +333,29 @@ export default function BarPOS() {
     }
   };
 
+  // Remove / Delete item from catalog
+  const handleDeleteItem = async (item, e) => {
+    if (e) e.stopPropagation();
+    if (!item?.id) return;
+    const confirmDelete = window.confirm(`Are you sure you want to remove "${item.name}" from the active catalog?`);
+    if (!confirmDelete) return;
+
+    setActionLoading(true);
+    try {
+      await barApi.deleteMenuItem(item.id, activeClubId);
+      setMenuItems((prev) => prev.filter((i) => i.id !== item.id));
+      if (editingItem?.id === item.id) {
+        setEditingItem(null);
+      }
+      showNotification(`"${item.name}" removed from catalog!`);
+    } catch (err) {
+      console.error(err);
+      showNotification(err.customMessage || 'Failed to remove menu item', 'error');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   // ─── Table & Capacity Actions ───
   const handleCreateTable = async (e) => {
     e.preventDefault();
@@ -342,6 +377,8 @@ export default function BarPOS() {
       setNewTable({ name: '', zone: 'Main Dining', capacity: 4 });
       setIsAddTableOpen(false);
       loadPOSData();
+      window.dispatchEvent(new CustomEvent('tables-updated'));
+      localStorage.setItem('ldce_tables_updated', Date.now().toString());
     } catch (err) {
       console.error(err);
       showNotification(err.customMessage || 'Failed to create table', 'error');
@@ -369,9 +406,36 @@ export default function BarPOS() {
       showNotification(`Table "${editingTable.name}" updated successfully!`);
       setEditingTable(null);
       loadPOSData();
+      window.dispatchEvent(new CustomEvent('tables-updated'));
+      localStorage.setItem('ldce_tables_updated', Date.now().toString());
     } catch (err) {
       console.error(err);
       showNotification(err.customMessage || 'Failed to update table', 'error');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  // Quick change table status back to available or occupied
+  const handleToggleTableStatus = async (table, targetStatus = null) => {
+    const nextStatus = targetStatus || (table.status === 'available' ? 'occupied' : 'available');
+    setActionLoading(true);
+    try {
+      await barApi.updateTableStatus(table.id, nextStatus, activeClubId);
+      setTables((prev) =>
+        prev.map((t) =>
+          t.id === table.id
+            ? { ...t, status: nextStatus, active_order_id: nextStatus === 'available' ? null : t.active_order_id }
+            : t
+        )
+      );
+      showNotification(`Table "${table.name}" is now ${nextStatus === 'available' ? 'Available' : 'Occupied'}!`);
+      window.dispatchEvent(new CustomEvent('tables-updated'));
+      localStorage.setItem('ldce_tables_updated', Date.now().toString());
+      loadPOSData();
+    } catch (err) {
+      console.error(err);
+      showNotification(err.customMessage || 'Failed to update table status', 'error');
     } finally {
       setActionLoading(false);
     }
@@ -428,7 +492,10 @@ export default function BarPOS() {
             );
             setSettlingTab(null);
             loadTabsData();
-            showNotification('Member tab settled via Razorpay!', 'success');
+            loadPOSData(); // Refresh table occupancy after tab settlement
+            window.dispatchEvent(new CustomEvent('tables-updated'));
+            localStorage.setItem('ldce_tables_updated', Date.now().toString());
+            showNotification('Member tab settled via Razorpay! Table freed.', 'success');
           },
         });
       } else {
@@ -441,7 +508,10 @@ export default function BarPOS() {
         );
         setSettlingTab(null);
         loadTabsData();
-        showNotification(`Tab settled via ${tabPaymentMethod}!`, 'success');
+        loadPOSData(); // Refresh table occupancy after tab settlement
+        window.dispatchEvent(new CustomEvent('tables-updated'));
+        localStorage.setItem('ldce_tables_updated', Date.now().toString());
+        showNotification(`Tab settled via ${tabPaymentMethod}! Table freed.`, 'success');
       }
     } catch (err) {
       console.error('Tab settlement error:', err);
@@ -450,6 +520,7 @@ export default function BarPOS() {
       setActionLoading(false);
     }
   };
+
 
   return (
     <div style={{ minHeight: '100vh', background: '#FAF9F6', display: 'flex', flexDirection: 'column' }}>
@@ -692,16 +763,22 @@ export default function BarPOS() {
             }}
           >
             {[
-              { label: 'Total Menu Items', val: menuItems.length, color: '#1F5C46' },
-              { label: 'Active Categories', val: categories.length, color: '#2563EB' },
+              { label: 'Total Menu Items', val: menuItems.filter((i) => i.is_active !== false).length, color: '#1F5C46' },
+              {
+                label: 'Active Categories',
+                val: categories.filter((cat) =>
+                  menuItems.some((i) => i.category_id === cat.id && i.is_active !== false)
+                ).length,
+                color: '#2563EB',
+              },
               {
                 label: 'Vegetarian Items',
-                val: menuItems.filter((i) => i.is_veg).length,
+                val: menuItems.filter((i) => i.is_veg && i.is_active !== false).length,
                 color: '#10B981',
               },
               {
                 label: 'In Stock / Live',
-                val: menuItems.filter((i) => i.is_available).length,
+                val: menuItems.filter((i) => i.is_available && i.is_active !== false).length,
                 color: '#059669',
               },
             ].map((st, idx) => (
@@ -819,7 +896,7 @@ export default function BarPOS() {
                   whiteSpace: 'nowrap',
                 }}
               >
-                All Menu ({menuItems.length})
+                All Menu ({menuItems.filter((i) => i.is_active !== false).length})
               </button>
               {categories.map((cat) => (
                 <button
@@ -839,7 +916,7 @@ export default function BarPOS() {
                     whiteSpace: 'nowrap',
                   }}
                 >
-                  {cat.name} ({menuItems.filter((i) => i.category_id === cat.id).length})
+                  {cat.name} ({menuItems.filter((i) => i.category_id === cat.id && i.is_active !== false).length})
                 </button>
               ))}
             </div>
@@ -1039,26 +1116,51 @@ export default function BarPOS() {
                         <span>{item.is_available ? 'In Stock' : 'Out of Stock'}</span>
                       </button>
 
-                      <button
-                        type="button"
-                        onClick={() => setEditingItem({ ...item })}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '0.35rem',
-                          fontSize: '0.78rem',
-                          fontWeight: 700,
-                          color: '#1F5C46',
-                          background: '#FFFFFF',
-                          border: '1px solid #B8D8CC',
-                          padding: '0.35rem 0.75rem',
-                          borderRadius: '6px',
-                          cursor: 'pointer',
-                        }}
-                      >
-                        <Edit2 size={13} />
-                        <span>Edit & Price</span>
-                      </button>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                        <button
+                          type="button"
+                          onClick={() => setEditingItem({ ...item })}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.3rem',
+                            fontSize: '0.75rem',
+                            fontWeight: 700,
+                            color: '#1F5C46',
+                            background: '#FFFFFF',
+                            border: '1px solid #B8D8CC',
+                            padding: '0.35rem 0.65rem',
+                            borderRadius: '6px',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          <Edit2 size={13} />
+                          <span>Edit</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={(e) => handleDeleteItem(item, e)}
+                          title="Remove item from catalog"
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.3rem',
+                            fontSize: '0.75rem',
+                            fontWeight: 700,
+                            color: '#DC2626',
+                            background: '#FEF2F2',
+                            border: '1px solid #FECACA',
+                            padding: '0.35rem 0.65rem',
+                            borderRadius: '6px',
+                            cursor: 'pointer',
+                            transition: 'all 0.15s ease',
+                          }}
+                        >
+                          <Trash2 size={13} />
+                          <span>Remove Item</span>
+                        </button>
+                      </div>
                     </div>
                   </div>
                 );
@@ -1314,20 +1416,71 @@ export default function BarPOS() {
                     )}
                   </div>
 
-                  {/* Edit Capacity & Details Button */}
-                  <div style={{ marginTop: '1rem', paddingTop: '0.75rem', borderTop: '1px solid #F4F2EC' }}>
+                  {/* Table Actions: Change status & Edit */}
+                  <div style={{ marginTop: '1rem', paddingTop: '0.75rem', borderTop: '1px solid #F4F2EC', display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
+                    {table.status !== 'available' ? (
+                      <button
+                        type="button"
+                        disabled={actionLoading}
+                        onClick={() => handleToggleTableStatus(table, 'available')}
+                        style={{
+                          width: '100%',
+                          padding: '0.5rem',
+                          borderRadius: '6px',
+                          border: 'none',
+                          background: '#059669',
+                          color: '#FFFFFF',
+                          fontWeight: 700,
+                          fontSize: '0.8rem',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '0.35rem',
+                          boxShadow: '0 2px 6px rgba(5,150,105,0.2)',
+                        }}
+                      >
+                        <CheckCircle2 size={14} />
+                        <span>Mark Available / Clear Table</span>
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        disabled={actionLoading}
+                        onClick={() => handleToggleTableStatus(table, 'occupied')}
+                        style={{
+                          width: '100%',
+                          padding: '0.45rem',
+                          borderRadius: '6px',
+                          border: '1px solid #F59E0B',
+                          background: '#FEF3C7',
+                          color: '#B45309',
+                          fontWeight: 700,
+                          fontSize: '0.78rem',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '0.35rem',
+                        }}
+                      >
+                        <Users size={13} />
+                        <span>Mark Occupied</span>
+                      </button>
+                    )}
+
                     <button
                       type="button"
                       onClick={() => setEditingTable({ ...table })}
                       style={{
                         width: '100%',
-                        padding: '0.5rem',
+                        padding: '0.45rem',
                         borderRadius: '6px',
-                        border: '1px solid #B8D8CC',
-                        background: '#FFFFFF',
-                        color: '#1F5C46',
-                        fontWeight: 700,
-                        fontSize: '0.8rem',
+                        border: '1px solid #E7E5DF',
+                        background: '#FAF9F6',
+                        color: '#6B6B66',
+                        fontWeight: 600,
+                        fontSize: '0.78rem',
                         cursor: 'pointer',
                         display: 'flex',
                         alignItems: 'center',
@@ -2349,15 +2502,41 @@ export default function BarPOS() {
                   <span>In Stock / Available for Ordering</span>
                 </label>
 
-                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.82rem', fontWeight: 600, color: '#1A1A18', cursor: 'pointer' }}>
-                  <input
-                    type="checkbox"
-                    checked={editingItem.is_active !== false}
-                    onChange={(e) => setEditingItem({ ...editingItem, is_active: e.target.checked })}
-                    style={{ width: '16px', height: '16px', accentColor: '#1F5C46' }}
-                  />
-                  <span>Active in Catalog</span>
-                </label>
+                <div style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  background: '#FEF2F2',
+                  border: '1px solid #FEE2E2',
+                  padding: '0.65rem 0.85rem',
+                  borderRadius: '6px',
+                  marginTop: '0.25rem',
+                }}>
+                  <div>
+                    <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#991B1B' }}>Catalog Presence</span>
+                    <p style={{ margin: 0, fontSize: '0.74rem', color: '#B91C1C' }}>Remove this item from active catalog & update category count</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={(e) => handleDeleteItem(editingItem, e)}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.35rem',
+                      padding: '0.45rem 0.85rem',
+                      background: '#DC2626',
+                      color: '#FFFFFF',
+                      border: 'none',
+                      borderRadius: '6px',
+                      fontSize: '0.78rem',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <Trash2 size={13} />
+                    <span>Remove Item</span>
+                  </button>
+                </div>
               </div>
 
               <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.75rem' }}>

@@ -37,9 +37,25 @@ export const GET_BOOKINGS = `
   LEFT JOIN app.members m ON b.member_id = m.id
   LEFT JOIN app.users u ON m.user_id = u.id
   WHERE b.club_id = $1
-    AND ($2::text IS NULL OR b.status = $2)
+    AND ($2::text IS NULL OR b.status::text = $2::text)
+    AND ($3::uuid IS NULL OR m.user_id = $3 OR b.created_by = $3)
   ORDER BY r.start_at DESC
   LIMIT 100;
+`;
+
+export const GET_COURT_AVAILABILITY = `
+  SELECT r.id, r.court_id, r.start_at, r.end_at, r.status, b.status AS booking_status
+  FROM app.court_reservations r
+  LEFT JOIN app.bookings b ON b.reservation_id = r.id
+  WHERE r.court_id = $1
+    AND r.status = 'active'
+    AND (b.status IS NULL OR b.status::text NOT IN ('cancelled', 'void'))
+    AND (
+      r.start_at::date = $2::date
+      OR (r.start_at AT TIME ZONE 'Asia/Kolkata')::date = $2::date
+      OR (r.start_at AT TIME ZONE 'UTC')::date = $2::date
+    )
+  ORDER BY r.start_at ASC;
 `;
 
 export const GET_CALENDAR_BOOKINGS = `

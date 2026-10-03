@@ -232,6 +232,8 @@ function RazorpayModal({ club, plan, user, onClose, onSuccess }) {
 function CourtBookingModal({ club, court, memberId, user, onClose, onBookingComplete }) {
   const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [selectedHour, setSelectedHour] = useState('09:00');
+  const [bookedSlots, setBookedSlots] = useState([]);
+  const [loadingSlots, setLoadingSlots] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const { toast } = useToast();
 
@@ -245,7 +247,35 @@ function CourtBookingModal({ club, court, memberId, user, onClose, onBookingComp
     '15:00', '16:00', '17:00', '18:00', '19:00', '20:00', '21:00'
   ];
 
+  // Fetch real-time booked slots for this court and date
+  const fetchAvailability = useCallback(async () => {
+    if (!court?.id || !selectedDate) return;
+    try {
+      setLoadingSlots(true);
+      const res = await api.get('/bookings/availability', {
+        params: { court_id: court.id, date: selectedDate },
+        headers: { 'x-club-id': club.id }
+      });
+      const slots = res.data?.data?.bookedSlots || [];
+      setBookedSlots(slots);
+      // Auto-switch selected hour if it happens to be booked
+      setSelectedHour(prev => (slots.includes(prev) ? timeSlots.find(t => !slots.includes(t)) || prev : prev));
+    } catch (err) {
+      console.warn('Could not fetch court availability:', err);
+    } finally {
+      setLoadingSlots(false);
+    }
+  }, [court?.id, selectedDate, club.id]);
+
+  useEffect(() => {
+    fetchAvailability();
+  }, [fetchAvailability]);
+
   const handleBook = async () => {
+    if (bookedSlots.includes(selectedHour)) {
+      toast.error('This time slot is already booked and unavailable. Please choose another slot.');
+      return;
+    }
     setSubmitting(true);
     try {
       const [h, m] = selectedHour.split(':');
@@ -275,6 +305,7 @@ function CourtBookingModal({ club, court, memberId, user, onClose, onBookingComp
         }
 
         // 2. Open Razorpay checkout
+        setSubmitting(false);
         await openRazorpayCheckout({
           orderId: rzpOrder.orderId,
           amount: rzpOrder.amount,
@@ -287,24 +318,42 @@ function CourtBookingModal({ club, court, memberId, user, onClose, onBookingComp
             phone: user?.phone || '',
           },
           onSuccess: async (rzpResponse) => {
-            await api.post('/bookings', {
-              court_id: court.id,
-              start_at: startAt.toISOString(),
-              end_at: endAt.toISOString(),
-              member_id: memberId,
-              channel: 'online',
-              amount: slotPrice,
-              razorpay_payment_id: rzpResponse.razorpay_payment_id,
-              paymentDetails: {
-                method: 'online',
-                reference: rzpResponse.razorpay_payment_id,
-              },
-            }, {
-              headers: { 'x-club-id': club.id }
-            });
+            setSubmitting(true);
+            try {
+              await api.post('/bookings', {
+                court_id: court.id,
+                start_at: startAt.toISOString(),
+                end_at: endAt.toISOString(),
+                member_id: memberId || undefined,
+                guest_name: user?.full_name || user?.name || user?.email || 'Valued Athlete',
+                channel: 'online',
+                status: 'confirmed',
+                amount: slotPrice,
+                razorpay_payment_id: rzpResponse.razorpay_payment_id,
+                paymentDetails: {
+                  method: 'online',
+                  reference: rzpResponse.razorpay_payment_id,
+                },
+              }, {
+                headers: { 'x-club-id': club.id }
+              });
 
-            toast.success(`Court reserved! Payment of ₹${slotPrice} settled via Razorpay.`);
-            onBookingComplete();
+              toast.success(`Court reserved! Payment of ₹${slotPrice} settled via Razorpay.`);
+              window.dispatchEvent(new CustomEvent('booking-updated'));
+              window.dispatchEvent(new CustomEvent('court-booked'));
+              localStorage.setItem('ldce_booking_updated', Date.now().toString());
+              if (onBookingComplete) {
+                onBookingComplete();
+              }
+              if (onClose) {
+                onClose();
+              }
+            } catch (err) {
+              console.error('Failed to create booking after payment:', err);
+              toast.error(err.response?.data?.message || err.message || 'Payment received but failed to reserve court slot. Contact front desk.');
+            } finally {
+              setSubmitting(false);
+            }
           },
           onDismiss: () => {
             setSubmitting(false);
@@ -318,14 +367,21 @@ function CourtBookingModal({ club, court, memberId, user, onClose, onBookingComp
         court_id: court.id,
         start_at: startAt.toISOString(),
         end_at: endAt.toISOString(),
-        member_id: memberId,
+        member_id: memberId || undefined,
+        guest_name: user?.full_name || user?.name || user?.email || 'Valued Athlete',
         channel: 'online',
+        status: 'confirmed',
       }, {
         headers: { 'x-club-id': club.id }
       });
 
       toast.success('Court slot booked successfully under member quota!');
-      onBookingComplete();
+      window.dispatchEvent(new CustomEvent('booking-updated'));
+      window.dispatchEvent(new CustomEvent('court-booked'));
+      localStorage.setItem('ldce_booking_updated', Date.now().toString());
+      setSubmitting(false);
+      if (onBookingComplete) onBookingComplete();
+      if (onClose) onClose();
     } catch (err) {
       toast.error(err.response?.data?.message || err.message || 'Failed to book slot');
       setSubmitting(false);
@@ -355,9 +411,12 @@ function CourtBookingModal({ club, court, memberId, user, onClose, onBookingComp
 
         <div style={{ padding: '1.5rem' }}>
           <div style={{ marginBottom: '1.25rem' }}>
-            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#1A1A18', marginBottom: '0.4rem' }}>
-              Select Date
-            </label>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
+              <label style={{ fontSize: '0.8rem', fontWeight: 600, color: '#1A1A18' }}>
+                Select Date
+              </label>
+              {loadingSlots && <span style={{ fontSize: '0.72rem', color: '#6B6B66' }}>Checking availability...</span>}
+            </div>
             <input
               type="date"
               value={selectedDate}
@@ -371,26 +430,57 @@ function CourtBookingModal({ club, court, memberId, user, onClose, onBookingComp
           </div>
 
           <div style={{ marginBottom: '1.5rem' }}>
-            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#1A1A18', marginBottom: '0.4rem' }}>
-              Select Time Slot (1 Hour)
-            </label>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
+              <label style={{ fontSize: '0.8rem', fontWeight: 600, color: '#1A1A18' }}>
+                Select Time Slot (1 Hour)
+              </label>
+              <div style={{ display: 'flex', gap: '0.5rem', fontSize: '0.7rem' }}>
+                <span style={{ color: '#10B981' }}>● Available</span>
+                <span style={{ color: '#EF4444' }}>● Unavailable</span>
+              </div>
+            </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.5rem' }}>
-              {timeSlots.map(time => (
-                <button
-                  key={time}
-                  type="button"
-                  onClick={() => setSelectedHour(time)}
-                  style={{
-                    padding: '0.5rem', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 600,
-                    border: selectedHour === time ? '1px solid #1F5C46' : '1px solid #E7E5DF',
-                    background: selectedHour === time ? '#1F5C46' : '#FFFFFF',
-                    color: selectedHour === time ? '#FFFFFF' : '#1A1A18',
-                    cursor: 'pointer', transition: 'all 0.15s ease'
-                  }}
-                >
-                  {time}
-                </button>
-              ))}
+              {timeSlots.map(time => {
+                const isBooked = bookedSlots.includes(time);
+                const isSelected = selectedHour === time;
+
+                return (
+                  <button
+                    key={time}
+                    type="button"
+                    disabled={isBooked || submitting}
+                    onClick={() => setSelectedHour(time)}
+                    title={isBooked ? 'Slot already reserved / unavailable' : `Book slot at ${time}`}
+                    style={{
+                      padding: '0.45rem 0.35rem',
+                      borderRadius: '6px',
+                      fontSize: '0.8rem',
+                      fontWeight: 600,
+                      position: 'relative',
+                      border: isSelected && !isBooked ? '1.5px solid #1F5C46' : isBooked ? '1px dashed #CBD5E1' : '1px solid #E7E5DF',
+                      background: isSelected && !isBooked ? '#1F5C46' : isBooked ? '#F1F5F9' : '#FFFFFF',
+                      color: isSelected && !isBooked ? '#FFFFFF' : isBooked ? '#94A3B8' : '#1A1A18',
+                      cursor: isBooked ? 'not-allowed' : 'pointer',
+                      transition: 'all 0.15s ease',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '0.1rem',
+                    }}
+                  >
+                    <span style={{ textDecoration: isBooked ? 'line-through' : 'none' }}>{time}</span>
+                    <span style={{
+                      fontSize: '0.62rem',
+                      fontWeight: 700,
+                      color: isBooked ? '#DC2626' : isSelected ? '#A7F3D0' : '#10B981',
+                      textTransform: 'uppercase'
+                    }}>
+                      {isBooked ? 'Booked' : 'Open'}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
           </div>
 
@@ -447,7 +537,7 @@ function CourtBookingModal({ club, court, memberId, user, onClose, onBookingComp
                 display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem'
               }}
             >
-              {submitting ? 'Connecting...' : slotPrice > 0 ? (
+              {submitting ? 'Reserving...' : slotPrice > 0 ? (
                 <>
                   <CreditCard size={15} />
                   <span>Pay ₹{slotPrice} with Razorpay</span>
@@ -666,6 +756,7 @@ export default function ClubDetailsPage() {
             onClose={() => setBookingCourt(null)}
             onBookingComplete={() => {
               setBookingCourt(null);
+              fetchBookings();
               handleTabChange('bookings');
             }}
           />
