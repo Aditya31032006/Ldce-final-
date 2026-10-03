@@ -26,3 +26,12 @@ export async function createShopOrderController(req, res, next) {
     next(error);
   }
 }
+
+export async function getShopOrdersController(req, res, next) {
+  try {
+    const orders = await ordersRepo.getShopOrders(req.user.id, req.clubId);
+    return res.status(200).json({ orders });
+  } catch (error) {
+    next(error);
+  }
+}

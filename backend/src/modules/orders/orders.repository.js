@@ -52,3 +52,10 @@ export async function createShopOrder(userId, clubId, orderData, items) {
     return { ...order, items: createdItems };
   });
 }
+
+export async function getShopOrders(userId, clubId) {
+  return withTenantTransaction(userId, clubId, async (client) => {
+    const res = await client.query(queries.GET_SHOP_ORDERS, [clubId]);
+    return res.rows || [];
+  });
+}

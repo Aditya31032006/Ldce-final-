@@ -27,6 +27,13 @@ export async function createMember(userId, clubId, memberData) {
   });
 }
 
+export async function getMembers(userId, clubId, status = null) {
+  return withTenantTransaction(userId, clubId, async (client) => {
+    const res = await client.query(queries.GET_MEMBERS, [clubId, status]);
+    return res.rows || [];
+  });
+}
+
 export async function getMemberById(userId, clubId, memberId) {
   return withTenantTransaction(userId, clubId, async (client) => {
     const res = await client.query(queries.GET_MEMBER_BY_ID, [memberId, clubId]);
