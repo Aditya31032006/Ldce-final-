@@ -5,6 +5,7 @@ import PublicRoute from '../features/auth/components/PublicRoute.jsx';
 import RoleGuard from '../features/auth/components/RoleGuard.jsx';
 
 // Lazy-loaded page views
+const LandingPage = lazy(() => import('../features/landing/pages/LandingPage.jsx'));
 const Login = lazy(() => import('../features/auth/pages/Login.jsx'));
 const Register = lazy(() => import('../features/auth/pages/Register.jsx'));
 const SetupProfile = lazy(() => import('../features/auth/pages/SetupProfile.jsx'));
@@ -57,14 +58,16 @@ const withSuspense = (Component, props = {}) => (
 );
 
 export const router = createBrowserRouter([
+  // Public Editorial Landing Page
+  {
+    path: '/',
+    element: withSuspense(LandingPage),
+  },
+
   // Protected Routes (Require active authentication session)
   {
     element: <ProtectedRoute />,
     children: [
-      {
-        path: '/',
-        element: <Navigate to="/dashboard" replace />,
-      },
       {
         path: '/dashboard',
         element: withSuspense(Dashboard),

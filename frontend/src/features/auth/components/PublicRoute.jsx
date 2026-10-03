@@ -38,7 +38,7 @@ export default function PublicRoute() {
     if (!isProfileComplete) {
       return <Navigate to="/setup-profile" replace />;
     }
-    return <Navigate to="/" replace />;
+    return <Navigate to="/dashboard" replace />;
   }
 
   return <Outlet />;
