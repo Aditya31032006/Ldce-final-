@@ -27,29 +27,7 @@ const StaffManagement = lazy(() => import('../features/hr/pages/StaffManagement.
 const ReportsDashboard = lazy(() => import('../features/reports/pages/ReportsDashboard.jsx'));
 const ClubsList = lazy(() => import('../features/clubs/pages/ClubsList.jsx'));
 
-// Sleek loading fallback for Suspense transitions matching Court & Ledger aesthetic
-const RouteLoader = () => (
-  <div style={{
-    minHeight: '60vh',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexDirection: 'column',
-    gap: '1rem',
-    color: '#6b6b66',
-    fontFamily: 'Inter, sans-serif'
-  }}>
-    <div style={{
-      width: '32px',
-      height: '32px',
-      border: '3px solid rgba(31, 92, 70, 0.2)',
-      borderTopColor: '#1f5c46',
-      borderRadius: '50%',
-      animation: 'df-spin 0.8s linear infinite'
-    }} />
-    <span style={{ fontSize: '0.875rem', fontWeight: 500 }}>Loading view...</span>
-  </div>
-);
+import RouteLoader from '../shared/components/RouteLoader.jsx';
 
 const withSuspense = (Component, props = {}) => (
   <Suspense fallback={<RouteLoader />}>

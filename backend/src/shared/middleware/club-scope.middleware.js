@@ -14,7 +14,7 @@ export function resolveClubScope(req, res, next) {
 
   // If no club context can be resolved and the user is a super_admin, we might allow it (or let the route handle it)
   if (req.user && req.user.role === 'super_admin') {
-     return next();
+    return next();
   }
 
   return res.status(400).json({ message: 'Club scope is required' });

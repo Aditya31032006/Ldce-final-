@@ -3,7 +3,7 @@ import * as bookingsRepo from './bookings.repository.js';
 export async function createBookingController(req, res, next) {
   try {
     const { court_id, start_at, end_at, member_id, guest_name } = req.body;
-    
+
     if (!court_id || !start_at || !end_at) {
       return res.status(400).json({ message: "court_id, start_at, and end_at are required" });
     }
@@ -14,9 +14,9 @@ export async function createBookingController(req, res, next) {
 
     // Force member_id to current user if role is 'member' to prevent booking for others
     if (req.user.role === 'member') {
-      req.body.member_id = req.user.memberId; 
+      req.body.member_id = req.user.memberId;
       req.body.channel = 'online';
-      req.body.status = 'pending'; 
+      req.body.status = 'pending';
       // The DB triggers trg_a_booking_member_pricing and trg_b_booking_rules will handle pricing and limits.
     } else {
       req.body.channel = req.body.channel || 'counter';

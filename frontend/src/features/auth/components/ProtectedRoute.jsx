@@ -2,6 +2,7 @@ import React from 'react';
 import { Navigate, useLocation } from 'react-router';
 import useAuth from '../hook/useAuth.js';
 import AppLayout from '../../../shared/components/layout/AppLayout.jsx';
+import RouteLoader from '../../../shared/components/RouteLoader.jsx';
 
 /**
  * ProtectedRoute Component
@@ -14,29 +15,7 @@ export default function ProtectedRoute() {
   const location = useLocation();
 
   if (loading) {
-    return (
-      <div style={{
-        minHeight: '100vh',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        flexDirection: 'column',
-        gap: '1rem',
-        background: '#fcf9f5',
-        color: '#6b6b66',
-        fontFamily: 'Inter, sans-serif'
-      }}>
-        <div style={{
-          width: '36px',
-          height: '36px',
-          border: '3px solid rgba(31, 92, 70, 0.2)',
-          borderTopColor: '#1f5c46',
-          borderRadius: '50%',
-          animation: 'df-spin 0.8s linear infinite'
-        }} />
-        <span style={{ fontSize: '0.875rem', fontWeight: 500 }}>Verifying session...</span>
-      </div>
-    );
+    return <RouteLoader message="Verifying session..." fullScreen />;
   }
 
   if (!isAuthenticated) {

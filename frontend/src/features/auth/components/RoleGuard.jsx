@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { Suspense } from 'react';
 import { Navigate, Outlet, Link } from 'react-router';
 import useAuth from '../hook/useAuth.js';
+import RouteLoader from '../../../shared/components/RouteLoader.jsx';
 
 /**
  * RoleGuard Component:
@@ -11,11 +12,7 @@ export default function RoleGuard({ allowedRoles = [], fallback = null }) {
   const { user, role, isAuthenticated, loading } = useAuth();
 
   if (loading) {
-    return (
-      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '60vh', color: '#94a3b8' }}>
-        Verifying permissions...
-      </div>
-    );
+    return <RouteLoader message="Verifying permissions..." />;
   }
 
   if (!isAuthenticated || !user) {
@@ -24,7 +21,11 @@ export default function RoleGuard({ allowedRoles = [], fallback = null }) {
 
   // Admin and Owner have universal access across the platform
   if (role === 'admin' || role === 'owner') {
-    return <Outlet />;
+    return (
+      <Suspense fallback={<RouteLoader message="Loading restricted area..." />}>
+        <Outlet />
+      </Suspense>
+    );
   }
 
   // Check if current role matches allowed roles
@@ -69,5 +70,9 @@ export default function RoleGuard({ allowedRoles = [], fallback = null }) {
     );
   }
 
-  return <Outlet />;
+  return (
+    <Suspense fallback={<RouteLoader message="Loading restricted area..." />}>
+      <Outlet />
+    </Suspense>
+  );
 }

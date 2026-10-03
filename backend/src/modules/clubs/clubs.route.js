@@ -1,9 +1,9 @@
 import { Router } from "express";
 import { verifyToken, requireRole } from "../../shared/middleware/auth.middleware.js";
 import { resolveClubScope } from "../../shared/middleware/club-scope.middleware.js";
-import { 
-  registerClubController, 
-  getClubDetailsController, 
+import {
+  registerClubController,
+  getClubDetailsController,
   updateClubDetailsController,
   getClubSettingsController,
   updateClubSettingsController,
@@ -27,10 +27,10 @@ router.post("/register", registerClubController);
 // Scope by club for subsequent routes
 router.use(resolveClubScope);
 
-// Gallery management for club (Owner only for modifications)
+// Gallery management for club (Owner and Admin for modifications)
 router.get("/gallery", getClubGalleryController);
-router.post("/gallery", requireRole('owner'), addClubGalleryController);
-router.delete("/gallery/:imageId", requireRole('owner'), deleteClubGalleryController);
+router.post("/gallery", requireRole('owner', 'admin', 'manager'), addClubGalleryController);
+router.delete("/gallery/:imageId", requireRole('owner', 'admin', 'manager'), deleteClubGalleryController);
 
 
 // Only owners and managers can update club details or settings
