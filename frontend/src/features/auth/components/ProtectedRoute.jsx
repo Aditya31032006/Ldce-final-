@@ -1,13 +1,13 @@
 import React from 'react';
-import { Navigate, Outlet, useLocation } from 'react-router';
+import { Navigate, useLocation } from 'react-router';
 import useAuth from '../hook/useAuth.js';
-import Navbar from '../../../shared/components/Navbar.jsx';
+import AppLayout from '../../../shared/components/layout/AppLayout.jsx';
 
 /**
  * ProtectedRoute Component
  * Guards private routes. Renders a loading state during session verification,
  * redirects unauthenticated visitors to /login, prompts for profile setup if required fields are missing,
- * and renders Navbar + Outlet for authenticated users.
+ * and renders AppLayout (Sidebar, Navbar, Mobile Dock, and child views) for authenticated users.
  */
 export default function ProtectedRoute() {
   const { isAuthenticated, isProfileComplete, loading } = useAuth();
@@ -48,12 +48,6 @@ export default function ProtectedRoute() {
     return <Navigate to="/setup-profile" replace />;
   }
 
-  return (
-    <div className="app-container">
-      <Navbar />
-      <main className="app-main-content">
-        <Outlet />
-      </main>
-    </div>
-  );
+  return <AppLayout />;
 }
+
