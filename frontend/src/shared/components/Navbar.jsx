@@ -23,7 +23,6 @@ export default function Navbar() {
     { label: 'Inventory', path: '/inventory' },
     { label: 'Orders', path: '/orders' },
     { label: 'Leads', path: '/leads' },
-    { label: 'Finance', path: '/finance' },
     { label: 'Staff', path: '/hr' },
     { label: 'Reports', path: '/reports' },
   ];

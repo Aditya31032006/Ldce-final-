@@ -17,7 +17,7 @@ export default function Dashboard() {
     { title: "Today's Bookings", value: metrics?.activeBookings ?? '12', change: '+18% vs yesterday', link: '/bookings', color: '#3b82f6' },
     { title: 'Active Members', value: metrics?.totalMembers ?? '248', change: '+5 new this week', link: '/members', color: '#10b981' },
     { title: 'Court Occupancy', value: metrics?.courtOccupancyRate ?? '78%', change: 'Peak hours 18:00 - 22:00', link: '/courts', color: '#8b5cf6' },
-    { title: "Today's Revenue", value: `$${metrics?.dailyRevenue ?? '4,850'}`, change: '+12% vs last Friday', link: '/finance', color: '#f59e0b' },
+    { title: "Today's Revenue", value: `$${metrics?.dailyRevenue ?? '4,850'}`, change: '+12% vs last Friday', link: '/reports', color: '#f59e0b' },
   ];
 
   const quickLinks = [

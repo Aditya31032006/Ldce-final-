@@ -28,7 +28,7 @@ export default function MobileDock({ onOpenSidebar }) {
           { label: 'Overview', path: '/dashboard', icon: LayoutDashboard },
           { label: 'Courts', path: '/courts', icon: Trophy },
           { label: 'Bar POS', path: '/bar', icon: Coffee },
-          { label: 'Finance', path: '/finance', icon: BookOpen },
+          { label: 'Reports', path: '/reports', icon: BookOpen },
         ];
       case 'front_desk':
         return [

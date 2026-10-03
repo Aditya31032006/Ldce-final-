@@ -11,6 +11,7 @@ import {
   Warehouse,
   ShoppingBag,
   Coffee,
+  ChefHat,
   BookOpen,
   BarChart3,
   Building2,
@@ -49,10 +50,16 @@ const NAVIGATION_SECTIONS = [
         icon: Calendar,
         roles: ['owner', 'manager', 'admin', 'front_desk'],
       },
+      {
+        label: 'Social Play',
+        path: '/social-sessions',
+        icon: Users,
+        roles: ['owner', 'manager', 'admin', 'front_desk'],
+      },
     ],
   },
   {
-    title: 'People',
+    title: 'People & CRM',
     items: [
       {
         label: 'Members',
@@ -64,7 +71,7 @@ const NAVIGATION_SECTIONS = [
         label: 'Membership Plans',
         path: '/plans',
         icon: ShieldCheck,
-        roles: ['owner', 'manager', 'admin', 'front_desk'],
+        roles: ['owner', 'manager', 'admin'],
       },
       {
         label: 'Leads CRM',
@@ -81,13 +88,13 @@ const NAVIGATION_SECTIONS = [
         label: 'Inventory',
         path: '/inventory',
         icon: Warehouse,
-        roles: ['owner', 'manager', 'admin', 'shop_staff', 'member', 'public'],
+        roles: ['owner', 'manager', 'admin', 'shop_staff'],
       },
       {
         label: 'Online Orders',
         path: '/orders',
         icon: ShoppingBag,
-        roles: ['owner', 'manager', 'admin', 'shop_staff', 'member', 'public'],
+        roles: ['owner', 'manager', 'admin', 'shop_staff', 'front_desk'],
       },
     ],
   },
@@ -103,31 +110,14 @@ const NAVIGATION_SECTIONS = [
     ],
   },
   {
-    title: 'Finance & Admin',
+    title: 'Analytics & Management',
     items: [
-      {
-        label: 'Ledger',
-        path: '/finance',
-        icon: BookOpen,
-        roles: ['owner', 'manager', 'admin'],
-      },
       {
         label: 'Reports & Analytics',
         path: '/reports',
         icon: BarChart3,
         roles: ['owner', 'manager', 'admin'],
       },
-      {
-        label: 'Facilities / Clubs',
-        path: '/clubs',
-        icon: Building2,
-        roles: ['owner', 'manager', 'admin'],
-      },
-    ],
-  },
-  {
-    title: 'Team / HR',
-    items: [
       {
         label: 'Staff Management',
         path: '/hr',
@@ -172,6 +162,9 @@ export default function Sidebar({ isOpen, onClose }) {
       .map((item) => {
         if (item.label === 'Dashboard' && isNormalUser) {
           return { ...item, label: 'My Clubs & Directory', path: '/user/dashboard' };
+        }
+        if (item.path === '/bar' && userRole === 'kitchen') {
+          return { ...item, label: 'Kitchen Display (KDS)', icon: ChefHat };
         }
         return item;
       }),
