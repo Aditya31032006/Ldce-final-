@@ -160,29 +160,72 @@ export async function joinClub(userId, clubId, planId = null, paymentDetails = n
   const member = res.rows[0];
 
   let membership = null;
+  let isRenewal = false;
   if (planId) {
     const planRes = await pool.query('SELECT * FROM app.plans WHERE id = $1 AND club_id = $2', [planId, clubId]);
     if (planRes.rows.length > 0) {
       const plan = planRes.rows[0];
       const durationDays = plan.duration_days || 30;
-      const price = plan.price || 0;
+      const price = Number(plan.price || 0);
 
-      // Close previous active/scheduled memberships to respect GiST exclusion constraint
-      await pool.query(
-        "UPDATE app.memberships SET status = 'cancelled', updated_at = now() WHERE club_id = $1 AND member_id = $2 AND status IN ('active', 'scheduled')",
+      // Check if user already has an active membership
+      const existingRes = await pool.query(
+        `SELECT id, plan_id, start_date, end_date, status, price_paid,
+                (end_date >= CURRENT_DATE) AS is_valid_active
+         FROM app.memberships
+         WHERE club_id = $1 AND member_id = $2 AND status = 'active'
+         ORDER BY end_date DESC
+         LIMIT 1`,
         [clubId, member.id]
       );
+      const existingMs = existingRes.rows[0];
 
-      const msRes = await pool.query(`
-        INSERT INTO app.memberships (
-          club_id, member_id, plan_id, start_date, end_date, status, price_paid, created_by
-        ) VALUES (
-          $1, $2, $3, CURRENT_DATE, (CURRENT_DATE + ($4 || ' days')::interval)::date, 'active', $5, $6
-        )
-        RETURNING *;
-      `, [clubId, member.id, plan.id, durationDays, price, userId]);
+      if (existingMs && existingMs.is_valid_active) {
+        // Renewal / Extension: Extend the existing active membership validity!
+        isRenewal = true;
+        // Clean up any stale scheduled records to avoid exclusion conflicts
+        await pool.query(
+          "UPDATE app.memberships SET status = 'cancelled', updated_at = now() WHERE club_id = $1 AND member_id = $2 AND status = 'scheduled' AND id != $3",
+          [clubId, member.id, existingMs.id]
+        );
 
-      membership = msRes.rows[0];
+        const msRes = await pool.query(`
+          UPDATE app.memberships
+          SET
+            end_date = (GREATEST(end_date, CURRENT_DATE) + ($1 || ' days')::interval)::date,
+            plan_id = $2,
+            price_paid = price_paid + $3,
+            status = 'active',
+            updated_at = now()
+          WHERE id = $4
+          RETURNING *;
+        `, [durationDays, plan.id, price, existingMs.id]);
+
+        membership = msRes.rows[0];
+      } else {
+        // Fresh or expired membership: close any old active/scheduled memberships first
+        await pool.query(
+          "UPDATE app.memberships SET status = 'cancelled', updated_at = now() WHERE club_id = $1 AND member_id = $2 AND status IN ('active', 'scheduled')",
+          [clubId, member.id]
+        );
+
+        const msRes = await pool.query(`
+          INSERT INTO app.memberships (
+            club_id, member_id, plan_id, start_date, end_date, status, price_paid, created_by
+          ) VALUES (
+            $1, $2, $3, CURRENT_DATE, (CURRENT_DATE + ($4 || ' days')::interval)::date, 'active', $5, $6
+          )
+          RETURNING *;
+        `, [clubId, member.id, plan.id, durationDays, price, userId]);
+
+        membership = msRes.rows[0];
+      }
+
+      // Ensure member status is active in app.members
+      await pool.query(
+        "UPDATE app.members SET status = 'active', updated_at = now() WHERE id = $1 AND club_id = $2",
+        [member.id, clubId]
+      );
 
       // Record payment in ledger if payment details provided or plan has price
       if (price > 0) {
@@ -201,7 +244,7 @@ export async function joinClub(userId, clubId, planId = null, paymentDetails = n
             membership.id,
             paymentDetails?.reference || 'Direct / Gateway',
             userId,
-            paymentDetails?.notes || `Membership subscription: ${plan.name}`,
+            paymentDetails?.notes || `${isRenewal ? 'Membership renewal/extension' : 'Membership subscription'}: ${plan.name} (+${durationDays} days)`,
           ]);
         } catch (payErr) {
           console.warn('Could not record membership payment in ledger:', payErr.message);
@@ -225,7 +268,7 @@ export async function joinClub(userId, clubId, planId = null, paymentDetails = n
     }
   })();
 
-  return { member, membership };
+  return { member, membership, isRenewal };
 }
 
 export async function getClubGallery(userId, clubId) {

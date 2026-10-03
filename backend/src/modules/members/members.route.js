@@ -12,10 +12,10 @@ const router = Router();
 router.use(verifyToken, resolveClubScope);
 
 // List all members
-router.get("/", requireRole('owner', 'manager', 'front_desk'), getMembersController);
+router.get("/", requireRole('owner', 'manager', 'admin', 'front_desk'), getMembersController);
 
 // Search requires staff roles
-router.get("/search", requireRole('owner', 'manager', 'front_desk'), searchMembersController);
+router.get("/search", requireRole('owner', 'manager', 'admin', 'front_desk'), searchMembersController);
 
 // Get member by ID
 router.get("/:id", getMemberByIdController);

@@ -19,7 +19,6 @@ export default function Navbar() {
     { label: 'Courts', path: '/courts' },
     { label: 'Members', path: '/members' },
     { label: 'Plans', path: '/plans' },
-    { label: 'Social Sessions', path: '/social-sessions' },
     { label: 'Bar POS', path: '/bar' },
     { label: 'Inventory', path: '/inventory' },
     { label: 'Orders', path: '/orders' },
