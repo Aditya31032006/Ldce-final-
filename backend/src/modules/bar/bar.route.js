@@ -47,15 +47,15 @@ router.put("/tables/:id/status", requireRole('admin', 'owner', 'manager', 'bar_s
 // Orders & Billing
 router.get("/orders", getOrdersController);
 router.get("/orders/:id", getOrderByIdController);
-router.post("/orders", createBarOrderController);
-router.post("/orders/:id/items", addItemsToOrderController);
-router.post("/orders/:id/cancel", cancelOrderController);
+router.post("/orders", requireRole('admin', 'owner', 'manager', 'front_desk', 'bar_staff', 'cafe_staff', 'member'), createBarOrderController);
+router.post("/orders/:id/items", requireRole('admin', 'owner', 'manager', 'front_desk', 'bar_staff', 'cafe_staff', 'member'), addItemsToOrderController);
+router.post("/orders/:id/cancel", requireRole('admin', 'owner', 'manager', 'front_desk', 'bar_staff', 'cafe_staff'), cancelOrderController);
 router.post("/orders/:id/bill", requireRole('admin', 'owner', 'manager', 'front_desk', 'bar_staff', 'cafe_staff'), billOrderController);
-router.post("/orders/:id/pay", payAndSettleOrderController);
+router.post("/orders/:id/pay", requireRole('admin', 'owner', 'manager', 'front_desk', 'bar_staff', 'cafe_staff', 'member'), payAndSettleOrderController);
 
 // Razorpay Online Payments
-router.post("/payments/razorpay/create-order", createRazorpayOrderController);
-router.post("/payments/razorpay/verify", verifyRazorpayPaymentController);
+router.post("/payments/razorpay/create-order", requireRole('admin', 'owner', 'manager', 'front_desk', 'bar_staff', 'cafe_staff', 'member'), createRazorpayOrderController);
+router.post("/payments/razorpay/verify", requireRole('admin', 'owner', 'manager', 'front_desk', 'bar_staff', 'cafe_staff', 'member'), verifyRazorpayPaymentController);
 
 // Kitchen Display Screen (KDS)
 router.get("/kds", requireRole('owner', 'manager', 'front_desk', 'bar_staff', 'kitchen'), getKdsController);

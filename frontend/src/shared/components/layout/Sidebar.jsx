@@ -11,6 +11,7 @@ import {
   Warehouse,
   ShoppingBag,
   Coffee,
+  ChefHat,
   BookOpen,
   BarChart3,
   Building2,
@@ -161,6 +162,9 @@ export default function Sidebar({ isOpen, onClose }) {
       .map((item) => {
         if (item.label === 'Dashboard' && isNormalUser) {
           return { ...item, label: 'My Clubs & Directory', path: '/user/dashboard' };
+        }
+        if (item.path === '/bar' && userRole === 'kitchen') {
+          return { ...item, label: 'Kitchen Display (KDS)', icon: ChefHat };
         }
         return item;
       }),

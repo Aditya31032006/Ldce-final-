@@ -33,11 +33,55 @@ import barApi from '../services/bar.api.js';
 import { openRazorpayCheckout } from '../../../shared/utils/razorpay.util.js';
 
 export default function BarPOS() {
-  const { user } = useSelector((state) => state.auth);
+  const { user, role } = useSelector((state) => state.auth);
   const activeClubId = localStorage.getItem('activeClubId') || user?.club_id;
 
-  // Active view tab: 'menu' | 'tables' | 'kds' | 'tabs' | 'closing' (No order terminal for admin!)
-  const [activeTab, setActiveTab] = useState('menu');
+  const userRole = (role || user?.role || '').toLowerCase();
+  const isKitchen = userRole === 'kitchen';
+  const isBarStaff = ['bar_staff', 'cafe_staff'].includes(userRole);
+  const isFrontDesk = userRole === 'front_desk';
+  const isExecutive = ['owner', 'manager', 'admin'].includes(userRole);
+
+  const availableTabs = useMemo(() => {
+    if (isKitchen) {
+      return [
+        { id: 'kds', label: 'Kitchen Display (KDS)', icon: ChefHat },
+      ];
+    }
+    if (isBarStaff) {
+      return [
+        { id: 'tables', label: 'Tables & Capacity', icon: Grid },
+        { id: 'menu', label: 'Menu & Pricing', icon: Utensils },
+        { id: 'kds', label: 'Bar Station (KDS)', icon: ChefHat },
+        { id: 'tabs', label: 'Member Tabs', icon: Wallet },
+        { id: 'closing', label: 'Daily Closing', icon: FileText },
+      ];
+    }
+    if (isFrontDesk) {
+      return [
+        { id: 'tables', label: 'Tables & Capacity', icon: Grid },
+        { id: 'tabs', label: 'Member Tabs', icon: Wallet },
+        { id: 'kds', label: 'Station KDS', icon: ChefHat },
+      ];
+    }
+    return [
+      { id: 'menu', label: 'Menu & Pricing', icon: Utensils },
+      { id: 'tables', label: 'Tables & Capacity', icon: Grid },
+      { id: 'kds', label: 'Kitchen & Bar (KDS)', icon: ChefHat },
+      { id: 'tabs', label: 'Member Tabs', icon: Wallet },
+      { id: 'closing', label: 'Daily Closing', icon: FileText },
+    ];
+  }, [isKitchen, isBarStaff, isFrontDesk]);
+
+  // Active view tab: kitchen is strictly locked to 'kds', bar staff defaults to 'tables'
+  const defaultTab = isKitchen ? 'kds' : isBarStaff ? 'tables' : 'menu';
+  const [activeTab, setActiveTab] = useState(defaultTab);
+
+  useEffect(() => {
+    if (isKitchen && activeTab !== 'kds') {
+      setActiveTab('kds');
+    }
+  }, [isKitchen, activeTab]);
 
   // Loading states
   const [loading, setLoading] = useState(true);
@@ -57,7 +101,7 @@ export default function BarPOS() {
   const [itemSearchQuery, setItemSearchQuery] = useState('');
   const [vegOnly, setVegOnly] = useState(false);
   const [selectedZone, setSelectedZone] = useState('all');
-  const [kdsStation, setKdsStation] = useState(null);
+  const [kdsStation, setKdsStation] = useState(isKitchen ? 'kitchen' : isBarStaff ? 'bar' : null);
 
   // Modals for Menu & Pricing Design
   const [isAddCategoryOpen, setIsAddCategoryOpen] = useState(false);
@@ -98,8 +142,24 @@ export default function BarPOS() {
     setTimeout(() => setNotification(null), 3500);
   };
 
+  const loadKdsData = useCallback(async () => {
+    try {
+      const items = await barApi.getKdsItems(kdsStation, activeClubId);
+      setKdsItems(items || []);
+    } catch (err) {
+      console.error('Failed to load KDS data:', err);
+    }
+  }, [activeClubId, kdsStation]);
+
   // Load Initial Data
   const loadPOSData = useCallback(async () => {
+    if (isKitchen) {
+      setRefreshing(true);
+      await loadKdsData();
+      setLoading(false);
+      setRefreshing(false);
+      return;
+    }
     try {
       setRefreshing(true);
       const [tablesData, menuData] = await Promise.all([
@@ -116,16 +176,7 @@ export default function BarPOS() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [activeClubId]);
-
-  const loadKdsData = useCallback(async () => {
-    try {
-      const items = await barApi.getKdsItems(kdsStation, activeClubId);
-      setKdsItems(items || []);
-    } catch (err) {
-      console.error('Failed to load KDS data:', err);
-    }
-  }, [activeClubId, kdsStation]);
+  }, [activeClubId, isKitchen, loadKdsData]);
 
   const loadTabsData = useCallback(async () => {
     try {
@@ -548,20 +599,22 @@ export default function BarPOS() {
               justifyContent: 'center',
             }}
           >
-            <Sliders size={22} color="#FAF9F6" />
+            {isKitchen ? <ChefHat size={22} color="#FAF9F6" /> : <Sliders size={22} color="#FAF9F6" />}
           </div>
           <div>
             <h1 style={{ fontSize: '1.2rem', fontWeight: 700, margin: 0, letterSpacing: '-0.02em' }}>
-              Cafe & Bar Management
+              {isKitchen ? 'Kitchen Display System (KDS)' : 'Cafe & Bar Management'}
             </h1>
             <span style={{ fontSize: '0.75rem', opacity: 0.85, display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
               <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#10B981' }} />
-              Menu Design • Table Capacity • Kitchen Access
+              {isKitchen
+                ? 'Back of House • Live Order Fulfillment Queue'
+                : 'Menu Design • Table Capacity • Front of House POS'}
             </span>
           </div>
         </div>
 
-        {/* View Switcher Tabs (Strictly Admin / Staff: Menu, Tables, KDS, Tabs, Closing) */}
+        {/* View Switcher Tabs (Strictly filtered per role: Kitchen only sees KDS) */}
         <div
           style={{
             display: 'flex',
@@ -571,13 +624,7 @@ export default function BarPOS() {
             gap: '0.25rem',
           }}
         >
-          {[
-            { id: 'menu', label: 'Menu & Pricing', icon: Utensils },
-            { id: 'tables', label: 'Tables & Capacity', icon: Grid },
-            { id: 'kds', label: 'Kitchen & Bar (KDS)', icon: ChefHat },
-            { id: 'tabs', label: 'Member Tabs', icon: Wallet },
-            { id: 'closing', label: 'Daily Closing', icon: FileText },
-          ].map((tab) => {
+          {availableTabs.map((tab) => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
             return (
@@ -624,7 +671,7 @@ export default function BarPOS() {
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
           <button
             type="button"
-            onClick={loadPOSData}
+            onClick={isKitchen ? loadKdsData : loadPOSData}
             title="Refresh Data"
             disabled={refreshing}
             style={{
@@ -641,8 +688,16 @@ export default function BarPOS() {
             <RefreshCw size={16} className={refreshing ? 'animate-spin' : ''} />
           </button>
           <div style={{ textAlign: 'right', fontSize: '0.75rem', opacity: 0.9 }}>
-            <div style={{ fontWeight: 600 }}>{user?.full_name || 'Admin'}</div>
-            <div style={{ opacity: 0.75 }}>Manager / Admin View</div>
+            <div style={{ fontWeight: 600 }}>{user?.full_name || 'Staff'}</div>
+            <div style={{ opacity: 0.75 }}>
+              {isKitchen
+                ? '🍳 Kitchen Staff (Back of House)'
+                : isBarStaff
+                ? '☕ Bar & Cafe Staff'
+                : isFrontDesk
+                ? 'Front Desk Service'
+                : 'Manager / Executive View'}
+            </div>
           </div>
         </div>
       </header>
