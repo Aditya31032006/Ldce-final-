@@ -53,9 +53,14 @@ export async function getShopOrdersController(req, res, next) {
 export async function updateOrderStatusController(req, res, next) {
   try {
     const { id } = req.params;
-    const { status } = req.body;
+    let { status } = req.body;
 
-    const validStatuses = ['pending', 'processing', 'completed', 'cancelled'];
+    // Handle legacy alias
+    if (status === 'processing') {
+      status = 'confirmed';
+    }
+
+    const validStatuses = ['pending', 'confirmed', 'ready', 'completed', 'cancelled'];
     if (!status || !validStatuses.includes(status)) {
       return res.status(400).json({ message: `Invalid status. Must be one of: ${validStatuses.join(', ')}` });
     }
