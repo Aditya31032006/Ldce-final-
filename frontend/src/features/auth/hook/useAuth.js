@@ -218,6 +218,13 @@ export function useAuth() {
     dispatch(clearSuccess());
   }, [dispatch]);
 
+  const updateUserLocal = useCallback(
+    (userData) => {
+      dispatch(setUser(userData));
+    },
+    [dispatch]
+  );
+
   return {
     user,
     role,
@@ -237,10 +244,12 @@ export function useAuth() {
     loginWithGoogle,
     logout,
     fetchCurrentUser,
+    updateUserLocal,
     changeClub,
     resetError,
     resetSuccess,
   };
 }
+
 
 export default useAuth;

@@ -44,12 +44,16 @@ const app_config = {
     callbackUrl: process.env.GOOGLE_CALLBACK_URL || 'http://localhost:3000/api/auth/google/callback',
   },
 
-  // Redis Config (optional)
-  REDIS_HOST: process.env.REDIS_HOST || '127.0.0.1',
+  // Redis & Upstash Config
+  UPSTASH_REDIS_REST_URL: process.env.UPSTASH_REDIS_REST_URL || '',
+  UPSTASH_REDIS_REST_TOKEN: process.env.UPSTASH_REDIS_REST_TOKEN || '',
+  REDIS_HOST: process.env.REDIS_HOST || (process.env.UPSTASH_REDIS_REST_URL ? new URL(process.env.UPSTASH_REDIS_REST_URL).hostname : '127.0.0.1'),
   REDIS_PORT: parseInt(process.env.REDIS_PORT || '6379', 10),
   REDIS_USERNAME: process.env.REDIS_USERNAME || 'default',
-  REDIS_PASSWORD: process.env.REDIS_PASSWORD || '',
+  REDIS_PASSWORD: process.env.REDIS_PASSWORD || process.env.UPSTASH_REDIS_REST_TOKEN || '',
+  REDIS_TLS: process.env.REDIS_TLS === 'true' || Boolean(process.env.UPSTASH_REDIS_REST_URL),
 };
+
 
 if (!app_config.DATABASE_URL) {
   console.warn('⚠️ WARNING: DATABASE_URL is not set.');

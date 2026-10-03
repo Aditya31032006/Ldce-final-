@@ -214,3 +214,163 @@ export async function setupProfileController(req, res, next) {
     next(error);
   }
 }
+
+/**
+ * Update Profile Avatar
+ */
+export async function updateAvatarController(req, res, next) {
+  try {
+    const avatarUrl = req.body.avatarUrl || req.body.avatar_url || req.body.avatar || req.body.image;
+    if (!avatarUrl) {
+      return res.status(STATUS_CODES.BAD_REQUEST).json({
+        success: false,
+        message: 'No avatar image data provided in request body',
+      });
+    }
+    const updatedUser = await authService.updateUserAvatar(req.user.id, avatarUrl);
+    delete updatedUser.password_hash;
+    return res.status(STATUS_CODES.OK).json({
+      success: true,
+      message: 'Profile picture updated successfully',
+      user: updatedUser,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+
+/**
+ * Delete Profile Avatar
+ */
+export async function deleteAvatarController(req, res, next) {
+  try {
+    const updatedUser = await authService.deleteUserAvatar(req.user.id);
+    delete updatedUser.password_hash;
+    return res.status(STATUS_CODES.OK).json({
+      success: true,
+      message: 'Profile picture removed successfully',
+      user: updatedUser,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * Request OTP for Password Reset
+ */
+export async function requestPasswordResetOtpController(req, res, next) {
+  try {
+    // If authenticated, we can use req.user.email; else from body
+    const email = req.user?.email || req.body.email;
+    if (!email) {
+      return res.status(STATUS_CODES.BAD_REQUEST).json({
+        success: false,
+        message: 'Account email is required to request OTP',
+      });
+    }
+
+    const result = await authService.requestPasswordResetOtp(email);
+    return res.status(STATUS_CODES.OK).json(result);
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * Reset Password using OTP
+ */
+export async function resetPasswordWithOtpController(req, res, next) {
+  try {
+    const email = req.user?.email || req.body.email;
+    const { otp, newPassword } = req.body;
+
+    if (!email) {
+      return res.status(STATUS_CODES.BAD_REQUEST).json({
+        success: false,
+        message: 'Email is required',
+      });
+    }
+    if (!otp) {
+      return res.status(STATUS_CODES.BAD_REQUEST).json({
+        success: false,
+        message: 'Verification OTP code is required',
+      });
+    }
+    if (!newPassword || newPassword.length < 6) {
+      return res.status(STATUS_CODES.BAD_REQUEST).json({
+        success: false,
+        message: 'New password must be at least 6 characters long',
+      });
+    }
+
+    const result = await authService.resetPasswordWithOtp({
+      email,
+      otp,
+      newPassword,
+    });
+
+    return res.status(STATUS_CODES.OK).json(result);
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * Set password for OAuth user who does not have a local password yet
+ */
+export async function setPasswordController(req, res, next) {
+  try {
+    const { password } = req.body;
+    if (!password || password.length < 6) {
+      return res.status(STATUS_CODES.BAD_REQUEST).json({
+        success: false,
+        message: 'Password must be at least 6 characters long',
+      });
+    }
+
+    const updatedUser = await authService.setUserPasswordForOAuth(req.user.id, password);
+    delete updatedUser.password_hash;
+
+    return res.status(STATUS_CODES.OK).json({
+      success: true,
+      message: 'Password created successfully! You can now log in using email & password.',
+      user: updatedUser,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * Change password for authenticated user by verifying old password
+ */
+export async function changePasswordController(req, res, next) {
+  try {
+    const { oldPassword, newPassword } = req.body;
+    if (!oldPassword) {
+      return res.status(STATUS_CODES.BAD_REQUEST).json({
+        success: false,
+        message: 'Current password is required',
+      });
+    }
+    if (!newPassword || newPassword.length < 6) {
+      return res.status(STATUS_CODES.BAD_REQUEST).json({
+        success: false,
+        message: 'New password must be at least 6 characters long',
+      });
+    }
+
+    const updatedUser = await authService.changeUserPassword(req.user.id, oldPassword, newPassword);
+    delete updatedUser.password_hash;
+
+    return res.status(STATUS_CODES.OK).json({
+      success: true,
+      message: 'Password changed successfully!',
+      user: updatedUser,
+    });
+  } catch (error) {
+    next(error);
+  }
+}

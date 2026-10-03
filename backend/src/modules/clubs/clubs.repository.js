@@ -118,3 +118,39 @@ export async function joinClub(userId, clubId) {
   return res.rows[0];
 }
 
+export async function getClubGallery(userId, clubId) {
+  return withTenantTransaction(userId, clubId, async (client) => {
+    const res = await client.query(queries.GET_CLUB_GALLERY, [clubId]);
+    return res.rows;
+  });
+}
+
+export async function addClubGalleryImages(userId, clubId, images) {
+  return withTenantTransaction(userId, clubId, async (client) => {
+    const list = Array.isArray(images) ? images : [images];
+    const inserted = [];
+    for (const item of list) {
+      const imageUrl = typeof item === 'string' ? item : item.imageUrl || item.image_url;
+      const caption = typeof item === 'object' ? (item.caption || null) : null;
+      const sortOrder = typeof item === 'object' ? (item.sortOrder || item.sort_order || 0) : 0;
+      if (imageUrl && imageUrl.trim()) {
+        const res = await client.query(queries.ADD_CLUB_GALLERY_IMAGE, [
+          clubId,
+          imageUrl.trim(),
+          caption,
+          sortOrder,
+        ]);
+        inserted.push(res.rows[0]);
+      }
+    }
+    return inserted;
+  });
+}
+
+export async function deleteClubGalleryImage(userId, clubId, imageId) {
+  return withTenantTransaction(userId, clubId, async (client) => {
+    const res = await client.query(queries.DELETE_CLUB_GALLERY_IMAGE, [clubId, imageId]);
+    return res.rows[0];
+  });
+}
+

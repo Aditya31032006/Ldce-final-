@@ -3,6 +3,9 @@ import * as authRepo from './auth.repository.js';
 import { issueAccessToken } from '../../shared/utils/token.util.js';
 import { sendWelcomeEmail } from '../../services/mail.service.js';
 import { STATUS_CODES, MESSAGES } from '../../constants/index.js';
+import { generateOtp, storeOtp, verifyOtp, invalidateOtp } from '../../utils/otp.util.js';
+import { addOtpEmailJob } from '../../jobs/emailQueue.js';
+import { hashPassword, verifyPassword } from '../../utils/password.util.js';
 
 /**
  * Auth Service
@@ -231,6 +234,34 @@ export async function setupUserProfile(userId, { phone, fullName, avatarUrl, pas
 }
 
 /**
+ * Updates user profile picture (avatar_url)
+ */
+export async function updateUserAvatar(userId, avatarUrl) {
+  const user = await authRepo.findUserById(userId);
+  if (!user) {
+    const err = new Error(MESSAGES.AUTH.USER_NOT_FOUND);
+    err.status = STATUS_CODES.NOT_FOUND;
+    throw err;
+  }
+  await authRepo.updateUserAvatar(userId, avatarUrl);
+  return await authRepo.findUserById(userId);
+}
+
+/**
+ * Deletes user profile picture (sets avatar_url to null)
+ */
+export async function deleteUserAvatar(userId) {
+  const user = await authRepo.findUserById(userId);
+  if (!user) {
+    const err = new Error(MESSAGES.AUTH.USER_NOT_FOUND);
+    err.status = STATUS_CODES.NOT_FOUND;
+    throw err;
+  }
+  await authRepo.updateUserAvatar(userId, null);
+  return await authRepo.findUserById(userId);
+}
+
+/**
  * Issues JWT access token for user
  */
 export async function generateTokenForUser(user, clubId = null, role = null) {
@@ -244,3 +275,134 @@ export async function generateTokenForUser(user, clubId = null, role = null) {
 // Aliases for compatibility
 export const registerUser = registerDirectUser;
 export const verifyLogin = verifyDirectLogin;
+
+/**
+ * Sets password for OAuth user who doesn't have a local password yet
+ */
+export async function setUserPasswordForOAuth(userId, password) {
+  if (!password || password.length < 6) {
+    const err = new Error("Password must be at least 6 characters long");
+    err.status = STATUS_CODES.BAD_REQUEST;
+    throw err;
+  }
+  const passwordHash = await hashPassword(password);
+  await authRepo.setUserPassword(userId, passwordHash);
+  const updatedUser = await authRepo.findUserById(userId);
+  return updatedUser;
+}
+
+/**
+ * Changes user password by verifying their old password first
+ */
+export async function changeUserPassword(userId, oldPassword, newPassword) {
+  if (!oldPassword) {
+    const err = new Error("Current password is required");
+    err.status = STATUS_CODES.BAD_REQUEST;
+    throw err;
+  }
+  if (!newPassword || newPassword.length < 6) {
+    const err = new Error("New password must be at least 6 characters long");
+    err.status = STATUS_CODES.BAD_REQUEST;
+    throw err;
+  }
+
+  const credentials = await authRepo.getUserCredentials(userId);
+  if (!credentials || !credentials.password_hash) {
+    const err = new Error("No existing password found. Please use Add New Password.");
+    err.status = STATUS_CODES.BAD_REQUEST;
+    throw err;
+  }
+
+  const isOldValid = await verifyPassword(oldPassword, credentials.password_hash);
+  if (!isOldValid) {
+    const err = new Error("Current password is incorrect");
+    err.status = STATUS_CODES.BAD_REQUEST;
+    throw err;
+  }
+
+  const newHash = await hashPassword(newPassword);
+  await authRepo.setUserPassword(userId, newHash);
+  const updatedUser = await authRepo.findUserById(userId);
+  return updatedUser;
+}
+
+
+/**
+ * Requests an OTP for resetting user password
+ */
+export async function requestPasswordResetOtp(email) {
+  if (!email) {
+    const err = new Error("Email is required");
+    err.status = STATUS_CODES.BAD_REQUEST;
+    throw err;
+  }
+  const normalizedEmail = email.trim().toLowerCase();
+  const user = await authRepo.findUserByEmail(normalizedEmail);
+  if (!user) {
+    const err = new Error(MESSAGES.AUTH.USER_NOT_FOUND || "User not found");
+    err.status = STATUS_CODES.NOT_FOUND;
+    throw err;
+  }
+
+  // Generate 6-digit numeric OTP and store in Redis with 10min TTL
+  const otp = generateOtp(6);
+  await storeOtp(normalizedEmail, otp, 600);
+
+  // Dispatch email job via BullMQ
+  await addOtpEmailJob({
+    email: normalizedEmail,
+    otp,
+    purpose: 'Password Reset',
+  });
+
+  return {
+    success: true,
+    message: `Verification OTP has been sent to ${normalizedEmail}`,
+    email: normalizedEmail,
+  };
+}
+
+/**
+ * Verifies OTP and resets user password using Argon2
+ */
+export async function resetPasswordWithOtp({ email, otp, newPassword }) {
+  if (!email || !otp || !newPassword) {
+    const err = new Error("Email, OTP code, and new password are required");
+    err.status = STATUS_CODES.BAD_REQUEST;
+    throw err;
+  }
+
+  if (newPassword.length < 6) {
+    const err = new Error("Password must be at least 6 characters long");
+    err.status = STATUS_CODES.BAD_REQUEST;
+    throw err;
+  }
+
+  const normalizedEmail = email.trim().toLowerCase();
+  const isValidOtp = await verifyOtp(normalizedEmail, otp);
+  if (!isValidOtp) {
+    const err = new Error("Invalid or expired verification code");
+    err.status = STATUS_CODES.BAD_REQUEST;
+    throw err;
+  }
+
+  const user = await authRepo.findUserByEmail(normalizedEmail);
+  if (!user) {
+    const err = new Error(MESSAGES.AUTH.USER_NOT_FOUND || "User not found");
+    err.status = STATUS_CODES.NOT_FOUND;
+    throw err;
+  }
+
+  // Hash new password using Argon2
+  const passwordHash = await hashPassword(newPassword);
+  await authRepo.setUserPassword(user.id, passwordHash);
+
+  // Remove OTP from Redis
+  await invalidateOtp(normalizedEmail);
+
+  return {
+    success: true,
+    message: "Password has been updated successfully",
+  };
+}
+

@@ -51,6 +51,20 @@ export const clubsApi = {
     const response = await api.get(`/clubs/${clubId}`);
     return response.data?.club;
   },
+  async getClubGallery(clubId) {
+    const url = clubId ? `/clubs/${clubId}/gallery` : '/clubs/gallery';
+    const res = await apiClient.get(url);
+    return res.data;
+  },
+  async addClubGallery(data) {
+    const res = await apiClient.post('/clubs/gallery', data);
+    return res.data;
+  },
+  async deleteClubGallery(imageId) {
+    const res = await apiClient.delete(`/clubs/gallery/${imageId}`);
+    return res.data;
+  },
 };
 
 export default clubsApi;
+
