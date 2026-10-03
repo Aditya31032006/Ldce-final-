@@ -5,6 +5,7 @@ const { Pool } = pg;
 
 export const pool = new Pool({
   connectionString: config.DATABASE_URL,
+  options: '-c search_path=app,public',
   max: 10,
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 5000,
@@ -14,7 +15,7 @@ pool.on('connect', () => {
   // Client checked out from pool
 });
 
-pool.on('error', (err, client) => {
+pool.on('error', (err) => {
   console.error('❌ Unexpected error on idle PostgreSQL client:', err.message);
 });
 
