@@ -1,0 +1,39 @@
+@use './variables' as vars;
+.df-back-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.45rem 0.85rem;
+  border-radius: vars.$radius-sm;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  color: #52525b;
+  font-family: inherit;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  margin-bottom: 0.875rem;
+  align-self: flex-start;
+
+  &__icon {
+    width: 15px;
+    height: 15px;
+    transition: transform 0.15s ease;
+  }
+
+  &:hover {
+    background: #f4f4f5;
+    border-color: #d4d4d8;
+    color: #09090b;
+
+    .df-back-button__icon {
+      transform: translateX(-2px);
+    }
+  }
+
+  &:active {
+    transform: scale(0.98);
+  }
+}

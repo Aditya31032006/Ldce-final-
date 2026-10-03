@@ -1,0 +1,86 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+:root {
+  --df-font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --df-page-max-width: 1380px;
+  --df-page-padding: 1.5rem 2rem 3.5rem 2rem;
+  --df-page-padding-mobile: 1rem 1rem 2.5rem 1rem;
+  --df-title-size: 1.875rem;
+  --df-subtitle-size: 0.9375rem;
+  --df-heading-color: #0f172a;
+  --df-text-muted: #64748b;
+  --df-bg-base: #f8fafc;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html,
+body {
+  width: 100%;
+  min-height: 100vh;
+  margin: 0;
+  padding: 0;
+  font-family: var(--df-font-family);
+  background-color: #f8fafc !important;
+  color: #0f172a;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+  overflow-y: scroll;
+  scrollbar-gutter: stable;
+}
+
+#root {
+  min-height: 100vh;
+  width: 100%;
+  background-color: #f8fafc;
+  display: flex;
+  flex-direction: column;
+}
+
+.app-container {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  width: 100%;
+  background-color: #f8fafc;
+}
+
+.app-main-content {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  background-color: #f8fafc;
+  padding-top: 76px;
+}
+
+/* Universal Page Container Standards */
+.df-page-wrapper {
+  width: 100%;
+  min-height: calc(100vh - 76px);
+  padding: var(--df-page-padding);
+  box-sizing: border-box;
+}
+
+.df-page-container {
+  width: 100%;
+  max-width: var(--df-page-max-width);
+  margin: 0 auto;
+  box-sizing: border-box;
+}
+
+@media (max-width: 768px) {
+  .df-page-wrapper {
+    padding: var(--df-page-padding-mobile);
+  }
+}
+
+@keyframes df-spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}

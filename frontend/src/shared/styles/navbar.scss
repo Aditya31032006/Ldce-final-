@@ -1,0 +1,644 @@
+@use './variables' as vars;
+@use './mixins' as mixins;
+
+// DealFlow360 Light Editorial Floating Mega-Navbar
+.df-navbar-wrapper {
+  position: fixed;
+  top: 10px;
+  left: 16px;
+  right: 16px;
+  max-width: calc(100% - 32px);
+  margin: 0 auto;
+  z-index: 1000;
+  font-family: vars.$font-family-base;
+  animation: df-navbar-drop-in 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.df-navbar {
+  display: flex;
+  flex-direction: column;
+  background: rgba(255, 255, 255, 0.96);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid #e5e7eb;
+  border-radius: vars.$radius-lg;
+  box-shadow: vars.$nav-shadow;
+  color: vars.$text-primary;
+  user-select: none;
+  position: relative;
+  transition: box-shadow 0.25s ease, border-color 0.25s ease;
+  // NOTE: overflow must NOT be hidden here — profile dropdown needs to escape the nav bounds
+  overflow: visible;
+
+  &--expanded {
+    border-color: #d1d5db;
+    box-shadow: 0 16px 40px -8px rgba(0, 0, 0, 0.1), 0 2px 8px rgba(0, 0, 0, 0.04);
+  }
+
+  // Top Main Row
+  &__top-row {
+    @include mixins.flex-between;
+    height: 52px;
+    padding: 0 1.15rem;
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  // Brand / Logo Section
+  &__brand {
+    @include mixins.flex-start;
+    gap: 0.625rem;
+    text-decoration: none;
+    color: vars.$text-primary;
+    flex-shrink: 0;
+    cursor: pointer;
+
+    &-logo {
+      @include mixins.flex-center;
+      width: 28px;
+      height: 28px;
+      border-radius: vars.$radius-sm;
+      background: #18181b;
+      color: #ffffff;
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
+      transition: box-shadow 0.15s ease;
+
+      svg {
+        width: 15px;
+        height: 15px;
+        color: #ffffff;
+      }
+    }
+
+    &-title {
+      font-size: 0.9375rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      color: #09090b;
+      white-space: nowrap;
+
+      span.accent {
+        color: #2563eb;
+        font-weight: 800;
+      }
+    }
+
+    &:hover {
+      .df-navbar__brand-logo {
+        background: #000000;
+      }
+    }
+  }
+
+  // Center Group (Sharp Links + Expand Trigger)
+  &__center-group {
+    @include mixins.flex-center;
+    gap: 0.35rem;
+    flex: 1;
+    justify-content: center;
+
+    @media (max-width: vars.$breakpoint-lg) {
+      display: none;
+    }
+  }
+
+  &__primary-links {
+    @include mixins.flex-center;
+    gap: 0.25rem;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  // Sliding indicator container — holds the animated pills behind nav links
+  &__nav-track {
+    position: relative;
+    display: flex;
+    align-items: center;
+  }
+
+  // Active sliding pill — moves with CSS transform on route change
+  &__active-indicator {
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 100%;
+    background: #18181b;
+    border-radius: vars.$radius-sm;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
+    pointer-events: none;
+    z-index: 0;
+    // Spring-like slide animation
+    transition: transform 0.32s cubic-bezier(0.34, 1.56, 0.64, 1),
+      width 0.22s cubic-bezier(0.16, 1, 0.3, 1),
+      opacity 0.18s ease;
+  }
+
+  // Hover highlight — slides between items, fades out when leaving the nav track
+  &__hover-indicator {
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 100%;
+    background: #e4e4e7;
+    border-radius: vars.$radius-sm;
+    pointer-events: none;
+    z-index: 0;
+    // Slides smoothly between items, opacity fades on enter/exit
+    transition: transform 0.16s ease,
+      width 0.16s ease,
+      opacity 0.14s ease;
+  }
+
+  &__nav-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.4rem 0.75rem;
+    border-radius: vars.$radius-sm;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: #52525b;
+    text-decoration: none;
+    transition: color 0.18s ease;
+    position: relative;
+    z-index: 1; // above the indicators
+    border: 1px solid transparent;
+    background: transparent !important; // indicator handles background
+
+    &:hover {
+      color: #09090b;
+    }
+
+    &.active {
+      color: #ffffff;
+    }
+  }
+
+  &__dot-pulse {
+    width: 6px;
+    height: 6px;
+    border-radius: vars.$radius-xs;
+    background: #10b981;
+    box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.2);
+    animation: df-dot-pulse 2s infinite ease-in-out;
+  }
+
+  // Center Expand Trigger (+ Modules Button)
+  &__expand-trigger {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.38rem 0.75rem;
+    background: #f4f4f5;
+    border: 1px solid #e4e4e7;
+    border-radius: vars.$radius-sm;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: #18181b;
+    cursor: pointer;
+    transition: color 0.15s ease, background-color 0.15s ease, border-color 0.15s ease;
+    outline: none;
+
+    .plus-icon {
+      font-size: 0.95rem;
+      font-weight: 700;
+      line-height: 1;
+      color: #2563eb;
+    }
+
+    .chevron {
+      width: 14px;
+      height: 14px;
+      transition: transform 0.25s ease;
+    }
+
+    &:hover {
+      background: #e4e4e7;
+      border-color: #d4d4d8;
+    }
+
+    &.active {
+      background: #18181b;
+      border-color: #18181b;
+      color: #ffffff;
+
+      .plus-icon {
+        color: #60a5fa;
+      }
+
+      .chevron {
+        transform: rotate(180deg);
+        color: #ffffff;
+      }
+    }
+  }
+
+  // User Actions Right Section
+  &__actions {
+    @include mixins.flex-end;
+    gap: 0.75rem;
+    flex-shrink: 0;
+  }
+
+  &__user-container {
+    position: relative;
+    padding: 4px 0;
+
+    &::after {
+      content: '';
+      position: absolute;
+      top: 100%;
+      left: -20px;
+      right: -20px;
+      height: 16px;
+      background: transparent;
+    }
+  }
+
+  &__user-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.25rem 0.6rem 0.25rem 0.3rem;
+    background: #ffffff;
+    border: 1px solid #e5e7eb;
+    border-radius: vars.$radius-sm;
+    cursor: pointer;
+    white-space: nowrap;
+    flex-shrink: 0;
+    transition: color 0.15s ease, background-color 0.15s ease, border-color 0.15s ease;
+
+    &:hover {
+      border-color: #d1d5db;
+      background: #f9fafb;
+    }
+
+    &.active {
+      border-color: #18181b;
+    }
+  }
+
+  &__avatar {
+    width: 24px;
+    height: 24px;
+    border-radius: vars.$radius-xs;
+    background: #18181b;
+    color: #ffffff;
+    font-size: 0.6875rem;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-transform: uppercase;
+  }
+
+  &__role-name {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: #18181b;
+    white-space: nowrap;
+  }
+
+  &__profile-arrow {
+    display: flex;
+    align-items: center;
+    color: #71717a;
+    transition: transform 0.2s ease;
+
+    &.open {
+      transform: rotate(180deg);
+    }
+
+    svg {
+      width: 14px;
+      height: 14px;
+    }
+  }
+
+  // Profile Dropdown Menu — must have z-index above the mega-drawer
+  &__profile-dropdown {
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 0;
+    width: 240px;
+    background: #ffffff;
+    border: 1px solid #e5e7eb;
+    border-radius: vars.$radius-lg;
+    box-shadow: 0 16px 36px -8px rgba(0, 0, 0, 0.12), 0 2px 6px rgba(0, 0, 0, 0.04);
+    padding: 0.5rem;
+    z-index: 1100;
+    animation: df-dropdown-pop 0.18s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+
+  &__profile-header {
+    padding: 0.5rem 0.65rem 0.65rem 0.65rem;
+    border-bottom: 1px solid #f3f4f6;
+    margin-bottom: 0.35rem;
+
+    .name {
+      font-size: 0.875rem;
+      font-weight: 700;
+      color: #09090b;
+    }
+
+    .email {
+      font-size: 0.75rem;
+      color: #71717a;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .company {
+      font-size: 0.75rem;
+      color: #2563eb;
+      margin-top: 0.2rem;
+      font-weight: 600;
+    }
+  }
+
+  &__profile-links {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+  }
+
+  .profile-link-item {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.5rem 0.65rem;
+    border-radius: vars.$radius-xs;
+    font-size: 0.8125rem;
+    color: #3f3f46;
+    text-decoration: none;
+    background: transparent;
+    border: none;
+    width: 100%;
+    text-align: left;
+    cursor: pointer;
+    transition: color 0.12s ease, background-color 0.12s ease;
+
+    svg {
+      width: 15px;
+      height: 15px;
+      color: #71717a;
+    }
+
+    &:hover {
+      background: #f4f4f5;
+      color: #09090b;
+
+      svg {
+        color: #09090b;
+      }
+    }
+
+    &--logout {
+      color: #ef4444;
+
+      svg {
+        color: #ef4444;
+      }
+
+      &:hover {
+        background: #fef2f2;
+        color: #dc2626;
+
+        svg {
+          color: #dc2626;
+        }
+      }
+    }
+  }
+
+  &__signin-btn {
+    padding: 0.4rem 1rem;
+    background: #18181b;
+    color: #ffffff;
+    border-radius: vars.$radius-sm;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    text-decoration: none;
+    transition: background-color 0.15s ease;
+
+    &:hover {
+      background: #000000;
+    }
+  }
+
+  // Soft Animated Mega-Menu Drawer
+  // overflow: hidden here is intentional to clip the expanding drawer content during animation
+  &__mega-drawer {
+    max-height: 0;
+    opacity: 0;
+    visibility: hidden;
+    overflow: hidden;
+    transition: max-height 0.52s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.38s ease, visibility 0.38s ease;
+    border-top: 1px solid transparent;
+    border-radius: 0 0 vars.$radius-lg vars.$radius-lg;
+    background: #ffffff;
+
+    &--open {
+      max-height: 480px;
+      opacity: 1;
+      visibility: visible;
+      overflow: visible;
+      border-top-color: #f3f4f6;
+      padding: 1.25rem 1.25rem 1.5rem 1.25rem;
+    }
+  }
+
+  &__mega-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1.25rem;
+
+    @media (max-width: 1100px) {
+      grid-template-columns: repeat(2, 1fr);
+    }
+
+    @media (max-width: 640px) {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  &__mega-col {
+    display: flex;
+    flex-direction: column;
+    gap: 0.65rem;
+
+    &-title {
+      h4 {
+        font-size: 0.8125rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        color: #09090b;
+        margin: 0;
+      }
+
+      span {
+        font-size: 0.75rem;
+        color: #71717a;
+      }
+    }
+  }
+
+  &__mega-items {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    position: relative;
+    z-index: 1;
+  }
+
+  // Vertical hover pill track for each mega column
+  &__mega-items-track {
+    position: relative;
+  }
+
+  // Sliding vertical hover pill inside mega menu columns
+  &__mega-hover-indicator {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    border-radius: vars.$radius-sm;
+    background: #e4e4e7;
+    pointer-events: none;
+    z-index: 0;
+    transition: transform 0.18s ease,
+      height 0.18s ease,
+      opacity 0.14s ease;
+  }
+
+  &__mega-card {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.65rem;
+    padding: 0.55rem 0.65rem;
+    border-radius: vars.$radius-sm;
+    text-decoration: none;
+    border: 1px solid transparent;
+    position: relative;
+    z-index: 1; // above the hover indicator
+    // Only transition icon & text color — background handled by indicator
+    transition: border-color 0.15s ease;
+
+    .icon-wrap {
+      width: 28px;
+      height: 28px;
+      border-radius: vars.$radius-sm;
+      background: #f4f4f5;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #18181b;
+      flex-shrink: 0;
+      transition: color 0.15s ease, background-color 0.15s ease;
+
+      svg {
+        width: 15px;
+        height: 15px;
+      }
+    }
+
+    .text-wrap {
+      display: flex;
+      flex-direction: column;
+      gap: 0.1rem;
+
+      .item-name {
+        font-size: 0.8125rem;
+        font-weight: 600;
+        color: #18181b;
+        display: flex;
+        align-items: center;
+        gap: 0.35rem;
+        transition: color 0.15s ease;
+
+        .pulse-dot {
+          width: 5px;
+          height: 5px;
+          border-radius: vars.$radius-xs;
+          background: #10b981;
+        }
+      }
+
+      .item-desc {
+        font-size: 0.6875rem;
+        color: #71717a;
+        line-height: 1.3;
+      }
+    }
+
+    &:hover {
+      border-color: #e4e4e7;
+
+      .icon-wrap {
+        background: #18181b;
+        color: #ffffff;
+      }
+
+      .text-wrap .item-name {
+        color: #000000;
+      }
+    }
+
+    &.active {
+      background: #f4f7fc;
+      border-color: #bfdbfe;
+
+      .icon-wrap {
+        background: #2563eb;
+        color: #ffffff;
+      }
+
+      .text-wrap .item-name {
+        color: #1d4ed8;
+      }
+    }
+  }
+}
+
+// Keyframe Animations
+@keyframes df-navbar-drop-in {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes df-dropdown-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.98) translateY(-4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes df-dot-pulse {
+
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.6;
+  }
+}
