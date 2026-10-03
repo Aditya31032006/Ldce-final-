@@ -6,8 +6,21 @@ export async function resolveClubScope(req, res, next) {
     // 1. Explicit header, param, or query
     const explicitClubId = req.headers['x-club-id'] || req.params.clubId || req.query.clubId;
     if (explicitClubId && explicitClubId !== 'undefined' && explicitClubId !== 'null') {
-      req.clubId = explicitClubId;
-      return next();
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(explicitClubId);
+      if (isUuid) {
+        req.clubId = explicitClubId;
+        return next();
+      } else {
+        try {
+          const slugRes = await pool.query('SELECT id FROM app.clubs WHERE slug = $1', [explicitClubId.trim().toLowerCase()]);
+          if (slugRes.rows.length > 0) {
+            req.clubId = slugRes.rows[0].id;
+            return next();
+          }
+        } catch (err) {
+          console.warn('resolveClubScope: error resolving slug:', err.message);
+        }
+      }
     }
 
     // 2. User already authenticated by verifyToken

@@ -49,8 +49,7 @@ export default function UserDashboard() {
   const joinedClubIds = new Set(myClubs.map((c) => c.id));
 
   const handleSelectClub = (club) => {
-    changeClub(club.id, club.user_role || 'member');
-    navigate('/courts');
+    navigate(`/clubs/${club.slug || club.id}`);
   };
 
   // Time-of-day greeting (memoized)

@@ -28,6 +28,7 @@ const FinanceDashboard = lazy(() => import('../features/finance/pages/FinanceDas
 const StaffManagement = lazy(() => import('../features/hr/pages/StaffManagement.jsx'));
 const ReportsDashboard = lazy(() => import('../features/reports/pages/ReportsDashboard.jsx'));
 const ClubsList = lazy(() => import('../features/clubs/pages/ClubsList.jsx'));
+const ClubDetailsPage = lazy(() => import('../features/clubs/pages/ClubDetailsPage.jsx'));
 
 // Sleek loading fallback for Suspense transitions matching Court & Ledger aesthetic
 const RouteLoader = () => (
@@ -119,6 +120,15 @@ export const router = createBrowserRouter([
   {
     path: '/landing',
     element: withSuspense(LandingPage),
+  },
+  // Public Club View (Accessible by buyers, visitors, and members)
+  {
+    path: '/clubs/:clubId',
+    element: withSuspense(ClubDetailsPage),
+  },
+  {
+    path: '/club/:slug',
+    element: withSuspense(ClubDetailsPage),
   },
 
   // Protected Routes (Require active authentication session)

@@ -8,7 +8,7 @@ export const GET_CLUB_DETAILS = `
          latitude, longitude, timezone, currency, gstin, pan, logo_url, cover_url, brand_color, 
          status, is_public, owner_user_id, created_at, updated_at
   FROM app.clubs
-  WHERE id = $1;
+  WHERE id::text = $1 OR slug = $1;
 `;
 
 export const UPDATE_CLUB_DETAILS = `
@@ -159,4 +159,52 @@ export const DELETE_CLUB_GALLERY_IMAGE = `
   WHERE club_id = $1 AND id = $2
   RETURNING id, club_id;
 `;
+
+export const GET_CLUB_SPORTS = `
+  SELECT id, name, description, icon, sort_order
+  FROM app.sports
+  WHERE club_id = $1 AND is_active = true
+  ORDER BY sort_order ASC, name ASC;
+`;
+
+export const GET_CLUB_COURTS_OVERVIEW = `
+  SELECT c.id, c.name, c.is_indoor, c.surface, c.max_players,
+         s.name AS sport_name, s.icon AS sport_icon
+  FROM app.courts c
+  LEFT JOIN app.sports s ON c.sport_id = s.id
+  WHERE c.club_id = $1 AND c.is_active = true
+  ORDER BY c.sort_order ASC, c.name ASC;
+`;
+
+export const GET_CLUB_PUBLIC_PLANS = `
+  SELECT p.*,
+         COALESCE(
+           (SELECT json_agg(json_build_object('id', b.id, 'label', b.label, 'sort_order', b.sort_order) ORDER BY b.sort_order ASC)
+            FROM app.plan_benefits b WHERE b.plan_id = p.id AND b.club_id = p.club_id),
+           '[]'::json
+         ) AS benefits
+  FROM app.plans p
+  WHERE p.club_id = $1 AND p.is_active = true AND p.is_public = true
+  ORDER BY p.tier_rank DESC, p.price ASC;
+`;
+
+export const GET_USER_MEMBERSHIP_STATUS = `
+  SELECT m.id AS member_id, m.member_code, m.status AS member_status,
+         ms.id AS membership_id, ms.plan_id, ms.start_date, ms.end_date, ms.status AS membership_status,
+         (ms.end_date - current_date)::int AS days_remaining,
+         p.name AS plan_name, p.color AS plan_color, p.court_free,
+         p.court_discount_percent, p.shop_discount_percent, p.bar_discount_percent,
+         p.max_bookings_per_day, p.advance_booking_days
+  FROM app.members m
+  LEFT JOIN LATERAL (
+    SELECT id, plan_id, start_date, end_date, status
+    FROM app.memberships
+    WHERE member_id = m.id AND club_id = m.club_id AND status = 'active'
+    ORDER BY end_date DESC
+    LIMIT 1
+  ) ms ON true
+  LEFT JOIN app.plans p ON p.id = ms.plan_id
+  WHERE m.club_id = $1 AND m.user_id = $2;
+`;
+
 

@@ -13,11 +13,53 @@ export async function registerClub(userId, { name, slug, city, phone, email, tim
   });
 }
 
-export async function getClubDetails(userId, clubId) {
-  return withTenantTransaction(userId, clubId, async (client) => {
-    const res = await client.query(queries.GET_CLUB_DETAILS, [clubId]);
-    return res.rows[0] || null;
-  });
+export async function getClubDetails(userId, clubIdOrSlug) {
+  const clubRes = await pool.query(queries.GET_CLUB_DETAILS, [clubIdOrSlug]);
+  const club = clubRes.rows[0];
+  if (!club) return null;
+
+  const actualClubId = club.id;
+
+  const [sportsRes, courtsRes, plansRes, galleryRes, memberRes] = await Promise.all([
+    pool.query(queries.GET_CLUB_SPORTS, [actualClubId]),
+    pool.query(queries.GET_CLUB_COURTS_OVERVIEW, [actualClubId]),
+    pool.query(queries.GET_CLUB_PUBLIC_PLANS, [actualClubId]),
+    pool.query(queries.GET_CLUB_GALLERY, [actualClubId]),
+    userId ? pool.query(queries.GET_USER_MEMBERSHIP_STATUS, [actualClubId, userId]) : Promise.resolve({ rows: [] }),
+  ]);
+
+  const sports = sportsRes.rows || [];
+  const courts = courtsRes.rows || [];
+  const plans = plansRes.rows || [];
+  const gallery = galleryRes.rows || [];
+  const membership = memberRes.rows[0] || null;
+
+  return {
+    ...club,
+    sports,
+    courts,
+    total_courts: courts.length,
+    plans,
+    accepting_members: plans.length > 0,
+    gallery,
+    membership: membership ? {
+      is_member: true,
+      member_id: membership.member_id,
+      member_code: membership.member_code,
+      member_status: membership.member_status,
+      membership_id: membership.membership_id,
+      plan_id: membership.plan_id,
+      plan_name: membership.plan_name,
+      plan_color: membership.plan_color,
+      start_date: membership.start_date,
+      end_date: membership.end_date,
+      days_remaining: membership.days_remaining != null ? Number(membership.days_remaining) : null,
+      needs_renewal: membership.days_remaining != null && Number(membership.days_remaining) <= 7,
+      max_bookings_per_day: membership.max_bookings_per_day,
+      court_free: membership.court_free,
+      court_discount_percent: membership.court_discount_percent,
+    } : { is_member: false },
+  };
 }
 
 export async function updateClubDetails(userId, clubId, updates) {
@@ -94,7 +136,7 @@ export async function getPublicClubs({ search = '', page = 1, limit = 9 }) {
   };
 }
 
-export async function joinClub(userId, clubId) {
+export async function joinClub(userId, clubId, planId = null) {
   // Fetch user info for name, email, phone
   const userRes = await pool.query('SELECT full_name, email, phone FROM app.users WHERE id = $1', [userId]);
   if (!userRes.rows.length) {
@@ -114,8 +156,36 @@ export async function joinClub(userId, clubId) {
     u.email,
     u.phone || null,
   ]);
+  const member = res.rows[0];
 
-  return res.rows[0];
+  let membership = null;
+  if (planId) {
+    const planRes = await pool.query('SELECT * FROM app.plans WHERE id = $1 AND club_id = $2', [planId, clubId]);
+    if (planRes.rows.length > 0) {
+      const plan = planRes.rows[0];
+      const durationDays = plan.duration_days || 30;
+      const price = plan.price || 0;
+
+      // Close previous active memberships to respect GiST exclusion constraint
+      await pool.query(
+        "UPDATE app.memberships SET status = 'cancelled', updated_at = now() WHERE club_id = $1 AND member_id = $2 AND status = 'active'",
+        [clubId, member.id]
+      );
+
+      const msRes = await pool.query(`
+        INSERT INTO app.memberships (
+          club_id, member_id, plan_id, start_date, end_date, status, price_paid, created_by
+        ) VALUES (
+          $1, $2, $3, CURRENT_DATE, CURRENT_DATE + ($4 || ' days')::interval, 'active', $5, $6
+        )
+        RETURNING *;
+      `, [clubId, member.id, plan.id, durationDays, price, userId]);
+
+      membership = msRes.rows[0];
+    }
+  }
+
+  return { member, membership };
 }
 
 export async function getClubGallery(userId, clubId) {
