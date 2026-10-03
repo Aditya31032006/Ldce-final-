@@ -36,7 +36,6 @@ router.get("/:clubId", resolveClubScope, getClubDetailsController);
 // Club gallery public read
 router.get("/:clubId/gallery", resolveClubScope, getClubGalleryController);
 
-<<<<<<< HEAD
 // Authenticated routes
 router.use(verifyToken);
 
@@ -50,10 +49,8 @@ router.use(resolveClubScope);
 router.get("/gallery", getClubGalleryController);
 router.post("/gallery", requireRole('owner', 'admin', 'manager'), addClubGalleryController);
 router.delete("/gallery/:imageId", requireRole('owner', 'admin', 'manager'), deleteClubGalleryController);
-=======
 // Join a club as a member
 router.post("/:clubId/join", verifyToken, joinClubController);
->>>>>>> f6853aee10fa09bcb5b55e9d06ca22e550bf4dd1
 
 // ───── Scoped Club Management (Owner/Manager) ─────
 // These use club scope resolved from request context (header/cookie), not URL param

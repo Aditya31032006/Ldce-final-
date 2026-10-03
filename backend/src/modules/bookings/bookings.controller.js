@@ -15,12 +15,8 @@ export async function createBookingController(req, res, next) {
     if (req.user.role === 'member') {
       req.body.member_id = req.user.memberId;
       req.body.channel = 'online';
-<<<<<<< HEAD
       req.body.status = 'pending';
       // The DB triggers trg_a_booking_member_pricing and trg_b_booking_rules will handle pricing and limits.
-=======
-      req.body.status = 'pending'; 
->>>>>>> f6853aee10fa09bcb5b55e9d06ca22e550bf4dd1
     } else {
       req.body.channel = req.body.channel || 'counter';
     }
