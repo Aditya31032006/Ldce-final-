@@ -1,9 +1,9 @@
 import { Router } from "express";
 import { verifyToken, requireRole } from "../../shared/middleware/auth.middleware.js";
 import { resolveClubScope } from "../../shared/middleware/club-scope.middleware.js";
-import { 
-  registerClubController, 
-  getClubDetailsController, 
+import {
+  registerClubController,
+  getClubDetailsController,
   updateClubDetailsController,
   getClubSettingsController,
   updateClubSettingsController,
@@ -36,8 +36,24 @@ router.get("/:clubId", resolveClubScope, getClubDetailsController);
 // Club gallery public read
 router.get("/:clubId/gallery", resolveClubScope, getClubGalleryController);
 
+<<<<<<< HEAD
+// Authenticated routes
+router.use(verifyToken);
+
+// Create club (doesn't need club scope yet)
+router.post("/register", registerClubController);
+
+// Scope by club for subsequent routes
+router.use(resolveClubScope);
+
+// Gallery management for club (Owner and Admin for modifications)
+router.get("/gallery", getClubGalleryController);
+router.post("/gallery", requireRole('owner', 'admin', 'manager'), addClubGalleryController);
+router.delete("/gallery/:imageId", requireRole('owner', 'admin', 'manager'), deleteClubGalleryController);
+=======
 // Join a club as a member
 router.post("/:clubId/join", verifyToken, joinClubController);
+>>>>>>> f6853aee10fa09bcb5b55e9d06ca22e550bf4dd1
 
 // ───── Scoped Club Management (Owner/Manager) ─────
 // These use club scope resolved from request context (header/cookie), not URL param

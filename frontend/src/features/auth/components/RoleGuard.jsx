@@ -1,6 +1,7 @@
 import React from 'react';
 import { Navigate, Outlet, Link, useLocation } from 'react-router';
 import useAuth from '../hook/useAuth.js';
+import RouteLoader from '../../../shared/components/RouteLoader.jsx';
 
 /**
  * RoleGuard Component:
@@ -89,6 +90,10 @@ export default function RoleGuard({ allowedRoles = [], fallback = null, redirect
     );
   }
 
-  return <Outlet />;
+  return (
+    <Suspense fallback={<RouteLoader message="Loading restricted area..." />}>
+      <Outlet />
+    </Suspense>
+  );
 }
 

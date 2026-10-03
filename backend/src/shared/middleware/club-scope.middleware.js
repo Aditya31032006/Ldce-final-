@@ -23,11 +23,18 @@ export async function resolveClubScope(req, res, next) {
       }
     }
 
+<<<<<<< HEAD
+  // If no club context can be resolved and the user is a super_admin, we might allow it (or let the route handle it)
+  if (req.user && req.user.role === 'super_admin') {
+    return next();
+  }
+=======
     // 2. User already authenticated by verifyToken
     if (req.user && req.user.clubId) {
       req.clubId = req.user.clubId;
       return next();
     }
+>>>>>>> f6853aee10fa09bcb5b55e9d06ca22e550bf4dd1
 
     // 3. If req.user is not yet set, inspect cookies or authorization header
     if (!req.user) {
