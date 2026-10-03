@@ -99,13 +99,21 @@ export const router = createBrowserRouter([
     path: '/landing',
     element: withSuspense(LandingPage),
   },
-  // Public Club View (Accessible by buyers, visitors, and members)
+  // Public & Scoped Club Portal (Accessible by buyers, visitors, and members)
   {
     path: '/clubs/:clubId',
     element: withSuspense(ClubDetailsPage),
   },
   {
     path: '/club/:slug',
+    element: withSuspense(ClubDetailsPage),
+  },
+  {
+    path: '/clubs/:clubId/:tab',
+    element: withSuspense(ClubDetailsPage),
+  },
+  {
+    path: '/club/:slug/:tab',
     element: withSuspense(ClubDetailsPage),
   },
 
@@ -124,44 +132,36 @@ export const router = createBrowserRouter([
         element: <UserDashboardRoute />,
       },
 
-      // Shared Member & Front-Desk Play Operations
-      {
-        path: '/bookings',
-        element: withSuspense(BookingsList),
-      },
-      {
-        path: '/bookings/calendar',
-        element: withSuspense(BookingCalendar),
-      },
-      {
-        path: '/courts',
-        element: withSuspense(CourtsManagement),
-      },
-      {
-        path: '/plans',
-        element: withSuspense(MembershipPlans),
-      },
-      {
-        path: '/social-sessions',
-        element: withSuspense(SocialSessionsList),
-      },
-      {
-        path: '/bar',
-        element: withSuspense(BarPOS),
-      },
-      {
-        path: '/orders',
-        element: withSuspense(OrdersList),
-      },
+      // User Profile
       {
         path: '/profile',
         element: withSuspense(Profile),
       },
 
-      // Front Desk & Management Protected Operations (Hidden from normal members)
+      // Front Desk & Staff Management Operations (Hidden and blocked from normal users)
       {
         element: <RoleGuard allowedRoles={['owner', 'manager', 'admin', 'front_desk']} />,
         children: [
+          {
+            path: '/bookings',
+            element: withSuspense(BookingsList),
+          },
+          {
+            path: '/bookings/calendar',
+            element: withSuspense(BookingCalendar),
+          },
+          {
+            path: '/courts',
+            element: withSuspense(CourtsManagement),
+          },
+          {
+            path: '/plans',
+            element: withSuspense(MembershipPlans),
+          },
+          {
+            path: '/social-sessions',
+            element: withSuspense(SocialSessionsList),
+          },
           {
             path: '/members',
             element: withSuspense(MembersList),
@@ -173,13 +173,21 @@ export const router = createBrowserRouter([
         ],
       },
 
-      // Shop Staff & Management Inventory Operations (Hidden from normal members)
+      // Shop & Bar Staff Protected Operations (Hidden from normal members)
       {
-        element: <RoleGuard allowedRoles={['owner', 'manager', 'admin', 'shop_staff']} />,
+        element: <RoleGuard allowedRoles={['owner', 'manager', 'admin', 'shop_staff', 'bar_staff']} />,
         children: [
           {
             path: '/inventory',
             element: withSuspense(InventoryList),
+          },
+          {
+            path: '/bar',
+            element: withSuspense(BarPOS),
+          },
+          {
+            path: '/orders',
+            element: withSuspense(OrdersList),
           },
         ],
       },

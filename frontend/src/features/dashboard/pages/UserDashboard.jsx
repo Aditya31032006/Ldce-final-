@@ -49,7 +49,10 @@ export default function UserDashboard() {
   const joinedClubIds = new Set(myClubs.map((c) => c.id));
 
   const handleSelectClub = (club) => {
-    navigate(`/clubs/${club.slug || club.id}`);
+    if (changeClub) {
+      changeClub(club.id, club.user_role || 'member');
+    }
+    navigate(`/club/${club.slug || club.id}`);
   };
 
   // Time-of-day greeting (memoized)
@@ -164,19 +167,12 @@ export default function UserDashboard() {
                     <button
                       type="button"
                       className="btn-enter"
+                      style={{ width: '100%', justifyContent: 'center' }}
                       onClick={() => handleSelectClub(club)}
                     >
-                      <span>Enter Club</span>
+                      <span>View Club Portal</span>
                       <ArrowRight size={14} />
                     </button>
-                    <Link
-                      to="/courts"
-                      onClick={() => changeClub(club.id, club.user_role || 'member')}
-                      className="btn-book"
-                    >
-                      <Calendar size={14} />
-                      <span>Book</span>
-                    </Link>
                   </div>
                 </div>
               </div>

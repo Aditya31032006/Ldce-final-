@@ -1,5 +1,5 @@
 import React from 'react';
-import { NavLink, useNavigate } from 'react-router';
+import { NavLink, useNavigate, useLocation } from 'react-router';
 import {
   LayoutDashboard,
   Trophy,
@@ -18,6 +18,7 @@ import {
   Settings,
   LogOut,
   X,
+  ArrowLeft,
 } from 'lucide-react';
 
 import useAuth from '../../../features/auth/hook/useAuth.js';
@@ -40,19 +41,19 @@ const NAVIGATION_SECTIONS = [
         label: 'Courts',
         path: '/courts',
         icon: Trophy,
-        roles: ['owner', 'manager', 'admin', 'front_desk', 'member', 'public'],
+        roles: ['owner', 'manager', 'admin', 'front_desk'],
       },
       {
         label: 'Bookings',
         path: '/bookings',
         icon: Calendar,
-        roles: ['owner', 'manager', 'admin', 'front_desk', 'member'],
+        roles: ['owner', 'manager', 'admin', 'front_desk'],
       },
       {
         label: 'Social Play',
         path: '/social-sessions',
         icon: Users,
-        roles: ['owner', 'manager', 'admin', 'front_desk', 'member'],
+        roles: ['owner', 'manager', 'admin', 'front_desk'],
       },
     ],
   },
@@ -69,7 +70,7 @@ const NAVIGATION_SECTIONS = [
         label: 'Membership Plans',
         path: '/plans',
         icon: ShieldCheck,
-        roles: ['owner', 'manager', 'admin', 'front_desk', 'member'],
+        roles: ['owner', 'manager', 'admin', 'front_desk'],
       },
       {
         label: 'Leads CRM',
@@ -92,7 +93,7 @@ const NAVIGATION_SECTIONS = [
         label: 'Online Orders',
         path: '/orders',
         icon: ShoppingBag,
-        roles: ['owner', 'manager', 'admin', 'shop_staff', 'member'],
+        roles: ['owner', 'manager', 'admin', 'shop_staff'],
       },
     ],
   },
@@ -103,7 +104,7 @@ const NAVIGATION_SECTIONS = [
         label: 'Bar POS & Orders',
         path: '/bar',
         icon: Coffee,
-        roles: ['owner', 'manager', 'admin', 'bar_staff', 'kitchen', 'front_desk', 'member'],
+        roles: ['owner', 'manager', 'admin', 'bar_staff', 'kitchen', 'front_desk'],
       },
     ],
   },
@@ -146,35 +147,140 @@ const NAVIGATION_SECTIONS = [
 export default function Sidebar({ isOpen, onClose }) {
   const { user, role, clubs, clubId, logout } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
 
   const userRole = (role || 'public').toLowerCase();
   const isNormalUser = userRole === 'member' || userRole === 'public';
 
+  // Detect if current route is inside a specific club (/club/:slug or /clubs/:clubId)
+  const clubRouteMatch = location.pathname.match(/^\/(?:club|clubs)\/([^/]+)/);
+  const activeClubSlug = clubRouteMatch ? clubRouteMatch[1] : null;
+
   // Find active club metadata
-  const currentClub = clubs?.find((c) => c.id === clubId) || {
-    name: user?.club_name || 'Champions Club',
-    city: 'Ahmedabad',
-    code: 'LDCE',
-  };
+  const activeClub = (activeClubSlug && clubs?.find((c) => c.slug === activeClubSlug || c.id === activeClubSlug))
+    || clubs?.find((c) => c.id === clubId)
+    || {
+      name: user?.club_name || 'Champions Club',
+      city: 'Ahmedabad',
+      code: 'LDCE',
+    };
 
   const handleLogout = async () => {
     await logout();
     navigate('/login');
   };
 
-  // Filter sections and items based on current authenticated role
-  const filteredSections = NAVIGATION_SECTIONS.map((section) => ({
+  // Base staff sections
+  const staffSections = NAVIGATION_SECTIONS.map((section) => ({
     ...section,
     items: section.items
       .filter((item) => item.roles.includes(userRole))
       .map((item) => {
         if (item.label === 'Dashboard' && isNormalUser) {
-          return { ...item, path: '/user/dashboard' };
+          return { ...item, label: 'My Clubs & Directory', path: '/user/dashboard' };
         }
         return item;
       }),
   })).filter((section) => section.items.length > 0);
 
+  // Scoped Club-specific routes for joined member inside a club
+  const clubSpecificSections = activeClubSlug ? [
+    {
+      title: activeClub.name,
+      items: [
+        {
+          label: 'Club Portal',
+          path: `/club/${activeClubSlug}`,
+          icon: LayoutDashboard,
+        },
+        {
+          label: 'Courts',
+          path: `/club/${activeClubSlug}/courts`,
+          icon: Trophy,
+        },
+        {
+          label: 'Bookings',
+          path: `/club/${activeClubSlug}/bookings`,
+          icon: Calendar,
+        },
+        {
+          label: 'POS',
+          path: `/club/${activeClubSlug}/pos`,
+          icon: Coffee,
+        },
+        {
+          label: 'Shop',
+          path: `/club/${activeClubSlug}/shop`,
+          icon: ShoppingBag,
+        },
+        {
+          label: 'Orders',
+          path: `/club/${activeClubSlug}/orders`,
+          icon: Warehouse,
+        },
+        {
+          label: 'My Membership',
+          path: `/club/${activeClubSlug}/membership`,
+          icon: IdCard,
+        },
+      ],
+    },
+    {
+      title: 'Navigation',
+      items: [
+        {
+          label: 'All Clubs Directory',
+          path: '/user/dashboard',
+          icon: ArrowLeft,
+        },
+        {
+          label: 'My Profile',
+          path: '/profile',
+          icon: Users,
+        },
+      ],
+    },
+  ] : null;
+
+  // Select appropriate navigation hierarchy
+  const filteredSections = isNormalUser
+    ? (activeClubSlug
+        ? clubSpecificSections
+        : [
+            {
+              title: 'Main Menu',
+              items: [
+                {
+                  label: 'My Clubs & Directory',
+                  path: '/user/dashboard',
+                  icon: LayoutDashboard,
+                },
+              ],
+            },
+            ...(clubs && clubs.length > 0
+              ? [
+                  {
+                    title: 'Joined Clubs',
+                    items: clubs.map((c) => ({
+                      label: c.name,
+                      path: `/club/${c.slug || c.id}`,
+                      icon: Building2,
+                    })),
+                  },
+                ]
+              : []),
+            {
+              title: 'Account',
+              items: [
+                {
+                  label: 'My Profile',
+                  path: '/profile',
+                  icon: IdCard,
+                },
+              ],
+            },
+          ])
+    : staffSections;
 
   return (
     <aside className={`cl-app-layout__sidebar ${isOpen ? 'cl-app-layout__sidebar--mobile-open' : ''}`}>
@@ -182,11 +288,11 @@ export default function Sidebar({ isOpen, onClose }) {
       <div className="cl-app-layout__sidebar-header">
         <div className="club-profile-pill">
           <div className="logo-icon">
-            {currentClub.name?.charAt(0)?.toUpperCase() || 'C'}
+            {activeClub.name?.charAt(0)?.toUpperCase() || 'C'}
           </div>
           <div className="club-texts">
-            <span className="name">{currentClub.name}</span>
-            <span className="city">{currentClub.city || 'Clubhouse'}</span>
+            <span className="name">{activeClub.name}</span>
+            <span className="city">{activeClubSlug ? 'Club Member Portal' : (activeClub.city || 'Clubhouse')}</span>
           </div>
         </div>
 

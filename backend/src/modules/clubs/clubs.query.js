@@ -136,7 +136,7 @@ export const JOIN_CLUB_AS_MEMBER = `
     $6, 
     'active'
   )
-  ON CONFLICT (club_id, user_id) 
+  ON CONFLICT (club_id, user_id) WHERE (user_id IS NOT NULL)
   DO UPDATE SET status = 'active', updated_at = now()
   RETURNING *;
 `;

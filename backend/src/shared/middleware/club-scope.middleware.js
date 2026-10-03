@@ -3,7 +3,33 @@ import { pool } from '../../config/database.js';
 
 export async function resolveClubScope(req, res, next) {
   try {
-    // 1. Explicit header, param, or query
+    // 0. If req.user is not yet set, inspect cookies or authorization header first
+    if (!req.user) {
+      let token = req.cookies?.token;
+      if (!token && req.headers?.authorization) {
+        const parts = req.headers.authorization.split(' ');
+        if (parts.length === 2 && parts[0] === 'Bearer') {
+          token = parts[1];
+        }
+      }
+      if (token) {
+        try {
+          const payload = verifyJwt(token);
+          if (payload && payload.id) {
+            req.user = {
+              id: payload.id,
+              email: payload.email,
+              role: payload.role || 'public',
+              clubId: payload.clubId || null,
+            };
+          }
+        } catch {
+          // Token invalid/expired - proceed to fallback
+        }
+      }
+    }
+
+    // 1. Explicit header, param, or query takes priority for tenant routing
     const explicitClubId = req.headers['x-club-id'] || req.params.clubId || req.query.clubId;
     if (explicitClubId && explicitClubId !== 'undefined' && explicitClubId !== 'null') {
       const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(explicitClubId);
@@ -23,7 +49,7 @@ export async function resolveClubScope(req, res, next) {
       }
     }
 
-    // 2. User already authenticated by verifyToken
+    // 2. User already authenticated with assigned clubId
     if (req.user && req.user.clubId) {
       req.clubId = req.user.clubId;
       return next();
@@ -32,36 +58,6 @@ export async function resolveClubScope(req, res, next) {
     // If no club context can be resolved and the user is a super_admin, we might allow it (or let the route handle it)
     if (req.user && req.user.role === 'super_admin') {
       return next();
-    }
-
-    // 3. If req.user is not yet set, inspect cookies or authorization header
-    if (!req.user) {
-      let token = req.cookies?.token;
-      if (!token && req.headers?.authorization) {
-        const parts = req.headers.authorization.split(' ');
-        if (parts.length === 2 && parts[0] === 'Bearer') {
-          token = parts[1];
-        }
-      }
-      if (token) {
-        try {
-          const payload = verifyJwt(token);
-          if (payload && payload.id) {
-            req.user = {
-              id: payload.id,
-              email: payload.email,
-              role: payload.role || 'public',
-              clubId: payload.clubId || null,
-            };
-            if (req.user.clubId) {
-              req.clubId = req.user.clubId;
-              return next();
-            }
-          }
-        } catch {
-          // Token invalid/expired - proceed to fallback
-        }
-      }
     }
 
     // 4. If user is authenticated but clubId was null, find from user's clubs in DB

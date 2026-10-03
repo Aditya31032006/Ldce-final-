@@ -166,9 +166,9 @@ export async function joinClub(userId, clubId, planId = null) {
       const durationDays = plan.duration_days || 30;
       const price = plan.price || 0;
 
-      // Close previous active memberships to respect GiST exclusion constraint
+      // Close previous active/scheduled memberships to respect GiST exclusion constraint
       await pool.query(
-        "UPDATE app.memberships SET status = 'cancelled', updated_at = now() WHERE club_id = $1 AND member_id = $2 AND status = 'active'",
+        "UPDATE app.memberships SET status = 'cancelled', updated_at = now() WHERE club_id = $1 AND member_id = $2 AND status IN ('active', 'scheduled')",
         [clubId, member.id]
       );
 
@@ -176,7 +176,7 @@ export async function joinClub(userId, clubId, planId = null) {
         INSERT INTO app.memberships (
           club_id, member_id, plan_id, start_date, end_date, status, price_paid, created_by
         ) VALUES (
-          $1, $2, $3, CURRENT_DATE, CURRENT_DATE + ($4 || ' days')::interval, 'active', $5, $6
+          $1, $2, $3, CURRENT_DATE, (CURRENT_DATE + ($4 || ' days')::interval)::date, 'active', $5, $6
         )
         RETURNING *;
       `, [clubId, member.id, plan.id, durationDays, price, userId]);
