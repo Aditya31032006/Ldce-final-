@@ -19,6 +19,8 @@ import { financeRouter } from './modules/finance/index.js';
 import { reportsRouter } from './modules/reports/index.js';
 import { hrRouter } from './modules/hr/index.js';
 import { notificationsRouter } from './modules/notifications/index.js';
+import { sportsRouter } from './modules/sports/index.js';
+import { courtRatesRouter } from './modules/court-rates/index.js';
 import { config } from './config/config.js';
 
 export const app = express();
@@ -61,5 +63,7 @@ app.use('/api/finance', financeRouter);
 app.use('/api/reports', reportsRouter);
 app.use('/api/hr', hrRouter);
 app.use('/api/notifications', notificationsRouter);
+app.use('/api/sports', sportsRouter);
+app.use('/api/court-rates', courtRatesRouter);
 
 app.use(errorHandler);

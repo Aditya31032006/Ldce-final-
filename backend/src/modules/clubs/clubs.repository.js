@@ -1,6 +1,7 @@
 import * as queries from './clubs.query.js';
 import { withTenantTransaction } from '../../shared/utils/transaction.util.js';
 import { pool } from '../../config/database.js';
+import { addWelcomeEmailJob } from '../../../jobs/emailQueue.js';
 
 export async function registerClub(userId, { name, slug, city, phone, email, timezone }) {
   // We use the owner role (superuser) or a public role to register since the club_app 
@@ -13,11 +14,53 @@ export async function registerClub(userId, { name, slug, city, phone, email, tim
   });
 }
 
-export async function getClubDetails(userId, clubId) {
-  return withTenantTransaction(userId, clubId, async (client) => {
-    const res = await client.query(queries.GET_CLUB_DETAILS, [clubId]);
-    return res.rows[0] || null;
-  });
+export async function getClubDetails(userId, clubIdOrSlug) {
+  const clubRes = await pool.query(queries.GET_CLUB_DETAILS, [clubIdOrSlug]);
+  const club = clubRes.rows[0];
+  if (!club) return null;
+
+  const actualClubId = club.id;
+
+  const [sportsRes, courtsRes, plansRes, galleryRes, memberRes] = await Promise.all([
+    pool.query(queries.GET_CLUB_SPORTS, [actualClubId]),
+    pool.query(queries.GET_CLUB_COURTS_OVERVIEW, [actualClubId]),
+    pool.query(queries.GET_CLUB_PUBLIC_PLANS, [actualClubId]),
+    pool.query(queries.GET_CLUB_GALLERY, [actualClubId]),
+    userId ? pool.query(queries.GET_USER_MEMBERSHIP_STATUS, [actualClubId, userId]) : Promise.resolve({ rows: [] }),
+  ]);
+
+  const sports = sportsRes.rows || [];
+  const courts = courtsRes.rows || [];
+  const plans = plansRes.rows || [];
+  const gallery = galleryRes.rows || [];
+  const membership = memberRes.rows[0] || null;
+
+  return {
+    ...club,
+    sports,
+    courts,
+    total_courts: courts.length,
+    plans,
+    accepting_members: plans.length > 0,
+    gallery,
+    membership: membership ? {
+      is_member: true,
+      member_id: membership.member_id,
+      member_code: membership.member_code,
+      member_status: membership.member_status,
+      membership_id: membership.membership_id,
+      plan_id: membership.plan_id,
+      plan_name: membership.plan_name,
+      plan_color: membership.plan_color,
+      start_date: membership.start_date,
+      end_date: membership.end_date,
+      days_remaining: membership.days_remaining != null ? Number(membership.days_remaining) : null,
+      needs_renewal: membership.days_remaining != null && Number(membership.days_remaining) <= 7,
+      max_bookings_per_day: membership.max_bookings_per_day,
+      court_free: membership.court_free,
+      court_discount_percent: membership.court_discount_percent,
+    } : { is_member: false },
+  };
 }
 
 export async function updateClubDetails(userId, clubId, updates) {
@@ -94,7 +137,7 @@ export async function getPublicClubs({ search = '', page = 1, limit = 9 }) {
   };
 }
 
-export async function joinClub(userId, clubId) {
+export async function joinClub(userId, clubId, planId = null, paymentDetails = null) {
   // Fetch user info for name, email, phone
   const userRes = await pool.query('SELECT full_name, email, phone FROM app.users WHERE id = $1', [userId]);
   if (!userRes.rows.length) {
@@ -114,8 +157,118 @@ export async function joinClub(userId, clubId) {
     u.email,
     u.phone || null,
   ]);
+  const member = res.rows[0];
 
-  return res.rows[0];
+  let membership = null;
+  let isRenewal = false;
+  if (planId) {
+    const planRes = await pool.query('SELECT * FROM app.plans WHERE id = $1 AND club_id = $2', [planId, clubId]);
+    if (planRes.rows.length > 0) {
+      const plan = planRes.rows[0];
+      const durationDays = plan.duration_days || 30;
+      const price = Number(plan.price || 0);
+
+      // Check if user already has an active membership
+      const existingRes = await pool.query(
+        `SELECT id, plan_id, start_date, end_date, status, price_paid,
+                (end_date >= CURRENT_DATE) AS is_valid_active
+         FROM app.memberships
+         WHERE club_id = $1 AND member_id = $2 AND status = 'active'
+         ORDER BY end_date DESC
+         LIMIT 1`,
+        [clubId, member.id]
+      );
+      const existingMs = existingRes.rows[0];
+
+      if (existingMs && existingMs.is_valid_active) {
+        // Renewal / Extension: Extend the existing active membership validity!
+        isRenewal = true;
+        // Clean up any stale scheduled records to avoid exclusion conflicts
+        await pool.query(
+          "UPDATE app.memberships SET status = 'cancelled', updated_at = now() WHERE club_id = $1 AND member_id = $2 AND status = 'scheduled' AND id != $3",
+          [clubId, member.id, existingMs.id]
+        );
+
+        const msRes = await pool.query(`
+          UPDATE app.memberships
+          SET
+            end_date = (GREATEST(end_date, CURRENT_DATE) + ($1 || ' days')::interval)::date,
+            plan_id = $2,
+            price_paid = price_paid + $3,
+            status = 'active',
+            updated_at = now()
+          WHERE id = $4
+          RETURNING *;
+        `, [durationDays, plan.id, price, existingMs.id]);
+
+        membership = msRes.rows[0];
+      } else {
+        // Fresh or expired membership: close any old active/scheduled memberships first
+        await pool.query(
+          "UPDATE app.memberships SET status = 'cancelled', updated_at = now() WHERE club_id = $1 AND member_id = $2 AND status IN ('active', 'scheduled')",
+          [clubId, member.id]
+        );
+
+        const msRes = await pool.query(`
+          INSERT INTO app.memberships (
+            club_id, member_id, plan_id, start_date, end_date, status, price_paid, created_by
+          ) VALUES (
+            $1, $2, $3, CURRENT_DATE, (CURRENT_DATE + ($4 || ' days')::interval)::date, 'active', $5, $6
+          )
+          RETURNING *;
+        `, [clubId, member.id, plan.id, durationDays, price, userId]);
+
+        membership = msRes.rows[0];
+      }
+
+      // Ensure member status is active in app.members
+      await pool.query(
+        "UPDATE app.members SET status = 'active', updated_at = now() WHERE id = $1 AND club_id = $2",
+        [member.id, clubId]
+      );
+
+      // Record payment in ledger if payment details provided or plan has price
+      if (price > 0) {
+        try {
+          await pool.query(`
+            INSERT INTO app.payments (
+              club_id, kind, method, status, amount, member_id, membership_id, reference, received_by, notes
+            ) VALUES (
+              $1, 'payment', $2::app.payment_method, 'completed', $3, $4, $5, $6, $7, $8
+            );
+          `, [
+            clubId,
+            paymentDetails?.method || 'online',
+            price,
+            member.id,
+            membership.id,
+            paymentDetails?.reference || 'Direct / Gateway',
+            userId,
+            paymentDetails?.notes || `${isRenewal ? 'Membership renewal/extension' : 'Membership subscription'}: ${plan.name} (+${durationDays} days)`,
+          ]);
+        } catch (payErr) {
+          console.warn('Could not record membership payment in ledger:', payErr.message);
+        }
+      }
+    }
+  }
+
+  // Asynchronously dispatch club membership welcome email via BullMQ
+  (async () => {
+    try {
+      const clubRes = await pool.query('SELECT name FROM app.clubs WHERE id = $1', [clubId]);
+      const clubName = clubRes.rows[0]?.name || 'Sports Club';
+      await addWelcomeEmailJob({
+        name: u.full_name,
+        email: u.email,
+        clubName,
+      });
+    } catch (err) {
+      console.warn('Membership welcome email enqueue warning:', err.message);
+    }
+  })();
+
+  return { member, membership, isRenewal };
 }
 
 export async function getClubGallery(userId, clubId) {

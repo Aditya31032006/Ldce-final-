@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { Suspense } from 'react';
 import { Navigate, Outlet } from 'react-router';
 import useAuth from '../hook/useAuth.js';
+import RouteLoader from '../../../shared/components/RouteLoader.jsx';
 
 /**
  * PublicRoute Component
@@ -12,26 +13,7 @@ export default function PublicRoute() {
   const { isAuthenticated, isProfileComplete, role, loading } = useAuth();
 
   if (loading) {
-    return (
-      <div style={{
-        minHeight: '100vh',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        background: '#fcf9f5',
-        color: '#6b6b66',
-        fontFamily: 'Inter, sans-serif'
-      }}>
-        <div style={{
-          width: '32px',
-          height: '32px',
-          border: '3px solid rgba(31, 92, 70, 0.2)',
-          borderTopColor: '#1f5c46',
-          borderRadius: '50%',
-          animation: 'df-spin 0.8s linear infinite'
-        }} />
-      </div>
-    );
+    return <RouteLoader message="Checking authentication..." fullScreen />;
   }
 
   if (isAuthenticated) {
@@ -45,5 +27,9 @@ export default function PublicRoute() {
     return <Navigate to="/dashboard" replace />;
   }
 
-  return <Outlet />;
+  return (
+    <Suspense fallback={<RouteLoader message="Loading..." fullScreen />}>
+      <Outlet />
+    </Suspense>
+  );
 }

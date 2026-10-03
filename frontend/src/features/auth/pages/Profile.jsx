@@ -7,12 +7,13 @@ import { useToast } from '../../../shared/context/ToastContext.jsx';
 import { fileToBase64, urlToBase64 } from '../../../shared/utils/image.util.js';
 
 export default function Profile() {
-  const { user, role, clubId, logout, updateUserLocal } = useAuth();
+  const { user, role, clubId, clubs, logout, updateUserLocal } = useAuth();
   const { toast } = useToast();
 
   const isOwner = (role || '').toLowerCase() === 'owner';
+  const isClubAdmin = ['owner', 'admin', 'manager'].includes((role || '').toLowerCase());
 
-  // Navigation tab for Owner: 'profile' | 'staff' | 'gallery'
+  // Navigation tab for Owner / Admin: 'profile' | 'staff' | 'gallery'
   const [activeTab, setActiveTab] = useState('profile');
 
   // --- Avatar States ---
@@ -20,7 +21,9 @@ export default function Profile() {
   const [showAvatarModal, setShowAvatarModal] = useState(false);
   const [avatarPreview, setAvatarPreview] = useState('');
   const [avatarInputUrl, setAvatarInputUrl] = useState('');
-  const fileInputRef = useRef(null);
+  const [avatarImgError, setAvatarImgError] = useState(false);
+  const directFileInputRef = useRef(null);
+  const modalFileInputRef = useRef(null);
 
   // --- Password Management States (OAuth vs Direct Login) ---
   const hasPassword = Boolean(user?.has_password);
@@ -36,8 +39,7 @@ export default function Profile() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [changePasswordError, setChangePasswordError] = useState('');
 
-
-  // --- Club Gallery States (Owner Only) ---
+  // --- Club Gallery States (Owner & Admin) ---
   const [galleryImages, setGalleryImages] = useState([]);
   const [galleryLoading, setGalleryLoading] = useState(false);
   const [newGalleryFiles, setNewGalleryFiles] = useState([]);
@@ -52,13 +54,17 @@ export default function Profile() {
   const [staffRole, setStaffRole] = useState('front_desk');
   const [addStaffSubmitting, setAddStaffSubmitting] = useState(false);
 
-  // Load Gallery and Staff for Owner
+  // Load Gallery and Staff for Owner/Admin
   useEffect(() => {
-    if (isOwner && clubId) {
+    if (isClubAdmin && clubId) {
       loadGallery();
-      loadStaff();
+      if (isOwner) loadStaff();
     }
-  }, [isOwner, clubId]);
+  }, [isClubAdmin, isOwner, clubId]);
+
+  useEffect(() => {
+    setAvatarImgError(false);
+  }, [user?.avatar_url]);
 
   const loadGallery = async () => {
     setGalleryLoading(true);
@@ -85,7 +91,7 @@ export default function Profile() {
   };
 
   // --- Avatar Handlers ---
-  const handleFileSelect = async (e) => {
+  const handleDirectFileSelect = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -94,23 +100,42 @@ export default function Profile() {
       return;
     }
 
-    if (file.size > 10 * 1024 * 1024) {
-      toast.error('Image size must be less than 10MB');
+    if (file.size > 15 * 1024 * 1024) {
+      toast.error('Image size must be less than 15MB');
       return;
     }
 
     setAvatarLoading(true);
     try {
-      const base64Data = await fileToBase64(file, 600, 600, 0.85);
-      setAvatarPreview(base64Data);
-
-      // Auto-save immediately to database
+      const base64Data = await fileToBase64(file, 800, 800, 0.85);
       const res = await authApi.updateAvatar(base64Data);
       updateUserData(res.user);
+      setAvatarImgError(false);
       toast.success('Profile picture updated successfully!');
-      setShowAvatarModal(false);
     } catch (err) {
-      toast.error(err.response?.data?.message || err.customMessage || 'Failed to save profile picture');
+      toast.error(err.response?.data?.message || err.customMessage || 'Failed to update profile picture');
+    } finally {
+      setAvatarLoading(false);
+      if (e.target) e.target.value = '';
+    }
+  };
+
+  const handleModalFileSelect = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      toast.error('Please upload an image file (PNG, JPG, WebP)');
+      return;
+    }
+
+    setAvatarLoading(true);
+    try {
+      const base64Data = await fileToBase64(file, 800, 800, 0.85);
+      setAvatarPreview(base64Data);
+      toast.info('Base64 image preview ready. Click "Save Profile Picture" below.');
+    } catch (err) {
+      toast.error('Failed to load image file');
     } finally {
       setAvatarLoading(false);
       if (e.target) e.target.value = '';
@@ -123,6 +148,7 @@ export default function Profile() {
     try {
       const base64Data = await urlToBase64(avatarInputUrl.trim(), 800, 800, 0.85);
       setAvatarPreview(base64Data);
+      toast.info('URL converted to Base64 preview');
     } catch (err) {
       toast.error('Failed to convert image URL to Base64');
     } finally {
@@ -139,12 +165,15 @@ export default function Profile() {
 
     setAvatarLoading(true);
     try {
-      // Ensure it is a Base64 data URL
-      const finalBase64 = await urlToBase64(base64ToSave, 800, 800, 0.85);
+      const finalBase64 = base64ToSave.startsWith('data:image/')
+        ? base64ToSave
+        : await urlToBase64(base64ToSave, 800, 800, 0.85);
+
       const res = await authApi.updateAvatar(finalBase64);
 
       // Update Redux state immediately
       updateUserData(res.user);
+      setAvatarImgError(false);
 
       toast.success('Profile picture saved successfully in Base64!');
       setShowAvatarModal(false);
@@ -163,6 +192,7 @@ export default function Profile() {
     try {
       const res = await authApi.deleteAvatar();
       updateUserData(res.user);
+      setAvatarImgError(false);
       toast.success('Profile picture removed successfully');
     } catch (err) {
       toast.error(err.response?.data?.message || err.customMessage || 'Failed to remove profile picture');
@@ -173,7 +203,7 @@ export default function Profile() {
 
   const updateUserData = (updatedUser) => {
     if (updatedUser) {
-      updateUserLocal({ user: updatedUser });
+      updateUserLocal({ user: updatedUser, role, clubId, clubs });
     }
   };
 
@@ -379,8 +409,8 @@ export default function Profile() {
         </p>
       </div>
 
-      {/* Navigation Tabs (Owner gets quick access to Staff and Gallery) */}
-      {isOwner && (
+      {/* Navigation Tabs (Owner & Admin get quick access to Staff and Gallery) */}
+      {isClubAdmin && (
         <div style={{
           display: 'flex',
           gap: '0.5rem',
@@ -410,26 +440,28 @@ export default function Profile() {
             👤 My Profile & Security
           </button>
 
-          <button
-            type="button"
-            onClick={() => setActiveTab('staff')}
-            style={{
-              padding: '0.65rem 1.25rem',
-              fontWeight: 600,
-              fontSize: '0.9rem',
-              color: activeTab === 'staff' ? '#2563eb' : '#64748b',
-              background: activeTab === 'staff' ? '#eff6ff' : 'transparent',
-              border: 'none',
-              borderBottom: activeTab === 'staff' ? '2px solid #2563eb' : '2px solid transparent',
-              borderRadius: '0.375rem 0.375rem 0 0',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.4rem',
-            }}
-          >
-            👥 Club Staff Members ({staffList.length})
-          </button>
+          {isOwner && (
+            <button
+              type="button"
+              onClick={() => setActiveTab('staff')}
+              style={{
+                padding: '0.65rem 1.25rem',
+                fontWeight: 600,
+                fontSize: '0.9rem',
+                color: activeTab === 'staff' ? '#2563eb' : '#64748b',
+                background: activeTab === 'staff' ? '#eff6ff' : 'transparent',
+                border: 'none',
+                borderBottom: activeTab === 'staff' ? '2px solid #2563eb' : '2px solid transparent',
+                borderRadius: '0.375rem 0.375rem 0 0',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.4rem',
+              }}
+            >
+              👥 Club Staff Members ({staffList.length})
+            </button>
+          )}
 
           <button
             type="button"
@@ -457,7 +489,7 @@ export default function Profile() {
       {/* =========================================================
           TAB 1: USER PROFILE & SECURITY
          ========================================================= */}
-      {(!isOwner || activeTab === 'profile') && (
+      {(!isClubAdmin || activeTab === 'profile') && (
         <div style={{
           background: '#ffffff',
           borderRadius: '0.85rem',
@@ -471,19 +503,19 @@ export default function Profile() {
 
             {/* Hidden Direct File Input for Instant 1-Click Upload */}
             <input
-              ref={fileInputRef}
+              ref={directFileInputRef}
               type="file"
               accept="image/*"
-              onChange={handleFileSelect}
+              onChange={handleDirectFileSelect}
               style={{ display: 'none' }}
             />
 
             <div
               style={{ position: 'relative', marginBottom: '1rem', cursor: 'pointer' }}
-              onClick={() => fileInputRef.current?.click()}
+              onClick={() => directFileInputRef.current?.click()}
               title="Click to choose a photo from your device"
             >
-              {user?.avatar_url ? (
+              {user?.avatar_url && !avatarImgError ? (
                 <img
                   src={user.avatar_url}
                   alt={user?.full_name || 'Profile'}
@@ -495,8 +527,8 @@ export default function Profile() {
                     border: '3px solid #3b82f6',
                     boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)',
                   }}
-                  onError={(e) => {
-                    e.currentTarget.style.display = 'none';
+                  onError={() => {
+                    setAvatarImgError(true);
                   }}
                 />
               ) : (
@@ -542,7 +574,7 @@ export default function Profile() {
             <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem', flexWrap: 'wrap', justifyContent: 'center' }}>
               <button
                 type="button"
-                onClick={() => fileInputRef.current?.click()}
+                onClick={() => directFileInputRef.current?.click()}
                 disabled={avatarLoading}
                 style={{
                   padding: '0.45rem 1rem',
@@ -954,9 +986,9 @@ export default function Profile() {
       )}
 
       {/* =========================================================
-          TAB 3: CLUB SHOWCASE GALLERY (Owner Only)
+          TAB 3: CLUB SHOWCASE GALLERY (Owner & Admin)
          ========================================================= */}
-      {isOwner && activeTab === 'gallery' && (
+      {isClubAdmin && activeTab === 'gallery' && (
         <div style={{
           background: '#ffffff',
           borderRadius: '0.85rem',
@@ -975,13 +1007,13 @@ export default function Profile() {
             </div>
             <span style={{
               padding: '0.25rem 0.6rem',
-              background: '#fef3c7',
-              color: '#b45309',
+              background: '#eff6ff',
+              color: '#1d4ed8',
               borderRadius: '0.375rem',
               fontSize: '0.75rem',
               fontWeight: 700,
             }}>
-              OWNER ONLY
+              CLUB ADMIN
             </span>
           </div>
 
@@ -1223,10 +1255,10 @@ export default function Profile() {
                 Choose Local Image File
               </label>
               <input
-                ref={fileInputRef}
+                ref={modalFileInputRef}
                 type="file"
                 accept="image/*"
-                onChange={handleFileSelect}
+                onChange={handleModalFileSelect}
                 style={{ fontSize: '0.85rem' }}
               />
             </div>
@@ -1594,4 +1626,5 @@ export default function Profile() {
     </div>
   );
 }
+
 

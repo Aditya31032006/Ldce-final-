@@ -1,14 +1,4 @@
-import axios from 'axios';
-
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
-
-const api = axios.create({
-  baseURL: API_BASE_URL,
-  withCredentials: true,
-  headers: {
-    'Content-Type': 'application/json',
-  },
-});
+import api from '../../../shared/services/api.js';
 
 export const clubsApi = {
   /**
@@ -37,10 +27,13 @@ export const clubsApi = {
   },
 
   /**
-   * Join an active public club as a member
+   * Join an active public club as a member (optionally with selected plan)
    */
-  async joinClub(clubId) {
-    const response = await api.post(`/clubs/${clubId}/join`);
+  async joinClub(clubId, planId = null, paymentDetails = null) {
+    const payload = {};
+    if (planId) payload.plan_id = planId;
+    if (paymentDetails) payload.paymentDetails = paymentDetails;
+    const response = await api.post(`/clubs/${clubId}/join`, payload);
     return response.data;
   },
 

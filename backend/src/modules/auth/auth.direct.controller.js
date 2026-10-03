@@ -171,11 +171,29 @@ export async function getMeController(req, res, next) {
     const profileStatus = authService.checkProfileCompletion(user);
     const clubs = await authRepo.getUserClubs(user.id);
 
+    let resolvedRole = req.user.role || 'public';
+    let resolvedClubId = req.user.clubId || null;
+
+    if (clubs.length > 0) {
+      const rolePriority = { owner: 1, manager: 2, admin: 3, front_desk: 4, shop_staff: 5, bar_staff: 6, kitchen: 7, member: 8, public: 99 };
+      const sorted = [...clubs].sort((a, b) => (rolePriority[a.role] || 99) - (rolePriority[b.role] || 99));
+
+      if (!resolvedClubId || resolvedRole === 'public') {
+        resolvedClubId = sorted[0].club_id;
+        resolvedRole = sorted[0].role;
+      } else {
+        const activeClub = clubs.find(c => c.club_id === resolvedClubId);
+        if (activeClub && activeClub.role) {
+          resolvedRole = activeClub.role;
+        }
+      }
+    }
+
     return res.status(STATUS_CODES.OK).json({
       success: true,
       user,
-      role: req.user.role || 'public',
-      clubId: req.user.clubId || null,
+      role: resolvedRole,
+      clubId: resolvedClubId,
       clubs,
       isProfileComplete: profileStatus.isComplete,
       missingFields: profileStatus.missingFields,
@@ -220,14 +238,17 @@ export async function setupProfileController(req, res, next) {
  */
 export async function updateAvatarController(req, res, next) {
   try {
-    const avatarUrl = req.body.avatarUrl || req.body.avatar_url || req.body.avatar || req.body.image;
+    const avatarUrl = req.body.avatarUrl || req.body.avatar_url || req.body.avatar || req.body.image || req.body.base64;
     if (!avatarUrl) {
       return res.status(STATUS_CODES.BAD_REQUEST).json({
         success: false,
         message: 'No avatar image data provided in request body',
       });
     }
-    const updatedUser = await authService.updateUserAvatar(req.user.id, avatarUrl);
+    const targetUserId = (req.body.userId && ['owner', 'admin', 'manager'].includes(req.user.role))
+      ? req.body.userId
+      : req.user.id;
+    const updatedUser = await authService.updateUserAvatar(targetUserId, avatarUrl);
     delete updatedUser.password_hash;
     return res.status(STATUS_CODES.OK).json({
       success: true,

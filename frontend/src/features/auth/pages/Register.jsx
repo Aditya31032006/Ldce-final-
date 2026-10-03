@@ -57,9 +57,9 @@ export default function Register() {
       phone: '',
       password: '',
       confirmPassword: '',
-      clubName: 'Champions Sports Club',
-      city: 'Ahmedabad, Gujarat',
-      slug: 'champions-ahmedabad',
+      clubName: '',
+      city: '',
+      slug: '',
     },
   });
 

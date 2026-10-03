@@ -49,12 +49,30 @@ export async function verifyToken(req, res, next) {
       });
     }
 
+    let userRole = payload.role || 'public';
+    let userClubId = payload.clubId || null;
+
+    // If role is public or clubId is missing, check database for user's assigned club roles
+    if (userRole === 'public' || !userClubId) {
+      try {
+        const clubs = await authRepo.getUserClubs(user.id);
+        if (clubs.length > 0) {
+          const rolePriority = { owner: 1, manager: 2, admin: 3, front_desk: 4, shop_staff: 5, bar_staff: 6, kitchen: 7, member: 8, public: 99 };
+          const sorted = [...clubs].sort((a, b) => (rolePriority[a.role] || 99) - (rolePriority[b.role] || 99));
+          if (!userClubId) userClubId = sorted[0].club_id;
+          if (userRole === 'public') userRole = sorted[0].role;
+        }
+      } catch (err) {
+        console.warn('verifyToken: error resolving user club role:', err.message);
+      }
+    }
+
     req.user = {
       id: user.id,
       email: user.email,
       fullName: user.full_name,
-      role: payload.role || 'public',
-      clubId: payload.clubId || null,
+      role: userRole,
+      clubId: userClubId,
     };
 
     next();

@@ -8,9 +8,39 @@ export const CREATE_MEMBER = `
   ) RETURNING *;
 `;
 
+export const GET_MEMBERS = `
+  SELECT m.*,
+         p.name AS plan_name, p.color AS plan_color,
+         ms.status AS membership_status, ms.start_date AS membership_start_date, ms.end_date AS membership_end_date
+  FROM app.members m
+  LEFT JOIN LATERAL (
+    SELECT ms.plan_id, ms.status, ms.start_date, ms.end_date
+    FROM app.memberships ms
+    WHERE ms.member_id = m.id AND ms.club_id = m.club_id
+    ORDER BY ms.created_at DESC
+    LIMIT 1
+  ) ms ON true
+  LEFT JOIN app.plans p ON p.id = ms.plan_id
+  WHERE m.club_id = $1
+    AND ($2::text IS NULL OR m.status::text = $2)
+  ORDER BY m.created_at DESC
+  LIMIT 100;
+`;
+
 export const GET_MEMBER_BY_ID = `
-  SELECT * FROM app.members
-  WHERE id = $1 AND club_id = $2;
+  SELECT m.*,
+         p.name AS plan_name, p.color AS plan_color,
+         ms.status AS membership_status, ms.start_date AS membership_start_date, ms.end_date AS membership_end_date
+  FROM app.members m
+  LEFT JOIN LATERAL (
+    SELECT ms.plan_id, ms.status, ms.start_date, ms.end_date
+    FROM app.memberships ms
+    WHERE ms.member_id = m.id AND ms.club_id = m.club_id
+    ORDER BY ms.created_at DESC
+    LIMIT 1
+  ) ms ON true
+  LEFT JOIN app.plans p ON p.id = ms.plan_id
+  WHERE m.id = $1 AND m.club_id = $2;
 `;
 
 export const SEARCH_MEMBERS = `
