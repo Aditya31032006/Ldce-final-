@@ -7,6 +7,9 @@ import {
   updateClubDetailsController,
   getClubSettingsController,
   updateClubSettingsController,
+  getMyClubsController,
+  getPublicClubsController,
+  joinClubController,
   getClubGalleryController,
   addClubGalleryController,
   deleteClubGalleryController
@@ -14,28 +17,38 @@ import {
 
 const router = Router();
 
-// Public routes (using club-scope from params if needed)
+// ───── Static / Keyword Routes MUST come before /:clubId ─────
+
+// Public club discovery with fuzzy search and pagination
+router.get("/public", getPublicClubsController);
+
+// Authenticated user's joined clubs across the platform
+router.get("/my-clubs", verifyToken, getMyClubsController);
+
+// Create club (no club scope needed yet)
+router.post("/register", verifyToken, registerClubController);
+
+// ───── Dynamic :clubId Routes ─────
+
+// Specific club details (public view or member view)
 router.get("/:clubId", resolveClubScope, getClubDetailsController);
+
+// Club gallery public read
 router.get("/:clubId/gallery", resolveClubScope, getClubGalleryController);
 
-// Authenticated routes
-router.use(verifyToken);
+// Join a club as a member
+router.post("/:clubId/join", verifyToken, joinClubController);
 
-// Create club (doesn't need club scope yet)
-router.post("/register", registerClubController);
-
-// Scope by club for subsequent routes
-router.use(resolveClubScope);
-
-// Gallery management for club (Owner only for modifications)
-router.get("/gallery", getClubGalleryController);
-router.post("/gallery", requireRole('owner'), addClubGalleryController);
-router.delete("/gallery/:imageId", requireRole('owner'), deleteClubGalleryController);
-
+// ───── Scoped Club Management (Owner/Manager) ─────
+// These use club scope resolved from request context (header/cookie), not URL param
 
 // Only owners and managers can update club details or settings
-router.put("/", requireRole('owner', 'manager'), updateClubDetailsController);
-router.get("/settings", requireRole('owner', 'manager', 'front_desk', 'shop_staff', 'bar_staff'), getClubSettingsController);
-router.put("/settings", requireRole('owner', 'manager'), updateClubSettingsController);
+router.put("/:clubId", verifyToken, resolveClubScope, requireRole('owner', 'manager'), updateClubDetailsController);
+router.get("/:clubId/settings", verifyToken, resolveClubScope, requireRole('owner', 'manager', 'front_desk', 'shop_staff', 'bar_staff'), getClubSettingsController);
+router.put("/:clubId/settings", verifyToken, resolveClubScope, requireRole('owner', 'manager'), updateClubSettingsController);
+
+// Gallery management for club (Owner only for modifications)
+router.post("/:clubId/gallery", verifyToken, resolveClubScope, requireRole('owner'), addClubGalleryController);
+router.delete("/:clubId/gallery/:imageId", verifyToken, resolveClubScope, requireRole('owner'), deleteClubGalleryController);
 
 export default router;

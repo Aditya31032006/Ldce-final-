@@ -180,9 +180,14 @@ export default function Register() {
     }
 
     if (result?.success) {
-      navigate('/dashboard', { replace: true });
+      if (accountType === 'facility') {
+        navigate('/dashboard', { replace: true });
+      } else {
+        navigate('/user/dashboard', { replace: true });
+      }
     }
   };
+
 
   return (
     <div className="cl-auth-page cl-auth-page--split cl-auth-page--no-page-scroll">

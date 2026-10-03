@@ -1,4 +1,5 @@
 import * as authService from './auth.service.js';
+import * as authRepo from './auth.repository.js';
 import { setAuthCookie } from '../../shared/utils/cookie.util.js';
 import { STATUS_CODES, MESSAGES } from '../../constants/index.js';
 import config from '../../config/config.js';
@@ -24,8 +25,20 @@ export async function googleAuthCallbackController(req, res, next) {
       return res.redirect(failureUrl.toString());
     }
 
-    // Generate JWT Access Token
-    const token = await authService.generateTokenForUser(user);
+    // Resolve role & clubId from user's club memberships (same logic as direct login)
+    const userClubs = await authRepo.getUserClubs(user.id);
+    let role = 'public';
+    let resolvedClubId = null;
+
+    if (userClubs && userClubs.length > 0) {
+      const rolePriority = { owner: 1, manager: 2, front_desk: 3, bar_staff: 4, kitchen: 5, shop_staff: 6, member: 7 };
+      const sorted = [...userClubs].sort((a, b) => (rolePriority[a.role] || 99) - (rolePriority[b.role] || 99));
+      resolvedClubId = sorted[0].club_id;
+      role = sorted[0].role;
+    }
+
+    // Generate JWT Access Token with correct role + clubId
+    const token = await authService.generateTokenForUser(user, resolvedClubId, role);
 
     // Set secure HTTP-only cookie
     setAuthCookie(res, token);
@@ -45,8 +58,9 @@ export async function googleAuthCallbackController(req, res, next) {
       return res.redirect(setupUrl.toString());
     }
 
-    // Profile already complete -> redirect directly to dashboard
-    const dashboardUrl = new URL('/dashboard', config.CLIENT_URL);
+    // Role-aware dashboard redirect
+    const isStaff = !['public', 'member'].includes(role);
+    const dashboardUrl = new URL(isStaff ? '/dashboard' : '/user/dashboard', config.CLIENT_URL);
     dashboardUrl.searchParams.set('auth', 'success');
     return res.redirect(dashboardUrl.toString());
   } catch (error) {
