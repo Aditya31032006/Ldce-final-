@@ -42,7 +42,12 @@ export async function createBooking(userId, clubId, bookingData) {
       bookingData.guest_phone || null,
       bookingData.channel || 'online',
       bookingData.status || 'confirmed',
-      userId
+      userId,
+      bookingData.base_price || 0,
+      bookingData.discount_amount || 0,
+      bookingData.tax_amount || 0,
+      bookingData.total_amount || 0,
+      bookingData.plan_id || null,
     ]);
 
     return bookingResult.rows[0];
