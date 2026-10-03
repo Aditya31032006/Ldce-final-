@@ -27,6 +27,21 @@ export async function updateTableStatus(userId, clubId, tableId, status) {
   });
 }
 
+export async function updateTable(userId, clubId, tableId, data) {
+  return withTenantTransaction(userId, clubId, async (client) => {
+    const res = await client.query(queries.UPDATE_TABLE, [
+      clubId,
+      tableId,
+      data.name || null,
+      data.zone || null,
+      data.capacity || null,
+      data.status || null,
+      data.is_active !== undefined ? data.is_active : null,
+    ]);
+    return res.rows[0];
+  });
+}
+
 export async function getMenu(userId, clubId, categoryId = null, activeOnly = null, availableOnly = null) {
   return withTenantTransaction(userId, clubId, async (client) => {
     const catsResult = await client.query(queries.GET_MENU_CATEGORIES, [clubId, activeOnly]);
@@ -74,12 +89,15 @@ export async function updateMenuItem(userId, clubId, itemId, data) {
       clubId,
       itemId,
       data.name || null,
-      data.price || null,
+      data.price !== undefined ? Number(data.price) : null,
       data.description || null,
       data.is_available !== undefined ? data.is_available : null,
       data.is_active !== undefined ? data.is_active : null,
       data.image_url || null,
-      data.prep_minutes || null,
+      data.prep_minutes !== undefined ? Number(data.prep_minutes) : null,
+      data.is_veg !== undefined ? data.is_veg : null,
+      data.category_id || null,
+      data.station || null,
     ]);
     return res.rows[0];
   });

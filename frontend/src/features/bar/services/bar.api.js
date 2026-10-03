@@ -23,7 +23,19 @@ export const barApi = {
     return res.data.data;
   },
 
+  updateTable: async (tableId, tableData, clubId) => {
+    const config = clubId ? { headers: { 'x-club-id': clubId } } : {};
+    const res = await apiClient.put(`/bar/tables/${tableId}`, tableData, config);
+    return res.data.data;
+  },
+
   // Menu
+  createMenuCategory: async (categoryData, clubId) => {
+    const config = clubId ? { headers: { 'x-club-id': clubId } } : {};
+    const res = await apiClient.post('/bar/menu/category', categoryData, config);
+    return res.data.data;
+  },
+
   getMenu: async (clubId, categoryId = null, availableOnly = null) => {
     const config = clubId ? { headers: { 'x-club-id': clubId } } : {};
     const res = await apiClient.get('/bar/menu', {

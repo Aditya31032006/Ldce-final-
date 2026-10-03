@@ -30,6 +30,18 @@ export const UPDATE_TABLE_STATUS = `
   RETURNING *;
 `;
 
+export const UPDATE_TABLE = `
+  UPDATE app.dining_tables
+  SET name = COALESCE($3, name),
+      zone = COALESCE($4, zone),
+      capacity = COALESCE($5, capacity),
+      status = COALESCE($6::app.table_status, status),
+      is_active = COALESCE($7, is_active),
+      updated_at = now()
+  WHERE club_id = $1 AND id = $2
+  RETURNING *;
+`;
+
 export const GET_MENU_CATEGORIES = `
   SELECT id, name, station, sort_order, is_active
   FROM app.menu_categories
@@ -73,6 +85,9 @@ export const UPDATE_MENU_ITEM = `
       is_active = coalesce($7, is_active),
       image_url = coalesce($8, image_url),
       prep_minutes = coalesce($9, prep_minutes),
+      is_veg = coalesce($10, is_veg),
+      category_id = coalesce($11, category_id),
+      station = coalesce($12::app.station_type, station),
       updated_at = now()
   WHERE club_id = $1 AND id = $2
   RETURNING *;
@@ -142,7 +157,7 @@ export const GET_BAR_ORDERS = `
   WHERE o.club_id = $1
     AND ($2::text IS NULL OR o.status = $2::app.bar_order_status)
     AND ($3::uuid IS NULL OR o.table_id = $3)
-    AND ($4::uuid IS NULL OR o.member_id = $4)
+    AND ($4::uuid IS NULL OR o.member_id = $4 OR o.opened_by = $4)
   ORDER BY o.opened_at DESC
   LIMIT coalesce($5, 50);
 `;

@@ -5,6 +5,7 @@ import {
   getTablesController,
   createTableController,
   updateTableStatusController,
+  updateTableController,
   getMenuController,
   createMenuCategoryController,
   createMenuItemController,
@@ -37,6 +38,7 @@ router.put("/menu/item/:id", requireRole('owner', 'manager', 'bar_staff'), updat
 
 router.get("/tables", getTablesController);
 router.post("/tables", requireRole('owner', 'manager', 'bar_staff', 'front_desk'), createTableController);
+router.put("/tables/:id", requireRole('owner', 'manager', 'bar_staff'), updateTableController);
 router.put("/tables/:id/status", requireRole('owner', 'manager', 'bar_staff', 'front_desk'), updateTableStatusController);
 
 // Orders & Billing

@@ -38,6 +38,23 @@ export async function updateTableStatusController(req, res, next) {
   }
 }
 
+export async function updateTableController(req, res, next) {
+  try {
+    const { id } = req.params;
+    const { name, zone, capacity, status, is_active } = req.body;
+    const table = await barRepo.updateTable(req.user.id, req.clubId, id, {
+      name,
+      zone,
+      capacity: capacity !== undefined ? Number(capacity) : undefined,
+      status,
+      is_active,
+    });
+    return res.status(200).json({ success: true, message: 'Table updated successfully', data: table });
+  } catch (error) {
+    next(error);
+  }
+}
+
 export async function getMenuController(req, res, next) {
   try {
     const { categoryId, active_only, available_only } = req.query;
@@ -90,10 +107,14 @@ export async function updateMenuItemController(req, res, next) {
 
 export async function getOrdersController(req, res, next) {
   try {
+    let memberFilter = req.query.member_id || null;
+    if (req.user?.role === 'member') {
+      memberFilter = req.query.member_id || req.user.id;
+    }
     const filters = {
       status: req.query.status || null,
       table_id: req.query.table_id || null,
-      member_id: req.query.member_id || null,
+      member_id: memberFilter,
       limit: req.query.limit ? parseInt(req.query.limit, 10) : 50,
     };
     const orders = await barRepo.getOrders(req.user?.id, req.clubId, filters);
