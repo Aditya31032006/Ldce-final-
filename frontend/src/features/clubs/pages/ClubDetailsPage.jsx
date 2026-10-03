@@ -26,42 +26,73 @@ const DEFAULT_SPORT_IMAGES = {
 };
 
 // ─── Razorpay Simulation & Gateway Modal (For Non-Members) ─────────────────────────────
-function RazorpayModal({ club, plan, onClose, onSuccess }) {
+// ─── Razorpay Official Gateway Modal ─────────────────────────────
+function RazorpayModal({ club, plan, user, onClose, onSuccess }) {
   const [method, setMethod] = useState('razorpay');
   const [processing, setProcessing] = useState(false);
+  const [errorMsg, setErrorMsg] = useState(null);
   const price = Number(plan?.price || 0);
   const joiningFee = Number(plan?.joining_fee || 0);
   const total = price + joiningFee;
 
   const handlePay = async () => {
     setProcessing(true);
+    setErrorMsg(null);
     try {
-      if (method === 'razorpay') {
-        const rzpOrder = await api.post('/bar/payments/razorpay/create-order', {
-          amount: total,
-        }, { headers: { 'x-club-id': club.id } });
+      if (total > 0) {
+        // Create order via backend
+        let rzpOrder;
+        try {
+          const res = await api.post(`/clubs/${club.id}/payments/razorpay/create-order`, {
+            amount: total,
+            plan_id: plan.id,
+          }, { headers: { 'x-club-id': club.id } });
+          rzpOrder = res.data?.data;
+        } catch {
+          // Fallback to bar razorpay order endpoint if needed
+          const res = await api.post('/bar/payments/razorpay/create-order', {
+            amount: total,
+          }, { headers: { 'x-club-id': club.id } });
+          rzpOrder = res.data?.data;
+        }
+
+        if (!rzpOrder?.orderId) {
+          throw new Error('Failed to generate secure Razorpay order token');
+        }
 
         await openRazorpayCheckout({
-          orderId: rzpOrder.data.data.orderId,
-          amount: rzpOrder.data.data.amount,
-          currency: rzpOrder.data.data.currency,
+          orderId: rzpOrder.orderId,
+          amount: rzpOrder.amount,
+          currency: rzpOrder.currency || 'INR',
           name: club.name,
-          description: `Membership - ${plan.name}`,
+          description: `Membership: ${plan.name} (${plan.duration_days} days)`,
+          prefill: {
+            name: user?.full_name || user?.name || '',
+            email: user?.email || '',
+            phone: user?.phone || '',
+          },
           onSuccess: async (rzpResponse) => {
             await onSuccess(plan.id, {
               method: 'online',
               reference: rzpResponse.razorpay_payment_id,
-              notes: `Razorpay Payment ID: ${rzpResponse.razorpay_payment_id}`,
+              notes: `Razorpay Payment ID: ${rzpResponse.razorpay_payment_id} (Order: ${rzpResponse.razorpay_order_id})`,
             });
+          },
+          onDismiss: () => {
+            setProcessing(false);
           },
         });
         return;
       }
-      await new Promise((r) => setTimeout(r, 600));
-      await onSuccess(plan.id, { method });
+
+      // Free plan tier (₹0)
+      await onSuccess(plan.id, {
+        method: 'other',
+        reference: 'Complimentary Tier Enrollment',
+      });
     } catch (err) {
       console.error('Membership payment error:', err);
-    } finally {
+      setErrorMsg(err.response?.data?.message || err.message || 'Payment initiation failed. Please try again.');
       setProcessing(false);
     }
   };
@@ -95,6 +126,15 @@ function RazorpayModal({ club, plan, onClose, onSuccess }) {
         </div>
 
         <div style={{ padding: '1.5rem' }}>
+          {errorMsg && (
+            <div style={{
+              background: '#FEF2F2', border: '1px solid #FEE2E2', borderRadius: '6px',
+              padding: '0.75rem', marginBottom: '1rem', color: '#DC2626', fontSize: '0.8rem'
+            }}>
+              {errorMsg}
+            </div>
+          )}
+
           <div style={{
             background: '#FAF9F6', border: '1px solid #E7E5DF', borderRadius: '8px',
             padding: '1rem', marginBottom: '1.25rem'
@@ -117,18 +157,18 @@ function RazorpayModal({ club, plan, onClose, onSuccess }) {
 
           <div style={{ marginBottom: '1.25rem' }}>
             <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#6B6B66', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.5rem' }}>
-              Select Payment Method
+              Select Gateway Payment Option
             </label>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
               {[
-                { id: 'razorpay', label: 'Razorpay Online (UPI / QR / Cards)', desc: 'Official test gateway integration' },
-                { id: 'upi', label: 'Direct UPI / PhonePe / GPay', desc: 'Instant bank transfer' },
-                { id: 'card', label: 'Credit or Debit Card', desc: 'Visa, Mastercard, RuPay' },
-                { id: 'netbanking', label: 'Net Banking', desc: 'All Indian major banks' },
+                { id: 'razorpay', label: 'Razorpay Instant UPI & Cards', desc: 'GPay, PhonePe, Paytm, Visa, Mastercard, RuPay, QR' },
+                { id: 'upi', label: 'UPI / QR Code', desc: 'Scan & Pay via any UPI application' },
+                { id: 'card', label: 'Credit or Debit Card', desc: 'Instant 3D Secure verification' },
+                { id: 'netbanking', label: 'Net Banking', desc: 'All 50+ major Indian banks supported' },
               ].map(opt => (
                 <label key={opt.id} style={{
                   display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.75rem',
-                  border: method === opt.id ? '1px solid #1F5C46' : '1px solid #E7E5DF',
+                  border: method === opt.id ? '1.5px solid #1F5C46' : '1px solid #E7E5DF',
                   background: method === opt.id ? '#EBF3F0' : '#FFFFFF',
                   borderRadius: '6px', cursor: 'pointer', transition: 'all 0.15s ease'
                 }}>
@@ -141,7 +181,7 @@ function RazorpayModal({ club, plan, onClose, onSuccess }) {
                   />
                   <div>
                     <div style={{ fontSize: '0.85rem', fontWeight: 600, color: '#1A1A18' }}>{opt.label}</div>
-                    <div style={{ fontSize: '0.75rem', color: '#6B6B66' }}>{opt.desc}</div>
+                    <div style={{ fontSize: '0.72rem', color: '#6B6B66' }}>{opt.desc}</div>
                   </div>
                 </label>
               ))}
@@ -173,11 +213,11 @@ function RazorpayModal({ club, plan, onClose, onSuccess }) {
               }}
             >
               {processing ? (
-                <span>Processing Payment...</span>
+                <span>Opening Gateway...</span>
               ) : (
                 <>
                   <CreditCard size={16} />
-                  <span>Pay ₹{total.toLocaleString()} via Razorpay</span>
+                  <span>{total > 0 ? `Pay ₹${total.toLocaleString()} via Razorpay` : 'Confirm Free Subscription'}</span>
                 </>
               )}
             </button>
@@ -189,11 +229,16 @@ function RazorpayModal({ club, plan, onClose, onSuccess }) {
 }
 
 // ─── Court Slot Booking Modal (Inside Scoped Club) ───────────────────────────
-function CourtBookingModal({ club, court, memberId, onClose, onBookingComplete }) {
+function CourtBookingModal({ club, court, memberId, user, onClose, onBookingComplete }) {
   const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [selectedHour, setSelectedHour] = useState('09:00');
   const [submitting, setSubmitting] = useState(false);
   const { toast } = useToast();
+
+  const isFree = Boolean(club.membership?.court_free);
+  const baseRate = Number(court.hourly_rate || 400);
+  const discountPct = Number(club.membership?.court_discount_percent || 0);
+  const slotPrice = isFree ? 0 : Math.max(0, Math.round(baseRate * (1 - discountPct / 100)));
 
   const timeSlots = [
     '06:00', '07:00', '08:00', '09:00', '10:00', '11:00',
@@ -207,6 +252,68 @@ function CourtBookingModal({ club, court, memberId, onClose, onBookingComplete }
       const startAt = new Date(`${selectedDate}T${selectedHour}:00Z`);
       const endAt = new Date(startAt.getTime() + 60 * 60 * 1000); // 1-hour slot
 
+      if (slotPrice > 0) {
+        // 1. Create Razorpay order
+        let rzpOrder;
+        try {
+          const res = await api.post('/bookings/payments/razorpay/create-order', {
+            amount: slotPrice,
+            court_id: court.id,
+            date: selectedDate,
+            time: selectedHour,
+          }, { headers: { 'x-club-id': club.id } });
+          rzpOrder = res.data?.data;
+        } catch {
+          const res = await api.post('/bar/payments/razorpay/create-order', {
+            amount: slotPrice,
+          }, { headers: { 'x-club-id': club.id } });
+          rzpOrder = res.data?.data;
+        }
+
+        if (!rzpOrder?.orderId) {
+          throw new Error('Could not create Razorpay order for court slot');
+        }
+
+        // 2. Open Razorpay checkout
+        await openRazorpayCheckout({
+          orderId: rzpOrder.orderId,
+          amount: rzpOrder.amount,
+          currency: rzpOrder.currency || 'INR',
+          name: `${club.name} - Court Booking`,
+          description: `${court.name} (${selectedDate} at ${selectedHour})`,
+          prefill: {
+            name: user?.full_name || user?.name || '',
+            email: user?.email || '',
+            phone: user?.phone || '',
+          },
+          onSuccess: async (rzpResponse) => {
+            await api.post('/bookings', {
+              court_id: court.id,
+              start_at: startAt.toISOString(),
+              end_at: endAt.toISOString(),
+              member_id: memberId,
+              channel: 'online',
+              amount: slotPrice,
+              razorpay_payment_id: rzpResponse.razorpay_payment_id,
+              paymentDetails: {
+                method: 'online',
+                reference: rzpResponse.razorpay_payment_id,
+              },
+            }, {
+              headers: { 'x-club-id': club.id }
+            });
+
+            toast.success(`Court reserved! Payment of ₹${slotPrice} settled via Razorpay.`);
+            onBookingComplete();
+          },
+          onDismiss: () => {
+            setSubmitting(false);
+          },
+        });
+        return;
+      }
+
+      // Free quota booking
       await api.post('/bookings', {
         court_id: court.id,
         start_at: startAt.toISOString(),
@@ -217,11 +324,10 @@ function CourtBookingModal({ club, court, memberId, onClose, onBookingComplete }
         headers: { 'x-club-id': club.id }
       });
 
-      toast.success('Court slot booked successfully!');
+      toast.success('Court slot booked successfully under member quota!');
       onBookingComplete();
     } catch (err) {
       toast.error(err.response?.data?.message || err.message || 'Failed to book slot');
-    } finally {
       setSubmitting(false);
     }
   };
@@ -288,12 +394,34 @@ function CourtBookingModal({ club, court, memberId, onClose, onBookingComplete }
             </div>
           </div>
 
-          <div style={{
-            background: '#F0FDF4', border: '1px solid #DCFCE7', borderRadius: '6px',
-            padding: '0.75rem 1rem', marginBottom: '1.25rem', fontSize: '0.8rem', color: '#15803D'
-          }}>
-            ✓ Active Member Quota Applied — Booking confirmed under your member privileges.
-          </div>
+          {slotPrice > 0 ? (
+            <div style={{
+              background: '#FAF9F6', border: '1px solid #E7E5DF', borderRadius: '8px',
+              padding: '0.85rem 1rem', marginBottom: '1.25rem', fontSize: '0.85rem'
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.25rem' }}>
+                <span style={{ color: '#6B6B66' }}>Standard Hourly Rate:</span>
+                <span>₹{baseRate}</span>
+              </div>
+              {discountPct > 0 && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.25rem', color: '#15803D' }}>
+                  <span>Member Privilege ({discountPct}% Off):</span>
+                  <span>-₹{baseRate - slotPrice}</span>
+                </div>
+              )}
+              <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: '0.35rem', borderTop: '1px solid #E7E5DF', fontWeight: 700 }}>
+                <span>Payable Amount:</span>
+                <span style={{ color: '#1F5C46', fontSize: '1rem' }}>₹{slotPrice} via Razorpay</span>
+              </div>
+            </div>
+          ) : (
+            <div style={{
+              background: '#F0FDF4', border: '1px solid #DCFCE7', borderRadius: '6px',
+              padding: '0.75rem 1rem', marginBottom: '1.25rem', fontSize: '0.8rem', color: '#15803D'
+            }}>
+              ✓ Active Member Quota Applied — 100% Free Court Reservation.
+            </div>
+          )}
 
           <div style={{ display: 'flex', gap: '0.75rem' }}>
             <button
@@ -315,10 +443,16 @@ function CourtBookingModal({ club, court, memberId, onClose, onBookingComplete }
               style={{
                 flex: 2, padding: '0.65rem 1rem', background: '#1F5C46',
                 border: 'none', borderRadius: '6px',
-                fontWeight: 600, fontSize: '0.875rem', color: '#FFFFFF', cursor: 'pointer'
+                fontWeight: 600, fontSize: '0.875rem', color: '#FFFFFF', cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem'
               }}
             >
-              {submitting ? 'Confirming...' : 'Confirm Reservation'}
+              {submitting ? 'Connecting...' : slotPrice > 0 ? (
+                <>
+                  <CreditCard size={15} />
+                  <span>Pay ₹{slotPrice} with Razorpay</span>
+                </>
+              ) : 'Confirm Free Reservation'}
             </button>
           </div>
         </div>
@@ -500,11 +634,23 @@ export default function ClubDetailsPage() {
             club={club}
             court={bookingCourt}
             memberId={membership?.member_id}
+            user={user}
             onClose={() => setBookingCourt(null)}
             onBookingComplete={() => {
               setBookingCourt(null);
               handleTabChange('bookings');
             }}
+          />
+        )}
+
+        {/* Member Plan Renewal / Upgrade Modal via Razorpay */}
+        {selectedPlanForCheckout && (
+          <RazorpayModal
+            club={club}
+            plan={selectedPlanForCheckout}
+            user={user}
+            onClose={() => setSelectedPlanForCheckout(null)}
+            onSuccess={handleJoinSuccess}
           />
         )}
 
@@ -601,6 +747,21 @@ export default function ClubDetailsPage() {
                 <div style={{ fontSize: '0.725rem', color: '#6B6B66' }}>
                   Pass ID: <strong style={{ fontFamily: 'monospace' }}>{membership.member_code}</strong>
                 </div>
+                {club.plans?.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => handleSelectPlan(club.plans[0])}
+                    style={{
+                      marginTop: '0.45rem', padding: '0.3rem 0.75rem',
+                      background: '#1F5C46', color: '#FFFFFF', border: 'none',
+                      borderRadius: '5px', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer',
+                      display: 'inline-flex', alignItems: 'center', gap: '0.35rem'
+                    }}
+                  >
+                    <CreditCard size={12} />
+                    <span>Renew / Extend with Razorpay</span>
+                  </button>
+                )}
               </div>
             </div>
 
@@ -1033,6 +1194,59 @@ export default function ClubDetailsPage() {
                     </strong>
                   </div>
                 </div>
+
+                {/* Renewal Plans Grid if Membership Expiring or Member Wishes to Extend */}
+                {club.plans?.length > 0 && (
+                  <div style={{ marginTop: '2rem', paddingTop: '1.5rem', borderTop: '1px solid #E7E5DF' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+                      <div>
+                        <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 700, color: '#1A1A18' }}>
+                          Extend or Upgrade Membership
+                        </h3>
+                        <span style={{ fontSize: '0.8rem', color: '#6B6B66' }}>
+                          Instant renewal via Razorpay test gateway
+                        </span>
+                      </div>
+                      <span style={{ fontSize: '0.75rem', background: '#EBF3F0', color: '#1F5C46', padding: '0.2rem 0.5rem', borderRadius: '4px', fontWeight: 600 }}>
+                        ⚡ Instant Gateway Activation
+                      </span>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '1rem' }}>
+                      {club.plans.map(p => (
+                        <div key={p.id} style={{
+                          background: '#FAF9F6', border: '1px solid #E7E5DF', borderRadius: '8px', padding: '1.25rem',
+                          display: 'flex', flexDirection: 'column', justifyContent: 'space-between'
+                        }}>
+                          <div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
+                              <strong style={{ fontSize: '0.95rem', color: '#1A1A18' }}>{p.name}</strong>
+                              <span style={{ fontSize: '0.75rem', color: '#6B6B66' }}>{p.duration_days} days</span>
+                            </div>
+                            <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#1F5C46', marginBottom: '0.75rem' }}>
+                              ₹{Number(p.price || 0).toLocaleString()}
+                            </div>
+                            <div style={{ fontSize: '0.75rem', color: '#6B6B66', marginBottom: '1rem' }}>
+                              {p.court_free ? '✓ Free court booking' : `✓ ${p.court_discount_percent || 0}% court discount`}
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleSelectPlan(p)}
+                            style={{
+                              width: '100%', padding: '0.55rem', background: '#1F5C46', color: '#FFFFFF',
+                              border: 'none', borderRadius: '6px', fontWeight: 700, fontSize: '0.8rem', cursor: 'pointer',
+                              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem'
+                            }}
+                          >
+                            <CreditCard size={14} />
+                            <span>Renew with Razorpay</span>
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -1051,6 +1265,7 @@ export default function ClubDetailsPage() {
         <RazorpayModal
           club={club}
           plan={selectedPlanForCheckout}
+          user={user}
           onClose={() => setSelectedPlanForCheckout(null)}
           onSuccess={handleJoinSuccess}
         />
