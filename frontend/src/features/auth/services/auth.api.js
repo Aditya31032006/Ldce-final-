@@ -62,13 +62,17 @@ export const authApi = {
   },
 
   /**
-   * Update user profile avatar picture (Base64)
+   * Update user profile avatar picture (Base64 or URL)
    */
-  async updateAvatar(avatarUrl) {
-    const response = await apiClient.put('/auth/profile/avatar', {
+  async updateAvatar(avatarUrl, userId = null) {
+    const payload = {
       avatarUrl,
       avatar_url: avatarUrl,
-    });
+    };
+    if (userId) {
+      payload.userId = userId;
+    }
+    const response = await apiClient.put('/auth/profile/avatar', payload);
     return response.data;
   },
 

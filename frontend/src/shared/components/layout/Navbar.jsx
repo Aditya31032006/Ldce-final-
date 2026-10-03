@@ -90,30 +90,36 @@ export default function Navbar({ onToggleSidebar }) {
           {user?.avatar_url ? (
             <img
               src={user.avatar_url}
-              alt={user.name || 'User'}
+              alt={user.full_name || user.name || 'User'}
+              referrerPolicy="no-referrer"
               style={{ width: '30px', height: '30px', borderRadius: '50%', objectFit: 'cover' }}
-            />
-          ) : (
-            <div
-              style={{
-                width: '30px',
-                height: '30px',
-                borderRadius: '50%',
-                background: '#1f5c46',
-                color: '#ffffff',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontWeight: 600,
-                fontSize: '0.8rem',
+              onError={(e) => {
+                e.currentTarget.style.display = 'none';
+                if (e.currentTarget.nextSibling) {
+                  e.currentTarget.nextSibling.style.display = 'flex';
+                }
               }}
-            >
-              {user?.name ? user.name.charAt(0).toUpperCase() : 'U'}
-            </div>
-          )}
+            />
+          ) : null}
+          <div
+            style={{
+              display: user?.avatar_url ? 'none' : 'flex',
+              width: '30px',
+              height: '30px',
+              borderRadius: '50%',
+              background: '#1f5c46',
+              color: '#ffffff',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontWeight: 600,
+              fontSize: '0.8rem',
+            }}
+          >
+            {(user?.full_name || user?.name || 'U').charAt(0).toUpperCase()}
+          </div>
           <div style={{ display: 'none', flexDirection: 'column', textAlign: 'left' }} className="user-text-preview">
             <span style={{ fontSize: '0.8rem', fontWeight: 600, lineHeight: 1.1 }}>
-              {user?.name || 'Member'}
+              {user?.full_name || user?.name || 'Member'}
             </span>
             <span style={{ fontSize: '0.65rem', color: '#6b6b66', textTransform: 'capitalize' }}>
               {userRole.replace('_', ' ')}

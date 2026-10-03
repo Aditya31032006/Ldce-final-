@@ -62,8 +62,8 @@ router.put("/:clubId", verifyToken, resolveClubScope, requireRole('owner', 'mana
 router.get("/:clubId/settings", verifyToken, resolveClubScope, requireRole('owner', 'manager', 'front_desk', 'shop_staff', 'bar_staff'), getClubSettingsController);
 router.put("/:clubId/settings", verifyToken, resolveClubScope, requireRole('owner', 'manager'), updateClubSettingsController);
 
-// Gallery management for club (Owner only for modifications)
-router.post("/:clubId/gallery", verifyToken, resolveClubScope, requireRole('owner'), addClubGalleryController);
-router.delete("/:clubId/gallery/:imageId", verifyToken, resolveClubScope, requireRole('owner'), deleteClubGalleryController);
+// Gallery management for club (Owner, Admin, and Manager)
+router.post("/:clubId/gallery", requireRole('owner', 'admin', 'manager'), addClubGalleryController);
+router.delete("/:clubId/gallery/:imageId", requireRole('owner', 'admin', 'manager'), deleteClubGalleryController);
 
 export default router;
