@@ -142,10 +142,10 @@ export default function Profile() {
       // Ensure it is a Base64 data URL
       const finalBase64 = await urlToBase64(base64ToSave, 800, 800, 0.85);
       const res = await authApi.updateAvatar(finalBase64);
-      
+
       // Update Redux state immediately
       updateUserData(res.user);
-      
+
       toast.success('Profile picture saved successfully in Base64!');
       setShowAvatarModal(false);
       setAvatarPreview('');
@@ -368,7 +368,7 @@ export default function Profile() {
 
   return (
     <div className="df-page-wrapper" style={{ padding: '2rem 1.5rem', maxWidth: '1000px', margin: '0 auto' }}>
-      
+
       {/* Header */}
       <div style={{ marginBottom: '1.75rem' }}>
         <h1 style={{ fontSize: '1.85rem', fontWeight: 700, color: '#0f172a', marginBottom: '0.35rem' }}>
@@ -468,7 +468,7 @@ export default function Profile() {
         }}>
           {/* Avatar & Header */}
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', marginBottom: '1.75rem' }}>
-            
+
             {/* Hidden Direct File Input for Instant 1-Click Upload */}
             <input
               ref={fileInputRef}
@@ -478,7 +478,7 @@ export default function Profile() {
               style={{ display: 'none' }}
             />
 
-            <div 
+            <div
               style={{ position: 'relative', marginBottom: '1rem', cursor: 'pointer' }}
               onClick={() => fileInputRef.current?.click()}
               title="Click to choose a photo from your device"
@@ -560,7 +560,7 @@ export default function Profile() {
               >
                 {avatarLoading ? 'Uploading Base64...' : '📷 Upload Photo'}
               </button>
-              
+
               <button
                 type="button"
                 onClick={() => {
