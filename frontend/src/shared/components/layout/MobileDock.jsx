@@ -10,8 +10,8 @@ import {
   ShoppingBag,
   Warehouse,
   Menu,
-  Settings,
 } from 'lucide-react';
+
 import useAuth from '../../../features/auth/hook/useAuth.js';
 
 export default function MobileDock({ onOpenSidebar }) {
@@ -53,11 +53,12 @@ export default function MobileDock({ onOpenSidebar }) {
       case 'member':
       default:
         return [
-          { label: 'Overview', path: '/dashboard', icon: LayoutDashboard },
+          { label: 'Overview', path: '/user/dashboard', icon: LayoutDashboard },
           { label: 'Courts', path: '/courts', icon: Trophy },
           { label: 'Bookings', path: '/bookings', icon: Calendar },
           { label: 'Cafe', path: '/bar', icon: Coffee },
         ];
+
     }
   };
 
