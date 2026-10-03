@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { Suspense } from 'react';
 import { Navigate, Outlet, Link, useLocation } from 'react-router';
 import useAuth from '../hook/useAuth.js';
 import RouteLoader from '../../../shared/components/RouteLoader.jsx';
