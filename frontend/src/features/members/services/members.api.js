@@ -13,6 +13,10 @@ export const membersApi = {
     const res = await apiClient.get(`/members/${id}`);
     return res.data;
   },
+  async createMember(memberData) {
+    const res = await apiClient.post('/members', memberData);
+    return res.data;
+  },
 };
 
 export default membersApi;

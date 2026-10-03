@@ -49,12 +49,6 @@ const NAVIGATION_SECTIONS = [
         icon: Calendar,
         roles: ['owner', 'manager', 'admin', 'front_desk'],
       },
-      {
-        label: 'Social Play',
-        path: '/social-sessions',
-        icon: Users,
-        roles: ['owner', 'manager', 'admin', 'front_desk'],
-      },
     ],
   },
   {

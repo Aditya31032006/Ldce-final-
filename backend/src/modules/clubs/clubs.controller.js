@@ -110,13 +110,16 @@ export async function joinClubController(req, res, next) {
       }
     }
 
-    const { member, membership } = await clubsRepo.joinClub(req.user.id, targetClubId, selectedPlanId, paymentInfo);
+    const { member, membership, isRenewal } = await clubsRepo.joinClub(req.user.id, targetClubId, selectedPlanId, paymentInfo);
     const userClubs = await authRepo.getUserClubs(req.user.id);
 
     return res.status(201).json({
-      message: selectedPlanId ? "Successfully subscribed to plan and joined club!" : "Successfully joined club",
+      message: isRenewal
+        ? "Membership plan renewed and extended successfully!"
+        : (selectedPlanId ? "Successfully subscribed to plan and joined club!" : "Successfully joined club"),
       member,
       membership,
+      isRenewal,
       clubId: targetClubId,
       clubs: userClubs,
     });

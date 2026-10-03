@@ -11,10 +11,10 @@ export const CREATE_MEMBER = `
 export const GET_MEMBERS = `
   SELECT m.*,
          p.name AS plan_name, p.color AS plan_color,
-         ms.status AS membership_status, ms.ends_on AS membership_ends_on
+         ms.status AS membership_status, ms.start_date AS membership_start_date, ms.end_date AS membership_end_date
   FROM app.members m
   LEFT JOIN LATERAL (
-    SELECT ms.plan_id, ms.status, ms.ends_on
+    SELECT ms.plan_id, ms.status, ms.start_date, ms.end_date
     FROM app.memberships ms
     WHERE ms.member_id = m.id AND ms.club_id = m.club_id
     ORDER BY ms.created_at DESC
@@ -30,10 +30,10 @@ export const GET_MEMBERS = `
 export const GET_MEMBER_BY_ID = `
   SELECT m.*,
          p.name AS plan_name, p.color AS plan_color,
-         ms.status AS membership_status, ms.ends_on AS membership_ends_on
+         ms.status AS membership_status, ms.start_date AS membership_start_date, ms.end_date AS membership_end_date
   FROM app.members m
   LEFT JOIN LATERAL (
-    SELECT ms.plan_id, ms.status, ms.ends_on
+    SELECT ms.plan_id, ms.status, ms.start_date, ms.end_date
     FROM app.memberships ms
     WHERE ms.member_id = m.id AND ms.club_id = m.club_id
     ORDER BY ms.created_at DESC
