@@ -129,7 +129,7 @@ export default function OrdersList() {
     }
     try {
       setLoading(true);
-      const res = await ordersApi.getOrders();
+      const res = await ordersApi.getOrders({ clubId: effectiveClubId });
       const list = res.orders || (Array.isArray(res) ? res : []);
       setOrders(list);
     } catch (err) {

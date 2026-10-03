@@ -162,26 +162,16 @@ export const router = createBrowserRouter([
         ],
       },
 
-      // Pro Shop Inventory Operations (Owner, Manager, Admin, Shop Staff)
+      // Pro Shop Store & Inventory (Accessible to all authenticated users: staff manages inventory, members purchase gear)
       {
-        element: <RoleGuard allowedRoles={['owner', 'manager', 'admin', 'shop_staff']} />,
-        children: [
-          {
-            path: '/inventory',
-            element: withSuspense(InventoryList),
-          },
-        ],
+        path: '/inventory',
+        element: withSuspense(InventoryList),
       },
 
-      // Pro Shop Orders (Owner, Manager, Admin, Shop Staff, Front Desk)
+      // Pro Shop Orders (Accessible to all authenticated users: staff manages fulfillment, members view order history)
       {
-        element: <RoleGuard allowedRoles={['owner', 'manager', 'admin', 'shop_staff', 'front_desk']} />,
-        children: [
-          {
-            path: '/orders',
-            element: withSuspense(OrdersList),
-          },
-        ],
+        path: '/orders',
+        element: withSuspense(OrdersList),
       },
 
       // Bar & Cafe Operations (Owner, Manager, Admin, Bar Staff, Kitchen, Front Desk)

@@ -104,8 +104,8 @@ export default function InventoryList() {
     setLoading(true);
     try {
       const [prodRes, catRes] = await Promise.all([
-        inventoryApi.getProducts(),
-        inventoryApi.getCategories().catch(() => ({ categories: [] }))
+        inventoryApi.getProducts({ clubId: effectiveClubId }),
+        inventoryApi.getCategories({ clubId: effectiveClubId }).catch(() => ({ categories: [] }))
       ]);
       setProducts(prodRes.products || []);
       setCategories(catRes.categories || []);
@@ -293,7 +293,7 @@ export default function InventoryList() {
         ]
       };
 
-      const res = await ordersApi.createOrder(orderPayload);
+      const res = await ordersApi.createOrder(orderPayload, { clubId: effectiveClubId });
       toast.success('Order placed successfully!');
       setOrderSuccess(res.order || { order_no: 'Confirmed' });
       // Optimistically update products stock in UI immediately
