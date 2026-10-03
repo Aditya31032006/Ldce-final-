@@ -3,18 +3,24 @@ import { verifyToken, requireRole } from "../../shared/middleware/auth.middlewar
 import { resolveClubScope } from "../../shared/middleware/club-scope.middleware.js";
 import { 
   getProductsController, 
+  getCategoriesController,
   createProductController, 
+  updateProductController,
+  deleteProductController,
   getPurchaseOrdersController 
 } from "./inventory.controller.js";
 
 const router = Router();
 router.use(verifyToken, resolveClubScope);
 
-// Everyone can view products
+// Products catalog endpoint
 router.get("/products", getProductsController);
+router.get("/categories", getCategoriesController);
 
-// Only staff can create products
-router.post("/products", requireRole('owner', 'manager', 'shop_staff'), createProductController);
-router.get("/purchase-orders", requireRole('owner', 'manager', 'shop_staff'), getPurchaseOrdersController);
+// Inventory management endpoints (Owner, Manager, and Shop Staff only)
+router.post("/products", requireRole('owner', 'manager', 'admin', 'shop_staff'), createProductController);
+router.put("/products/:id", requireRole('owner', 'manager', 'admin', 'shop_staff'), updateProductController);
+router.delete("/products/:id", requireRole('owner', 'manager', 'admin', 'shop_staff'), deleteProductController);
+router.get("/purchase-orders", requireRole('owner', 'manager', 'admin', 'shop_staff'), getPurchaseOrdersController);
 
 export default router;

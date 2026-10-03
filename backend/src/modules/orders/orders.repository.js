@@ -3,6 +3,23 @@ import { withTenantTransaction } from '../../shared/utils/transaction.util.js';
 
 export async function createShopOrder(userId, clubId, orderData, items) {
   return withTenantTransaction(userId, clubId, async (client) => {
+    // 0. Auto-resolve ctx_member & role from DB session context
+    const ctxRes = await client.query('SELECT app.ctx_member() AS mem_id, app.ctx_role() AS role');
+    const ctxMember = ctxRes.rows[0]?.mem_id || null;
+    const ctxRole = ctxRes.rows[0]?.role || 'public';
+    const isStaff = ['owner', 'manager', 'front_desk', 'shop_staff'].includes(ctxRole);
+
+    const channel = isStaff ? (orderData.channel || 'pos') : 'online';
+    const status = isStaff ? (orderData.status || 'completed') : 'pending';
+    const memberId = orderData.member_id || ctxMember || null;
+    
+    // Ensure delivery address constraint is met
+    const fulfillment = orderData.fulfillment || 'counter';
+    let deliveryAddress = orderData.delivery_address ? orderData.delivery_address.trim() : null;
+    if (fulfillment === 'delivery' && !deliveryAddress) {
+      deliveryAddress = 'Club Facility Delivery / In-person Pickup';
+    }
+
     // 1. Validate and lock stock for each item
     // Sort items by variant_id to prevent deadlocks
     const sortedItems = [...items].sort((a, b) => a.variant_id.localeCompare(b.variant_id));
@@ -26,16 +43,17 @@ export async function createShopOrder(userId, clubId, orderData, items) {
     // 2. Create Order
     const orderResult = await client.query(queries.INSERT_SHOP_ORDER, [
       clubId,
-      orderData.member_id || null,
+      memberId,
       orderData.guest_name || null,
       orderData.guest_phone || null,
-      orderData.channel || 'pos',
-      orderData.fulfillment || 'counter',
-      orderData.delivery_address || null,
-      orderData.status || 'pending',
+      channel,
+      fulfillment,
+      deliveryAddress,
+      status,
       userId
     ]);
     const order = orderResult.rows[0];
+
 
     // 3. Create Order Items (Triggers will handle stock decrement and pricing automatically)
     const createdItems = [];
@@ -53,9 +71,22 @@ export async function createShopOrder(userId, clubId, orderData, items) {
   });
 }
 
-export async function getShopOrders(userId, clubId) {
+export async function getShopOrders(userId, clubId, customerUserId = null) {
   return withTenantTransaction(userId, clubId, async (client) => {
-    const res = await client.query(queries.GET_SHOP_ORDERS, [clubId]);
+    const res = await client.query(queries.GET_SHOP_ORDERS, [clubId, customerUserId]);
     return res.rows || [];
   });
 }
+
+export async function updateOrderStatus(userId, clubId, orderId, status) {
+  return withTenantTransaction(userId, clubId, async (client) => {
+    const res = await client.query(queries.UPDATE_SHOP_ORDER_STATUS, [status, orderId, clubId]);
+    if (res.rows.length === 0) {
+      const err = new Error("Order not found or update not permitted");
+      err.status = 404;
+      throw err;
+    }
+    return res.rows[0];
+  });
+}
+

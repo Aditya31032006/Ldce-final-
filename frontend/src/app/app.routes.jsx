@@ -166,6 +166,10 @@ export const router = createBrowserRouter([
         element: withSuspense(OrdersList),
       },
       {
+        path: '/inventory',
+        element: withSuspense(InventoryList),
+      },
+      {
         path: '/profile',
         element: withSuspense(Profile),
       },
@@ -185,16 +189,6 @@ export const router = createBrowserRouter([
         ],
       },
 
-      // Shop Staff & Management Inventory Operations (Hidden from normal members)
-      {
-        element: <RoleGuard allowedRoles={['owner', 'manager', 'admin', 'shop_staff']} />,
-        children: [
-          {
-            path: '/inventory',
-            element: withSuspense(InventoryList),
-          },
-        ],
-      },
 
       // Executive Manager & Owner Protected Operations (Hidden from staff & members)
       {

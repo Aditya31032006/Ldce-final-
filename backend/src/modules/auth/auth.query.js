@@ -98,8 +98,25 @@ export const UPDATE_GOOGLE_USER_SYNC = `
 `;
 
 export const FIND_USER_CLUBS = `
-  SELECT club_id, slug, name, role
-  FROM app.user_clubs($1);
+  SELECT DISTINCT ON (club_id) club_id, slug, name, role
+  FROM (
+    SELECT c.id AS club_id, c.slug, c.name, 'owner'::text AS role
+    FROM app.clubs c
+    WHERE c.owner_user_id = $1
+    UNION ALL
+    SELECT club_id, slug, name, role
+    FROM app.user_clubs($1)
+  ) combined
+  ORDER BY club_id, CASE 
+    WHEN role = 'owner' THEN 1 
+    WHEN role = 'manager' THEN 2 
+    WHEN role = 'admin' THEN 3 
+    WHEN role = 'front_desk' THEN 4 
+    WHEN role = 'shop_staff' THEN 5 
+    WHEN role = 'bar_staff' THEN 6 
+    WHEN role = 'kitchen' THEN 7 
+    ELSE 8 
+  END;
 `;
 
 export const CHECK_PLATFORM_ADMIN = `
