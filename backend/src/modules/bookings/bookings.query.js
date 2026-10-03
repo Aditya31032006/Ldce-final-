@@ -1,5 +1,5 @@
 export const LOCK_COURT = `
-  SELECT id FROM app.courts WHERE id = $1 AND club_id = $2 FOR UPDATE;
+  SELECT id FROM app.courts WHERE id = $1 AND club_id = $2 AND is_active = true;
 `;
 
 export const CHECK_OVERLAPPING_RESERVATION = `
@@ -79,6 +79,6 @@ export const CANCEL_BOOKING = `
 
 export const CANCEL_RESERVATION = `
   UPDATE app.court_reservations
-  SET status = 'cancelled'
+  SET status = 'released'
   WHERE id = (SELECT reservation_id FROM app.bookings WHERE id = $1);
 `;

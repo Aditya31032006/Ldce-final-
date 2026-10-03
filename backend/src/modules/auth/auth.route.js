@@ -107,6 +107,7 @@ router.put('/profile', verifyToken, setupProfileValidation, setupProfileControll
 
 // Profile Picture Management (Add / Update / Delete)
 router.put('/profile/avatar', verifyToken, updateAvatarController);
+router.post('/profile/avatar', verifyToken, updateAvatarController);
 router.delete('/profile/avatar', verifyToken, deleteAvatarController);
 
 // Add / Set Password for OAuth users without password

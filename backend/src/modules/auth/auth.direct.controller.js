@@ -238,14 +238,17 @@ export async function setupProfileController(req, res, next) {
  */
 export async function updateAvatarController(req, res, next) {
   try {
-    const avatarUrl = req.body.avatarUrl || req.body.avatar_url || req.body.avatar || req.body.image;
+    const avatarUrl = req.body.avatarUrl || req.body.avatar_url || req.body.avatar || req.body.image || req.body.base64;
     if (!avatarUrl) {
       return res.status(STATUS_CODES.BAD_REQUEST).json({
         success: false,
         message: 'No avatar image data provided in request body',
       });
     }
-    const updatedUser = await authService.updateUserAvatar(req.user.id, avatarUrl);
+    const targetUserId = (req.body.userId && ['owner', 'admin', 'manager'].includes(req.user.role))
+      ? req.body.userId
+      : req.user.id;
+    const updatedUser = await authService.updateUserAvatar(targetUserId, avatarUrl);
     delete updatedUser.password_hash;
     return res.status(STATUS_CODES.OK).json({
       success: true,

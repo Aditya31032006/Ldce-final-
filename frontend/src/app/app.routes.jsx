@@ -28,30 +28,9 @@ const FinanceDashboard = lazy(() => import('../features/finance/pages/FinanceDas
 const StaffManagement = lazy(() => import('../features/hr/pages/StaffManagement.jsx'));
 const ReportsDashboard = lazy(() => import('../features/reports/pages/ReportsDashboard.jsx'));
 const ClubsList = lazy(() => import('../features/clubs/pages/ClubsList.jsx'));
+const ClubDetailsPage = lazy(() => import('../features/clubs/pages/ClubDetailsPage.jsx'));
 
-// Sleek loading fallback for Suspense transitions matching Court & Ledger aesthetic
-const RouteLoader = () => (
-  <div style={{
-    minHeight: '60vh',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexDirection: 'column',
-    gap: '1rem',
-    color: '#6b6b66',
-    fontFamily: 'Inter, sans-serif'
-  }}>
-    <div style={{
-      width: '32px',
-      height: '32px',
-      border: '3px solid rgba(31, 92, 70, 0.2)',
-      borderTopColor: '#1f5c46',
-      borderRadius: '50%',
-      animation: 'df-spin 0.8s linear infinite'
-    }} />
-    <span style={{ fontSize: '0.875rem', fontWeight: 500 }}>Loading view...</span>
-  </div>
-);
+import RouteLoader from '../shared/components/RouteLoader.jsx';
 
 const withSuspense = (Component, props = {}) => (
   <Suspense fallback={<RouteLoader />}>
@@ -120,6 +99,23 @@ export const router = createBrowserRouter([
     path: '/landing',
     element: withSuspense(LandingPage),
   },
+  // Public & Scoped Club Portal (Accessible by buyers, visitors, and members)
+  {
+    path: '/clubs/:clubId',
+    element: withSuspense(ClubDetailsPage),
+  },
+  {
+    path: '/club/:slug',
+    element: withSuspense(ClubDetailsPage),
+  },
+  {
+    path: '/clubs/:clubId/:tab',
+    element: withSuspense(ClubDetailsPage),
+  },
+  {
+    path: '/club/:slug/:tab',
+    element: withSuspense(ClubDetailsPage),
+  },
 
   // Protected Routes (Require active authentication session)
   {
@@ -136,48 +132,44 @@ export const router = createBrowserRouter([
         element: <UserDashboardRoute />,
       },
 
-      // Shared Member & Front-Desk Play Operations
+      // User Profile & Store Services (Accessible to all members and staff)
       {
-        path: '/bookings',
-        element: withSuspense(BookingsList),
-      },
-      {
-        path: '/bookings/calendar',
-        element: withSuspense(BookingCalendar),
-      },
-      {
-        path: '/courts',
-        element: withSuspense(CourtsManagement),
-      },
-      {
-        path: '/plans',
-        element: withSuspense(MembershipPlans),
-      },
-      {
-        path: '/social-sessions',
-        element: withSuspense(SocialSessionsList),
-      },
-      {
-        path: '/bar',
-        element: withSuspense(BarPOS),
+        path: '/inventory',
+        element: withSuspense(InventoryList),
       },
       {
         path: '/orders',
         element: withSuspense(OrdersList),
       },
       {
-        path: '/inventory',
-        element: withSuspense(InventoryList),
-      },
-      {
         path: '/profile',
         element: withSuspense(Profile),
       },
 
-      // Front Desk & Management Protected Operations (Hidden from normal members)
+      // Front Desk & Staff Management Operations (Hidden and blocked from normal users)
       {
         element: <RoleGuard allowedRoles={['owner', 'manager', 'admin', 'front_desk']} />,
         children: [
+          {
+            path: '/bookings',
+            element: withSuspense(BookingsList),
+          },
+          {
+            path: '/bookings/calendar',
+            element: withSuspense(BookingCalendar),
+          },
+          {
+            path: '/courts',
+            element: withSuspense(CourtsManagement),
+          },
+          {
+            path: '/plans',
+            element: withSuspense(MembershipPlans),
+          },
+          {
+            path: '/social-sessions',
+            element: withSuspense(SocialSessionsList),
+          },
           {
             path: '/members',
             element: withSuspense(MembersList),
@@ -189,6 +181,16 @@ export const router = createBrowserRouter([
         ],
       },
 
+      // Shop & Bar Staff Protected Operations (Bar POS restricted to staff)
+      {
+        element: <RoleGuard allowedRoles={['owner', 'manager', 'admin', 'shop_staff', 'bar_staff']} />,
+        children: [
+          {
+            path: '/bar',
+            element: withSuspense(BarPOS),
+          },
+        ],
+      },
 
       // Executive Manager & Owner Protected Operations (Hidden from staff & members)
       {

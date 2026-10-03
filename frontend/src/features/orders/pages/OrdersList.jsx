@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router';
 import useAuth from '../../auth/hook/useAuth.js';
 import ordersApi from '../services/orders.api.js';
 import { useToast } from '../../../shared/context/ToastContext.jsx';
@@ -23,17 +24,23 @@ import {
   ShieldCheck,
   ChevronRight,
   Receipt,
-  X
+  X,
+  ArrowLeft
 } from 'lucide-react';
 
 export default function OrdersList() {
-  const { user, role, clubId, clubs } = useAuth();
+  const { user, role, clubId, clubs, changeClub } = useAuth();
   const { toast } = useToast();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+
+  const queryClubId = searchParams.get('clubId') || searchParams.get('club');
+  const effectiveClubId = queryClubId || clubId;
 
   const userRole = (role || '').toLowerCase();
   const isStaff = ['owner', 'shop_staff', 'manager', 'admin'].includes(userRole);
 
-  const activeClub = clubs?.find(c => (c.club_id === clubId || c.id === clubId)) || clubs?.[0];
+  const activeClub = clubs?.find(c => (c.club_id === effectiveClubId || c.id === effectiveClubId)) || clubs?.[0];
   const clubName = activeClub?.name || 'Current Club';
 
   const [orders, setOrders] = useState([]);
@@ -44,6 +51,10 @@ export default function OrdersList() {
   const [updatingId, setUpdatingId] = useState(null);
 
   const loadOrders = async () => {
+    if (!effectiveClubId) {
+      setLoading(false);
+      return;
+    }
     try {
       setLoading(true);
       const res = await ordersApi.getOrders();
@@ -57,8 +68,11 @@ export default function OrdersList() {
   };
 
   useEffect(() => {
+    if (queryClubId && queryClubId !== clubId && changeClub) {
+      changeClub(queryClubId);
+    }
     loadOrders();
-  }, [clubId]);
+  }, [effectiveClubId, queryClubId]);
 
   const handleUpdateStatus = async (orderId, newStatus) => {
     try {
@@ -265,6 +279,28 @@ export default function OrdersList() {
               }}>
                 Club: {clubName}
               </span>
+
+              {activeClub && (
+                <button
+                  type="button"
+                  onClick={() => navigate(`/club/${activeClub.slug || activeClub.id || effectiveClubId}`)}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.35rem',
+                    background: '#f8fafc',
+                    color: '#059669',
+                    border: '1px solid #cbd5e1',
+                    padding: '0.25rem 0.65rem',
+                    borderRadius: '0.375rem',
+                    fontSize: '0.75rem',
+                    fontWeight: 600,
+                    cursor: 'pointer'
+                  }}
+                >
+                  <ArrowLeft size={12} /> Back to Club Portal
+                </button>
+              )}
             </div>
           </div>
 

@@ -6,7 +6,7 @@ export async function createMemberController(req, res, next) {
     if (!first_name || (!phone && !email)) {
       return res.status(400).json({ message: "First name and either phone or email are required" });
     }
-    
+
     if (req.user.role === 'public') {
       req.body.user_id = req.user.id;
     }

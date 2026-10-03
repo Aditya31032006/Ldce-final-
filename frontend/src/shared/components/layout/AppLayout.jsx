@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import { Outlet, useLocation } from 'react-router';
 import Sidebar from './Sidebar.jsx';
 import Navbar from './Navbar.jsx';
 import MobileDock from './MobileDock.jsx';
+import RouteLoader from '../RouteLoader.jsx';
 import '../../styles/layout.scss';
 
 /**
@@ -46,7 +47,9 @@ export default function AppLayout() {
         />
 
         <main className="cl-app-layout__content">
-          <Outlet />
+          <Suspense fallback={<RouteLoader message="Loading page..." />}>
+            <Outlet />
+          </Suspense>
         </main>
       </div>
 

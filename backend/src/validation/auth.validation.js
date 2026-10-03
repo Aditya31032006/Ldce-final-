@@ -52,7 +52,14 @@ export const directSignupValidation = [
 
   body('avatarUrl')
     .optional({ values: 'falsy' })
-    .isURL().withMessage('Avatar URL must be a valid URL'),
+    .custom((val) => {
+      if (typeof val !== 'string') throw new Error('Avatar must be a valid string');
+      const trimmed = val.trim();
+      if (trimmed.startsWith('data:image/') || trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+        return true;
+      }
+      throw new Error('Avatar URL must be a valid URL or Base64 image');
+    }),
 
   validate,
 ];
@@ -138,7 +145,14 @@ export const setupProfileValidation = [
 
   body('avatarUrl')
     .optional({ values: 'falsy' })
-    .isURL().withMessage('Avatar URL must be a valid URL'),
+    .custom((val) => {
+      if (typeof val !== 'string') throw new Error('Avatar must be a valid string');
+      const trimmed = val.trim();
+      if (trimmed.startsWith('data:image/') || trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+        return true;
+      }
+      throw new Error('Avatar URL must be a valid URL or Base64 image');
+    }),
 
   body('password')
     .optional({ values: 'falsy' })

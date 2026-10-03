@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router';
+import { useNavigate, useSearchParams } from 'react-router';
 import useAuth from '../../auth/hook/useAuth.js';
 import inventoryApi from '../services/inventory.api.js';
 import ordersApi from '../../orders/services/orders.api.js';
@@ -16,34 +16,39 @@ import {
   Trash2, 
   Filter, 
   Image as ImageIcon,
-  DollarSign,
-  Layers,
-  ArrowUpDown,
-  RefreshCw,
-  ShoppingBag,
-  ShoppingCart,
-  Truck,
-  User,
-  Phone,
-  MapPin,
-  CheckCircle2,
-  X,
-  Eye,
-  LayoutGrid,
-  List,
-  Sparkles,
-  ShieldCheck
+  DollarSign, 
+  Layers, 
+  ArrowUpDown, 
+  RefreshCw, 
+  ShoppingBag, 
+  ShoppingCart, 
+  Truck, 
+  User, 
+  Phone, 
+  MapPin, 
+  CheckCircle2, 
+  X, 
+  Eye, 
+  LayoutGrid, 
+  List, 
+  Sparkles, 
+  ShieldCheck,
+  ArrowLeft
 } from 'lucide-react';
 
 export default function InventoryList() {
-  const { user, role, clubId, clubs } = useAuth();
+  const { user, role, clubId, clubs, changeClub } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+
+  const queryClubId = searchParams.get('clubId') || searchParams.get('club');
+  const effectiveClubId = queryClubId || clubId;
 
   const userRole = (role || '').toLowerCase();
   const isStaff = ['owner', 'shop_staff', 'manager', 'admin'].includes(userRole);
 
-  const activeClub = clubs?.find(c => (c.club_id === clubId || c.id === clubId)) || clubs?.[0];
+  const activeClub = clubs?.find(c => (c.club_id === effectiveClubId || c.id === effectiveClubId)) || clubs?.[0];
   const clubName = activeClub?.name || 'Current Facility';
 
   const [products, setProducts] = useState([]);
@@ -92,7 +97,7 @@ export default function InventoryList() {
   const fileInputRef = useRef(null);
 
   const loadInventory = async () => {
-    if (!clubId) {
+    if (!effectiveClubId) {
       setLoading(false);
       return;
     }
@@ -113,8 +118,11 @@ export default function InventoryList() {
   };
 
   useEffect(() => {
+    if (queryClubId && queryClubId !== clubId && changeClub) {
+      changeClub(queryClubId);
+    }
     loadInventory();
-  }, [clubId]);
+  }, [effectiveClubId, queryClubId]);
 
   // Image Upload Handler
   const handleImageFileChange = async (e) => {
@@ -223,6 +231,11 @@ export default function InventoryList() {
 
   // Open Customer Buy / Order Modal
   const handleOpenBuy = (product) => {
+    const qty = Number(product.stock_qty) || 0;
+    if (qty <= 0) {
+      toast.error('This product is currently out of stock');
+      return;
+    }
     setBuyingProduct(product);
     setBuyQuantity(1);
     setBuyFulfillment('delivery');
@@ -244,6 +257,13 @@ export default function InventoryList() {
       return;
     }
 
+    const availableStock = Number(buyingProduct.stock_qty) || 0;
+    const requestedQty = Number(buyQuantity) || 1;
+    if (requestedQty > availableStock) {
+      toast.error(`Only ${availableStock} unit(s) available in stock`);
+      return;
+    }
+
     if (buyFulfillment === 'delivery' && !buyAddress.trim()) {
       toast.error('Please enter a delivery address');
       return;
@@ -259,7 +279,7 @@ export default function InventoryList() {
         items: [
           {
             variant_id: variant.id,
-            quantity: Number(buyQuantity) || 1,
+            quantity: requestedQty,
           }
         ]
       };
@@ -267,7 +287,19 @@ export default function InventoryList() {
       const res = await ordersApi.createOrder(orderPayload);
       toast.success('Order placed successfully!');
       setOrderSuccess(res.order || { order_no: 'Confirmed' });
-      loadInventory(); // Refresh stock
+      // Optimistically update products stock in UI immediately
+      setProducts(prev => prev.map(p => {
+        if (p.id === buyingProduct.id) {
+          const newQty = Math.max(0, (Number(p.stock_qty) || 0) - requestedQty);
+          return {
+            ...p,
+            stock_qty: newQty,
+            variants: p.variants?.map(v => v.id === variant.id ? { ...v, stock_qty: Math.max(0, (Number(v.stock_qty) || 0) - requestedQty) } : v)
+          };
+        }
+        return p;
+      }));
+      loadInventory(); // Refresh full inventory from server
     } catch (err) {
       toast.error(err.response?.data?.message || err.message || 'Failed to place order');
     } finally {
@@ -383,6 +415,28 @@ export default function InventoryList() {
               }}>
                 Club: {clubName}
               </span>
+
+              {activeClub && (
+                <button
+                  type="button"
+                  onClick={() => navigate(`/club/${activeClub.slug || activeClub.id || effectiveClubId}`)}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.35rem',
+                    background: '#f8fafc',
+                    color: '#2563eb',
+                    border: '1px solid #cbd5e1',
+                    padding: '0.25rem 0.65rem',
+                    borderRadius: '0.375rem',
+                    fontSize: '0.75rem',
+                    fontWeight: 600,
+                    cursor: 'pointer'
+                  }}
+                >
+                  <ArrowLeft size={12} /> Back to Club Portal
+                </button>
+              )}
             </div>
           </div>
 
@@ -1255,9 +1309,13 @@ export default function InventoryList() {
                     <input
                       type="number"
                       min="1"
-                      max={Number(buyingProduct.stock_qty) || 10}
+                      max={Math.max(1, Number(buyingProduct.stock_qty) || 1)}
                       value={buyQuantity}
-                      onChange={(e) => setBuyQuantity(Math.max(1, Math.min(Number(buyingProduct.stock_qty) || 10, Number(e.target.value) || 1)))}
+                      onChange={(e) => {
+                        const val = parseInt(e.target.value, 10) || 1;
+                        const maxAvail = Math.max(1, Number(buyingProduct.stock_qty) || 1);
+                        setBuyQuantity(Math.max(1, Math.min(maxAvail, val)));
+                      }}
                       style={{
                         width: '90px',
                         padding: '0.55rem',
@@ -1269,7 +1327,7 @@ export default function InventoryList() {
                       }}
                     />
                     <span style={{ fontSize: '0.8rem', color: '#64748b' }}>
-                      (Max {buyingProduct.stock_qty} available)
+                      (Max {buyingProduct.stock_qty || 0} available)
                     </span>
                   </div>
                 </div>

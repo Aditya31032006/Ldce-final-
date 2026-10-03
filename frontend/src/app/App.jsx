@@ -1,10 +1,11 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, Suspense } from 'react';
 import { RouterProvider } from 'react-router';
 import { router } from './app.routes.jsx';
 import useAuth from '../features/auth/hook/useAuth.js';
 import { ToastProvider } from '../shared/context/ToastContext.jsx';
 import ToastContainer from '../shared/components/ToastContainer.jsx';
 import ConfirmModal from '../shared/components/ConfirmModal.jsx';
+import RouteLoader from '../shared/components/RouteLoader.jsx';
 
 function App() {
   const { fetchCurrentUser } = useAuth();
@@ -23,7 +24,9 @@ function App() {
 
   return (
     <ToastProvider>
-      <RouterProvider router={router} />
+      <Suspense fallback={<RouteLoader fullScreen message="Loading Court & Ledger..." />}>
+        <RouterProvider router={router} />
+      </Suspense>
       <ToastContainer />
       <ConfirmModal />
     </ToastProvider>
