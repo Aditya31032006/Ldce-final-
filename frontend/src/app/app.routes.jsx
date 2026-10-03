@@ -89,8 +89,19 @@ function UserDashboardRoute() {
   );
 }
 
-function RoleBasedRoot() {
-  const { role } = useAuth();
+// If visitor is NOT logged in -> LandingPage
+// If visitor IS logged in -> Redirect to respective dashboard
+function PublicLandingOrDashboard() {
+  const { isAuthenticated, role, loading } = useAuth();
+
+  if (loading) {
+    return <RouteLoader />;
+  }
+
+  if (!isAuthenticated) {
+    return withSuspense(LandingPage);
+  }
+
   const userRole = (role || 'public').toLowerCase();
   if (userRole === 'member' || userRole === 'public') {
     return <Navigate to="/user/dashboard" replace />;
@@ -99,9 +110,14 @@ function RoleBasedRoot() {
 }
 
 export const router = createBrowserRouter([
-  // Public Editorial Landing Page
+  // Public Root: Landing page for unauthenticated visitors, dashboard redirect for authenticated users
   {
     path: '/',
+    element: <PublicLandingOrDashboard />,
+  },
+  // Dedicated Landing Page route
+  {
+    path: '/landing',
     element: withSuspense(LandingPage),
   },
 
@@ -109,10 +125,6 @@ export const router = createBrowserRouter([
   {
     element: <ProtectedRoute />,
     children: [
-      {
-        path: '/',
-        element: <RoleBasedRoot />,
-      },
       // Admin / Staff Operational Dashboard (Protected against normal members)
       {
         path: '/dashboard',

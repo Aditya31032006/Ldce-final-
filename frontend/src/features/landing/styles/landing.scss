@@ -21,7 +21,7 @@ $brand-bg-cream: #F2F0EB;
   background-color: $brand-bg-ivory;
   color: $brand-charcoal;
   font-family: 'Plus Jakarta Sans', 'Inter', -apple-system, sans-serif;
-  overflow-x: hidden;
+  overflow-x: clip;
   position: relative;
 
   .font-display {
@@ -39,9 +39,12 @@ $brand-bg-cream: #F2F0EB;
   .club-nav {
     position: sticky;
     top: 0;
-    z-index: 100;
-    background: rgba(248, 247, 244, 0.94);
+    left: 0;
+    width: 100%;
+    z-index: 1000;
+    background: rgba(248, 247, 244, 0.96);
     backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
     border-bottom: 1px solid $brand-border;
     transition: all 0.2s ease;
 
@@ -166,6 +169,10 @@ $brand-bg-cream: #F2F0EB;
     background: #ffffff;
     border-bottom: 1px solid $brand-border;
     padding: 1.25rem 1.5rem;
+    position: sticky;
+    top: 68px;
+    z-index: 999;
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.08);
 
     &.open {
       display: block;

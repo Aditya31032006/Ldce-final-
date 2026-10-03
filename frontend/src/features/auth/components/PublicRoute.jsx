@@ -9,7 +9,7 @@ import useAuth from '../hook/useAuth.js';
  * If unauthenticated, renders the guest page via Outlet.
  */
 export default function PublicRoute() {
-  const { isAuthenticated, isProfileComplete, loading } = useAuth();
+  const { isAuthenticated, isProfileComplete, role, loading } = useAuth();
 
   if (loading) {
     return (
@@ -37,6 +37,10 @@ export default function PublicRoute() {
   if (isAuthenticated) {
     if (!isProfileComplete) {
       return <Navigate to="/setup-profile" replace />;
+    }
+    const userRole = (role || 'public').toLowerCase();
+    if (userRole === 'member' || userRole === 'public') {
+      return <Navigate to="/user/dashboard" replace />;
     }
     return <Navigate to="/dashboard" replace />;
   }
