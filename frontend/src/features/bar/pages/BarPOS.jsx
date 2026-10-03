@@ -147,30 +147,53 @@ export default function BarPOS() {
 
   useEffect(() => {
     loadPOSData();
-    const handleTablesUpdated = () => loadPOSData();
-    window.addEventListener('tables-updated', handleTablesUpdated);
+    const handleGlobalUpdate = () => {
+      loadPOSData();
+      if (activeTab === 'kds') loadKdsData();
+      if (activeTab === 'tabs') loadTabsData();
+      if (activeTab === 'closing') loadDailyClosing();
+    };
+
+    window.addEventListener('tables-updated', handleGlobalUpdate);
+    window.addEventListener('order-placed', handleGlobalUpdate);
+    window.addEventListener('kds-updated', handleGlobalUpdate);
+    window.addEventListener('tabs-updated', handleGlobalUpdate);
     const handleStorage = (e) => {
-      if (e.key === 'ldce_tables_updated') loadPOSData();
+      if (
+        e.key === 'ldce_tables_updated' ||
+        e.key === 'ldce_kds_updated' ||
+        e.key === 'ldce_tabs_updated' ||
+        e.key === 'ldce_orders_updated'
+      ) {
+        handleGlobalUpdate();
+      }
     };
     window.addEventListener('storage', handleStorage);
     return () => {
-      window.removeEventListener('tables-updated', handleTablesUpdated);
+      window.removeEventListener('tables-updated', handleGlobalUpdate);
+      window.removeEventListener('order-placed', handleGlobalUpdate);
+      window.removeEventListener('kds-updated', handleGlobalUpdate);
+      window.removeEventListener('tabs-updated', handleGlobalUpdate);
       window.removeEventListener('storage', handleStorage);
     };
-  }, [loadPOSData]);
+  }, [loadPOSData, loadKdsData, loadTabsData, loadDailyClosing, activeTab]);
 
-  // Tab change effects
+  // Tab change effects with active polling
   useEffect(() => {
     if (activeTab === 'kds') {
       loadKdsData();
-      const interval = setInterval(loadKdsData, 8000);
+      const interval = setInterval(loadKdsData, 5000);
       return () => clearInterval(interval);
     }
     if (activeTab === 'tabs') {
       loadTabsData();
+      const interval = setInterval(loadTabsData, 5000);
+      return () => clearInterval(interval);
     }
     if (activeTab === 'closing') {
       loadDailyClosing();
+      const interval = setInterval(loadDailyClosing, 5000);
+      return () => clearInterval(interval);
     }
   }, [activeTab, loadKdsData, loadTabsData, loadDailyClosing]);
 
@@ -452,6 +475,8 @@ export default function BarPOS() {
       await barApi.updateKdsItemStatus(item.id, nextStatus, activeClubId);
       loadKdsData();
       showNotification(`Item marked as ${nextStatus}`, 'success');
+      window.dispatchEvent(new CustomEvent('kds-updated'));
+      localStorage.setItem('ldce_kds_updated', Date.now().toString());
     } catch (err) {
       console.error('KDS status update failed:', err);
       showNotification('Failed to update kitchen status', 'error');
@@ -1768,6 +1793,47 @@ export default function BarPOS() {
                         ₹{Number(tab.balance || 0).toFixed(2)}
                       </div>
                     </div>
+
+                    {/* Order History */}
+                    {tab.order_history && tab.order_history.length > 0 ? (
+                      <div style={{ marginTop: '1rem', borderTop: '1px dashed #E7E5DF', paddingTop: '0.75rem' }}>
+                        <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#1A1A18', marginBottom: '0.5rem', display: 'flex', justifyContent: 'space-between' }}>
+                          <span>Order History ({tab.order_history.length})</span>
+                          <span style={{ fontSize: '0.7rem', color: '#6B6B66' }}>Active Items</span>
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem', maxHeight: '160px', overflowY: 'auto' }}>
+                          {tab.order_history.map((ord) => (
+                            <div
+                              key={ord.id}
+                              style={{
+                                background: '#F8FAF9',
+                                border: '1px solid #E7E5DF',
+                                borderRadius: '6px',
+                                padding: '0.5rem 0.65rem',
+                                fontSize: '0.75rem',
+                              }}
+                            >
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontWeight: 700, color: '#1F5C46' }}>
+                                <span>#{ord.order_no}</span>
+                                <span>₹{Number(ord.total || 0).toFixed(2)}</span>
+                              </div>
+                              {ord.items_summary && (
+                                <div style={{ color: '#4B5563', fontSize: '0.72rem', marginTop: '0.2rem' }}>
+                                  {ord.items_summary}
+                                </div>
+                              )}
+                              <div style={{ color: '#9CA3AF', fontSize: '0.68rem', marginTop: '0.2rem' }}>
+                                📅 {new Date(ord.opened_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} • Status: <span style={{ textTransform: 'capitalize', color: '#1F5C46', fontWeight: 600 }}>{ord.status}</span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ) : (
+                      <div style={{ marginTop: '0.75rem', fontSize: '0.75rem', color: '#9CA3AF', fontStyle: 'italic' }}>
+                        No orders charged to this tab yet.
+                      </div>
+                    )}
                   </div>
 
                   <div style={{ marginTop: '1.25rem', paddingTop: '0.75rem', borderTop: '1px solid #F4F2EC' }}>
@@ -1799,13 +1865,35 @@ export default function BarPOS() {
       {/* ─── TAB 5: DAILY CLOSING ─── */}
       {activeTab === 'closing' && (
         <div style={{ padding: '1.5rem', flex: 1, overflowY: 'auto' }}>
-          <div style={{ marginBottom: '1.25rem' }}>
-            <h2 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#1A1A18', margin: 0 }}>
-              Daily Closing & Register Report
-            </h2>
-            <span style={{ fontSize: '0.82rem', color: '#6B6B66' }}>
-              Financial reconciliation for today's cafe and bar sales.
-            </span>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+            <div>
+              <h2 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#1A1A18', margin: 0 }}>
+                Daily Closing & Register Report
+              </h2>
+              <span style={{ fontSize: '0.82rem', color: '#6B6B66' }}>
+                Live financial reconciliation for today's cafe and bar sales.
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={loadDailyClosing}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.4rem',
+                padding: '0.45rem 0.85rem',
+                borderRadius: '6px',
+                border: '1px solid #E7E5DF',
+                background: '#FFFFFF',
+                color: '#1F5C46',
+                fontSize: '0.8rem',
+                fontWeight: 700,
+                cursor: 'pointer',
+              }}
+            >
+              <RefreshCw size={13} />
+              <span>Refresh Report</span>
+            </button>
           </div>
 
           {dailyClosing && (
@@ -1813,39 +1901,53 @@ export default function BarPOS() {
               <div
                 style={{
                   display: 'grid',
-                  gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
                   gap: '1rem',
                 }}
               >
                 <div style={{ background: '#FFFFFF', padding: '1.25rem', borderRadius: '8px', border: '1px solid #E7E5DF' }}>
                   <span style={{ fontSize: '0.75rem', color: '#6B6B66' }}>Total Orders Settled</span>
                   <div style={{ fontSize: '1.6rem', fontWeight: 800, color: '#1A1A18', marginTop: '0.25rem' }}>
-                    {dailyClosing.orders_count || 0}
+                    {dailyClosing.orders_count ?? dailyClosing.summary?.orders ?? 0}
                   </div>
                 </div>
 
                 <div style={{ background: '#FFFFFF', padding: '1.25rem', borderRadius: '8px', border: '1px solid #E7E5DF' }}>
-                  <span style={{ fontSize: '0.75rem', color: '#6B6B66' }}>Total Revenue</span>
+                  <span style={{ fontSize: '0.75rem', color: '#6B6B66' }}>Gross Sales</span>
+                  <div style={{ fontSize: '1.6rem', fontWeight: 800, color: '#1A1A18', marginTop: '0.25rem' }}>
+                    ₹{Number(dailyClosing.gross_sales ?? dailyClosing.summary?.gross ?? 0).toFixed(2)}
+                  </div>
+                </div>
+
+                <div style={{ background: '#FFFFFF', padding: '1.25rem', borderRadius: '8px', border: '1px solid #E7E5DF' }}>
+                  <span style={{ fontSize: '0.75rem', color: '#6B6B66' }}>Member Discounts</span>
+                  <div style={{ fontSize: '1.6rem', fontWeight: 800, color: '#15803D', marginTop: '0.25rem' }}>
+                    -₹{Number(dailyClosing.total_discounts ?? dailyClosing.summary?.discounts ?? 0).toFixed(2)}
+                  </div>
+                </div>
+
+                <div style={{ background: '#FFFFFF', padding: '1.25rem', borderRadius: '8px', border: '1px solid #E7E5DF' }}>
+                  <span style={{ fontSize: '0.75rem', color: '#6B6B66' }}>Net Revenue</span>
                   <div style={{ fontSize: '1.6rem', fontWeight: 900, color: '#1F5C46', marginTop: '0.25rem' }}>
-                    ₹{Number(dailyClosing.total_sales || 0).toFixed(2)}
+                    ₹{Number(dailyClosing.total_sales ?? dailyClosing.summary?.net_total ?? 0).toFixed(2)}
                   </div>
                 </div>
 
                 <div style={{ background: '#FFFFFF', padding: '1.25rem', borderRadius: '8px', border: '1px solid #E7E5DF' }}>
                   <span style={{ fontSize: '0.75rem', color: '#6B6B66' }}>GST Collected</span>
                   <div style={{ fontSize: '1.6rem', fontWeight: 800, color: '#2563EB', marginTop: '0.25rem' }}>
-                    ₹{Number(dailyClosing.total_tax || 0).toFixed(2)}
+                    ₹{Number(dailyClosing.total_tax ?? dailyClosing.summary?.tax ?? 0).toFixed(2)}
                   </div>
                 </div>
               </div>
 
-              {dailyClosing.by_payment_method && dailyClosing.by_payment_method.length > 0 && (
+              {(dailyClosing.by_payment_method?.length > 0 || dailyClosing.payment_breakdown?.length > 0) && (
                 <div style={{ background: '#FFFFFF', padding: '1.25rem', borderRadius: '8px', border: '1px solid #E7E5DF' }}>
                   <h3 style={{ fontSize: '0.95rem', fontWeight: 700, margin: '0 0 1rem', color: '#1A1A18' }}>
                     Collections by Payment Method
                   </h3>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                    {dailyClosing.by_payment_method.map((pm, idx) => (
+                    {(dailyClosing.by_payment_method || dailyClosing.payment_breakdown || []).map((pm, idx) => (
                       <div
                         key={idx}
                         style={{
@@ -1860,7 +1962,7 @@ export default function BarPOS() {
                           {pm.method === 'online' ? 'Razorpay Online' : pm.method}
                         </span>
                         <span style={{ fontWeight: 800, color: '#1F5C46' }}>
-                          ₹{Number(pm.total || 0).toFixed(2)} ({pm.count} txns)
+                          ₹{Number(pm.total_amount ?? pm.amount ?? pm.total ?? 0).toFixed(2)} ({pm.count} txns)
                         </span>
                       </div>
                     ))}

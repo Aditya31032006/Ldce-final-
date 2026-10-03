@@ -203,3 +203,47 @@ export async function createBookingRazorpayOrderController(req, res, next) {
     next(error);
   }
 }
+
+export async function resolveCourtPriceController(req, res, next) {
+  try {
+    const { court_id, plan_id, start_at } = req.query;
+    if (!court_id) {
+      return res.status(400).json({ success: false, message: 'court_id is required' });
+    }
+
+    let planId = plan_id || null;
+    if (!planId && req.user) {
+      const memRes = await pool.query(
+        'SELECT plan_id FROM app.members WHERE user_id = $1 AND club_id = $2',
+        [req.user.id, req.clubId]
+      );
+      if (memRes.rows.length > 0 && memRes.rows[0].plan_id) {
+        planId = memRes.rows[0].plan_id;
+      }
+    }
+
+    const timestamp = start_at ? new Date(start_at).toISOString() : new Date().toISOString();
+    const result = await pool.query(
+      'SELECT app.resolve_court_price($1::uuid, $2::uuid, $3::timestamptz) AS price',
+      [court_id, planId, timestamp]
+    );
+
+    const price = Number(result.rows[0]?.price || 0);
+
+    const baseResult = await pool.query(
+      'SELECT app.resolve_court_price($1::uuid, NULL, $3::timestamptz) AS base_price',
+      [court_id, planId, timestamp]
+    );
+    const basePrice = Number(baseResult.rows[0]?.base_price || price);
+
+    return res.status(200).json({
+      success: true,
+      price,
+      base_price: basePrice,
+      plan_id: planId,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+

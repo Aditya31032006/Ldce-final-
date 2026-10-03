@@ -68,14 +68,16 @@ export default function MemberCafe({ club, membership }) {
     setTimeout(() => setNotification(null), 3500);
   };
 
-  // Determine member discount rate from membership plan
+  // Determine member discount rate dynamically from membership plan
   const memberDiscountRate = useMemo(() => {
-    if (membership?.plan?.bar_discount_percent) {
+    if (membership?.bar_discount_percent != null) {
+      return Number(membership.bar_discount_percent) / 100;
+    }
+    if (membership?.plan?.bar_discount_percent != null) {
       return Number(membership.plan.bar_discount_percent) / 100;
     }
-    const planName = membership?.plan?.name?.toLowerCase() || '';
-    if (planName.includes('gold')) return 0.15;
-    if (planName.includes('standard')) return 0.10;
+    const planName = (membership?.plan_name || membership?.plan?.name || '').toLowerCase();
+    if (planName.includes('gold')) return 0.03;
     return 0;
   }, [membership]);
 
@@ -122,15 +124,23 @@ export default function MemberCafe({ club, membership }) {
     const handleTablesUpdated = () => {
       loadData();
     };
+    const handleKdsUpdated = () => {
+      loadMyOrders();
+    };
     window.addEventListener('tables-updated', handleTablesUpdated);
+    window.addEventListener('kds-updated', handleKdsUpdated);
     const handleStorage = (e) => {
       if (e.key === 'ldce_tables_updated') {
         loadData();
+      }
+      if (e.key === 'ldce_kds_updated' || e.key === 'ldce_orders_updated') {
+        loadMyOrders();
       }
     };
     window.addEventListener('storage', handleStorage);
     return () => {
       window.removeEventListener('tables-updated', handleTablesUpdated);
+      window.removeEventListener('kds-updated', handleKdsUpdated);
       window.removeEventListener('storage', handleStorage);
     };
   }, [loadData, loadMyOrders]);
@@ -139,7 +149,7 @@ export default function MemberCafe({ club, membership }) {
   useEffect(() => {
     if (activeView === 'orders') {
       loadMyOrders();
-      const interval = setInterval(loadMyOrders, 8000);
+      const interval = setInterval(loadMyOrders, 3000);
       return () => clearInterval(interval);
     }
     if (activeView === 'occupancy') {
@@ -374,7 +384,12 @@ export default function MemberCafe({ club, membership }) {
       loadData();
       window.dispatchEvent(new CustomEvent('tables-updated'));
       window.dispatchEvent(new CustomEvent('order-placed'));
+      window.dispatchEvent(new CustomEvent('tabs-updated'));
+      window.dispatchEvent(new CustomEvent('kds-updated'));
       localStorage.setItem('ldce_tables_updated', Date.now().toString());
+      localStorage.setItem('ldce_tabs_updated', Date.now().toString());
+      localStorage.setItem('ldce_kds_updated', Date.now().toString());
+      localStorage.setItem('ldce_orders_updated', Date.now().toString());
       showToast('Order placed & charged to your club account tab! Table is now occupied.', 'success');
     } catch (err) {
       console.error('Tab checkout error:', err);

@@ -237,15 +237,66 @@ function CourtBookingModal({ club, court, memberId, user, onClose, onBookingComp
   const [submitting, setSubmitting] = useState(false);
   const { toast } = useToast();
 
+  const [resolvedPrice, setResolvedPrice] = useState(null);
+  const [basePrice, setBasePrice] = useState(null);
+  const [loadingPrice, setLoadingPrice] = useState(false);
+
   const isFree = Boolean(club.membership?.court_free);
-  const baseRate = Number(court.hourly_rate || 400);
   const discountPct = Number(club.membership?.court_discount_percent || 0);
-  const slotPrice = isFree ? 0 : Math.max(0, Math.round(baseRate * (1 - discountPct / 100)));
+  const effectiveBaseRate = basePrice !== null ? basePrice : Number(court.hourly_rate || 400);
+  const slotPrice = isFree
+    ? 0
+    : resolvedPrice !== null
+    ? resolvedPrice
+    : Math.max(0, Math.round(effectiveBaseRate * (1 - discountPct / 100)));
 
   const timeSlots = [
     '06:00', '07:00', '08:00', '09:00', '10:00', '11:00',
     '15:00', '16:00', '17:00', '18:00', '19:00', '20:00', '21:00'
   ];
+
+  // Fetch dynamic price based on court pricing rules
+  const fetchPrice = useCallback(async () => {
+    if (!court?.id || !selectedDate || !selectedHour) return;
+    try {
+      setLoadingPrice(true);
+      const startAt = `${selectedDate}T${selectedHour}:00Z`;
+      const res = await api.get('/bookings/price', {
+        params: {
+          court_id: court.id,
+          plan_id: club.membership?.plan_id || undefined,
+          start_at: startAt,
+        },
+        headers: { 'x-club-id': club.id },
+      });
+      if (res.data?.success) {
+        setResolvedPrice(Number(res.data.price));
+        setBasePrice(Number(res.data.base_price || res.data.price));
+      }
+    } catch (err) {
+      console.warn('Could not resolve dynamic court rate:', err);
+    } finally {
+      setLoadingPrice(false);
+    }
+  }, [court?.id, selectedDate, selectedHour, club.membership?.plan_id, club.id]);
+
+  useEffect(() => {
+    fetchPrice();
+  }, [fetchPrice]);
+
+  // Listen for real-time pricing rules updates from Courts Management
+  useEffect(() => {
+    const handleRatesUpdated = () => fetchPrice();
+    window.addEventListener('court-rates-updated', handleRatesUpdated);
+    const handleStorage = (e) => {
+      if (e.key === 'ldce_court_rates_updated') fetchPrice();
+    };
+    window.addEventListener('storage', handleStorage);
+    return () => {
+      window.removeEventListener('court-rates-updated', handleRatesUpdated);
+      window.removeEventListener('storage', handleStorage);
+    };
+  }, [fetchPrice]);
 
   // Fetch real-time booked slots for this court and date
   const fetchAvailability = useCallback(async () => {
@@ -491,17 +542,19 @@ function CourtBookingModal({ club, court, memberId, user, onClose, onBookingComp
             }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.25rem' }}>
                 <span style={{ color: '#6B6B66' }}>Standard Hourly Rate:</span>
-                <span>₹{baseRate}</span>
+                <span>₹{effectiveBaseRate}</span>
               </div>
-              {discountPct > 0 && (
+              {effectiveBaseRate > slotPrice && (
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.25rem', color: '#15803D' }}>
-                  <span>Member Privilege ({discountPct}% Off):</span>
-                  <span>-₹{baseRate - slotPrice}</span>
+                  <span>Member Plan Privilege ({discountPct > 0 ? `${discountPct}% Off` : 'Special Rate'}):</span>
+                  <span>-₹{Math.max(0, effectiveBaseRate - slotPrice)}</span>
                 </div>
               )}
               <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: '0.35rem', borderTop: '1px solid #E7E5DF', fontWeight: 700 }}>
                 <span>Payable Amount:</span>
-                <span style={{ color: '#1F5C46', fontSize: '1rem' }}>₹{slotPrice} via Razorpay</span>
+                <span style={{ color: '#1F5C46', fontSize: '1rem' }}>
+                  {loadingPrice ? 'Calculating...' : `₹${slotPrice} via Razorpay`}
+                </span>
               </div>
             </div>
           ) : (

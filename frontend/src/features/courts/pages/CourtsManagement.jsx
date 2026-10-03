@@ -401,7 +401,7 @@ function CourtRatesTab({ role }) {
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState({ sport_id: '', court_id: '', plan_id: '', weekday: '', time_from: '', time_to: '', valid_from: '', valid_to: '', price: '', priority: 0 });
-  const canEdit = ['owner', 'manager'].includes(role);
+  const canEdit = ['owner', 'manager', 'admin'].includes((role || '').toLowerCase());
 
   const load = async () => {
     setLoading(true);
@@ -436,16 +436,29 @@ function CourtRatesTab({ role }) {
       price: +form.price,
     };
     try {
-      if (editing) { await courtRatesApi.update(editing.id, payload); toast.success('Rate updated!'); }
-      else { await courtRatesApi.create(payload); toast.success('Rate created!'); }
-      resetForm(); load();
+      if (editing) {
+        await courtRatesApi.update(editing.id, payload);
+        toast.success('Rate updated!');
+      } else {
+        await courtRatesApi.create(payload);
+        toast.success('Rate created!');
+      }
+      window.dispatchEvent(new CustomEvent('court-rates-updated'));
+      localStorage.setItem('ldce_court_rates_updated', Date.now().toString());
+      resetForm();
+      load();
     } catch (err) { toast.error(err.response?.data?.message || 'Failed to save rate'); }
   };
 
   const handleDelete = async (id) => {
     if (!window.confirm('Deactivate this pricing rule?')) return;
-    try { await courtRatesApi.remove(id); toast.success('Rate deactivated'); load(); }
-    catch { toast.error('Failed'); }
+    try {
+      await courtRatesApi.remove(id);
+      toast.success('Rate deactivated');
+      window.dispatchEvent(new CustomEvent('court-rates-updated'));
+      localStorage.setItem('ldce_court_rates_updated', Date.now().toString());
+      load();
+    } catch { toast.error('Failed'); }
   };
 
   if (loading) return <div style={{ padding: '2rem', textAlign: 'center', color: '#94a3b8' }}>Loading pricing rules...</div>;

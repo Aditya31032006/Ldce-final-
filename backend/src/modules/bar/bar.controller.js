@@ -363,7 +363,17 @@ export async function getDailyClosingController(req, res, next) {
   try {
     const { date } = req.query;
     const closing = await barRepo.getDailyClosing(req.user.id, req.clubId, date || null);
-    return res.status(200).json({ success: true, data: closing });
+    const summary = closing.summary || {};
+    const payload = {
+      ...closing,
+      orders_count: Number(summary.orders || 0),
+      total_sales: Number(summary.net_total || 0),
+      gross_sales: Number(summary.gross || 0),
+      total_discounts: Number(summary.discounts || 0),
+      total_tax: Number(summary.tax || 0),
+      by_payment_method: closing.payment_breakdown || [],
+    };
+    return res.status(200).json({ success: true, data: payload });
   } catch (error) {
     next(error);
   }

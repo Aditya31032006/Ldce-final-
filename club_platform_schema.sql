@@ -1302,9 +1302,10 @@ BEGIN
      AND (r.time_from IS NULL OR v_time >= r.time_from) AND (r.time_to IS NULL OR v_time < r.time_to)
      AND (r.valid_from IS NULL OR v_local::date >= r.valid_from) AND (r.valid_to IS NULL OR v_local::date <= r.valid_to)
    ORDER BY r.priority DESC, (r.court_id IS NOT NULL)::int * 8 + (r.sport_id IS NOT NULL)::int * 4
-            + (r.weekday IS NOT NULL)::int * 2 + (r.time_from IS NOT NULL)::int DESC, r.created_at DESC LIMIT 1;
-  IF v_price IS NULL THEN RAISE EXCEPTION 'No court rate configured for this court/time'; END IF;
-  IF p_plan IS NOT NULL THEN v_price := round(v_price * (100 - v_pl.court_discount_percent) / 100, 2); END IF;
+  IF v_price IS NULL THEN v_price := 400.00; END IF;
+  IF p_plan IS NOT NULL AND v_pl.court_discount_percent IS NOT NULL AND v_pl.court_discount_percent > 0 THEN
+    v_price := round(v_price * (100 - v_pl.court_discount_percent) / 100, 2);
+  END IF;
   RETURN v_price;
 END $$;
 

@@ -214,7 +214,7 @@ export const GET_KDS_ITEMS = `
   WHERE oi.club_id = $1
     AND ($2::text IS NULL OR oi.station = $2::app.station_type)
     AND oi.kds_status IN ('new', 'preparing', 'ready')
-    AND o.status NOT IN ('void', 'paid')
+    AND o.status <> 'void'
   ORDER BY oi.created_at ASC;
 `;
 
@@ -247,9 +247,27 @@ export const RECORD_PAYMENT = `
 
 export const GET_MEMBER_TABS = `
   SELECT t.id, t.member_id, t.guest_name, t.status, t.opened_at, t.settled_at,
-         m.full_name AS member_name, m.member_code, m.phone AS member_phone,
+         coalesce(m.full_name, t.guest_name, 'Club Member') AS member_name,
+         m.member_code, m.phone AS member_phone,
          coalesce(sum(o.total), 0) AS balance,
-         count(o.id) AS orders_count
+         count(o.id)::int AS orders_count,
+         coalesce(
+           (SELECT json_agg(
+              json_build_object(
+                'id', bo.id,
+                'order_no', bo.order_no,
+                'status', bo.status,
+                'total', bo.total,
+                'opened_at', bo.opened_at,
+                'items_count', (SELECT count(*)::int FROM app.bar_order_items oi WHERE oi.order_id = bo.id),
+                'items_summary', (SELECT string_agg(oi.quantity || '× ' || oi.item_name, ', ') FROM app.bar_order_items oi WHERE oi.order_id = bo.id)
+              ) ORDER BY bo.opened_at DESC
+            )
+            FROM app.bar_orders bo
+            WHERE bo.tab_id = t.id AND bo.status <> 'void'
+           ),
+           '[]'::json
+         ) AS order_history
   FROM app.tabs t
   LEFT JOIN app.members m ON m.id = t.member_id
   LEFT JOIN app.bar_orders o ON o.tab_id = t.id AND o.status <> 'void'
@@ -266,15 +284,25 @@ export const SETTLE_TAB = `
 `;
 
 export const GET_DAILY_CLOSING = `
-  SELECT day, orders, gross, discounts, tax, net_total
-  FROM app.v_bar_daily_closing
-  WHERE club_id = $1 AND day = coalesce($2::date, current_date);
+  SELECT 
+    coalesce($2::date, (now() AT TIME ZONE coalesce(c.timezone, 'Asia/Kolkata'))::date) AS day,
+    count(o.id)::int AS orders,
+    coalesce(sum(o.subtotal::numeric), 0) AS gross,
+    coalesce(sum(o.discount_total::numeric), 0) AS discounts,
+    coalesce(sum(o.tax_total::numeric), 0) AS tax,
+    coalesce(sum(o.total::numeric), 0) AS net_total
+  FROM app.clubs c
+  LEFT JOIN app.bar_orders o ON o.club_id = c.id AND o.status <> 'void'
+    AND (o.opened_at AT TIME ZONE coalesce(c.timezone, 'Asia/Kolkata'))::date = coalesce($2::date, (now() AT TIME ZONE coalesce(c.timezone, 'Asia/Kolkata'))::date)
+  WHERE c.id = $1
+  GROUP BY c.id, c.timezone;
 `;
 
 export const GET_DAILY_PAYMENTS_BREAKDOWN = `
-  SELECT method, sum(amount) AS total_amount, count(*) AS count
-  FROM app.payments
-  WHERE club_id = $1 AND revenue_source = 'bar' AND status = 'completed'
-    AND (received_at AT TIME ZONE 'Asia/Kolkata')::date = coalesce($2::date, current_date)
-  GROUP BY method;
+  SELECT p.method, sum(p.amount) AS total_amount, count(*)::int AS count
+  FROM app.payments p
+  JOIN app.clubs c ON c.id = p.club_id
+  WHERE p.club_id = $1 AND p.revenue_source = 'bar' AND p.status = 'completed'
+    AND (p.received_at AT TIME ZONE coalesce(c.timezone, 'Asia/Kolkata'))::date = coalesce($2::date, (now() AT TIME ZONE coalesce(c.timezone, 'Asia/Kolkata'))::date)
+  GROUP BY p.method;
 `;

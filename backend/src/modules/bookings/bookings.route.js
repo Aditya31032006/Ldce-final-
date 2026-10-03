@@ -9,11 +9,13 @@ import {
   cancelBookingController,
   createBookingRazorpayOrderController,
   getCourtAvailabilityController,
+  resolveCourtPriceController,
 } from "./bookings.controller.js";
 
 const router = Router();
 router.use(verifyToken, resolveClubScope);
 
+router.get("/price", resolveCourtPriceController);
 router.get("/availability", getCourtAvailabilityController);
 router.get("/court/:courtId/availability", getCourtAvailabilityController);
 router.get("/", getBookingsController);
