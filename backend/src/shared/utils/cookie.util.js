@@ -1,4 +1,4 @@
-import { config } from '../../config/env.js';
+import { config } from '../../config/config.js';
 
 export const COOKIE_NAME = 'token';
 

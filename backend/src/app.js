@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import morgan from 'morgan';
+import passport from './config/passport.js';
 import { errorHandler } from './shared/middleware/error.middleware.js';
 import { authRouter } from './modules/auth/index.js';
 import { clubsRouter } from './modules/clubs/index.js';
@@ -18,7 +19,7 @@ import { financeRouter } from './modules/finance/index.js';
 import { reportsRouter } from './modules/reports/index.js';
 import { hrRouter } from './modules/hr/index.js';
 import { notificationsRouter } from './modules/notifications/index.js';
-import { config } from './config/env.js';
+import { config } from './config/config.js';
 
 export const app = express();
 
@@ -37,6 +38,7 @@ app.use(cors({
 app.use(morgan('dev'));
 app.use(express.json());
 app.use(cookieParser());
+app.use(passport.initialize());
 
 // Health check
 app.get('/health', (req, res) => res.json({ status: 'ok' }));

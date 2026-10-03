@@ -1,5 +1,5 @@
 import { app } from './src/app.js';
-import { config } from './src/config/env.js';
+import { config } from './src/config/config.js';
 import { pool } from './src/config/database.js';
 
 async function startServer() {
