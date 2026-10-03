@@ -60,28 +60,53 @@ export async function getCourtAvailability(userId, clubId, courtId, date) {
   return withTenantTransaction(userId, clubId, async (client) => {
     const res = await client.query(queries.GET_COURT_AVAILABILITY, [courtId, date]);
     const reservations = res.rows || [];
-    
-    // Extract formatted time slot strings (e.g., '09:00', '14:00')
-    const bookedSlots = [];
-    reservations.forEach(r => {
-      const d = new Date(r.start_at);
-      const utcHours = String(d.getUTCHours()).padStart(2, '0');
-      const utcMinutes = String(d.getUTCMinutes()).padStart(2, '0');
-      const utcSlot = `${utcHours}:${utcMinutes}`;
-      if (!bookedSlots.includes(utcSlot)) bookedSlots.push(utcSlot);
 
-      const istDate = new Date(d.getTime() + (5.5 * 60 * 60 * 1000));
-      const istHours = String(istDate.getUTCHours()).padStart(2, '0');
-      const istMinutes = String(istDate.getUTCMinutes()).padStart(2, '0');
-      const istSlot = `${istHours}:${istMinutes}`;
-      if (!bookedSlots.includes(istSlot)) bookedSlots.push(istSlot);
+    // All standard 30-minute candidate start slots from 06:00 to 22:00
+    const candidateSlots = [];
+    for (let h = 6; h <= 22; h++) {
+      candidateSlots.push(`${String(h).padStart(2, '0')}:00`);
+      if (h < 22) {
+        candidateSlots.push(`${String(h).padStart(2, '0')}:30`);
+      }
+    }
+
+    const bookedSlots = [];
+
+    candidateSlots.forEach((slotTime) => {
+      // Slot represents a 1-hour session [slotStart, slotEnd)
+      const slotStartIstMs = new Date(`${date}T${slotTime}:00+05:30`).getTime();
+      const slotEndIstMs = slotStartIstMs + 60 * 60 * 1000;
+
+      const slotStartUtcMs = new Date(`${date}T${slotTime}:00Z`).getTime();
+      const slotEndUtcMs = slotStartUtcMs + 60 * 60 * 1000;
+
+      const hasConflict = reservations.some((r) => {
+        const rStartMs = new Date(r.start_at).getTime();
+        const rEndMs = new Date(r.end_at).getTime();
+
+        // 1-hour session overlap test: start1 < end2 AND end1 > start2
+        const overlapIst = slotStartIstMs < rEndMs && slotEndIstMs > rStartMs;
+        const overlapUtc = slotStartUtcMs < rEndMs && slotEndUtcMs > rStartMs;
+
+        return overlapIst || overlapUtc;
+      });
+
+      if (hasConflict && !bookedSlots.includes(slotTime)) {
+        bookedSlots.push(slotTime);
+      }
     });
 
     return {
       courtId,
       date,
       bookedSlots,
-      reservations,
+      reservations: reservations.map(r => ({
+        id: r.id,
+        court_id: r.court_id,
+        start_at: r.start_at,
+        end_at: r.end_at,
+        status: r.status,
+      })),
     };
   });
 }

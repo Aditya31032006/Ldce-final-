@@ -7,12 +7,36 @@ export default function BookingCalendar() {
   const [courts, setCourts] = useState([]);
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [quickBooking, setQuickBooking] = useState(null); // { court, time, date }
+  const [selectedBooking, setSelectedBooking] = useState(null);
+  const [bookingPlayerName, setBookingPlayerName] = useState('');
+  const [bookingChannel, setBookingChannel] = useState('counter');
+  const [bookingLoading, setBookingLoading] = useState(false);
+  const [bookingMessage, setBookingMessage] = useState(null);
 
+  // All 30-min slots from 06:00 to 22:00
   const timeSlots = [
-    '06:00', '07:00', '08:00', '09:00', '10:00', '11:00',
-    '12:00', '13:00', '14:00', '15:00', '16:00', '17:00',
-    '18:00', '19:00', '20:00', '21:00'
+    '06:00', '06:30', '07:00', '07:30', '08:00', '08:30',
+    '09:00', '09:30', '10:00', '10:30', '11:00', '11:30',
+    '12:00', '12:30', '13:00', '13:30', '14:00', '14:30',
+    '15:00', '15:30', '16:00', '16:30', '17:00', '17:30',
+    '18:00', '18:30', '19:00', '19:30', '20:00', '20:30',
+    '21:00', '21:30', '22:00'
   ];
+
+  const getSlotTimestamps = (dateStr, timeStr) => {
+    const [h, m] = timeStr.split(':').map(v => v.padStart(2, '0'));
+    const startIso = `${dateStr}T${h}:${m}:00+05:30`;
+    const totalMinutes = Number(h) * 60 + Number(m) + 60;
+    const eh = String(Math.floor(totalMinutes / 60)).padStart(2, '0');
+    const em = String(totalMinutes % 60).padStart(2, '0');
+    const endIso = `${dateStr}T${eh}:${em}:00+05:30`;
+    return {
+      startAt: startIso,
+      endAt: endIso,
+      displayRange: `${timeStr} – ${eh}:${em}`,
+    };
+  };
 
   const loadCalendarData = useCallback(async () => {
     try {
@@ -21,8 +45,8 @@ export default function BookingCalendar() {
         apiClient.get('/courts').catch(() => ({ data: { data: [] } })),
         apiClient.get('/bookings/calendar', {
           params: {
-            start: `${selectedDate}T00:00:00Z`,
-            end: `${selectedDate}T23:59:59Z`,
+            start: `${selectedDate}T00:00:00+05:30`,
+            end: `${selectedDate}T23:59:59+05:30`,
           }
         }).catch(() => ({ data: { bookings: [] } }))
       ]);
@@ -62,19 +86,65 @@ export default function BookingCalendar() {
     };
   }, [loadCalendarData]);
 
-  // Find booking matching court and time
+  // Find booking matching court and time slot interval overlap
   const getBookingForSlot = (court, time) => {
+    const slotStartMs = new Date(`${selectedDate}T${time}:00+05:30`).getTime();
+    const slotEndMs = slotStartMs + 30 * 60 * 1000;
+
+    const slotStartUtcMs = new Date(`${selectedDate}T${time}:00Z`).getTime();
+    const slotEndUtcMs = slotStartUtcMs + 30 * 60 * 1000;
+
     return bookings.find((b) => {
       const isSameCourt = b.court_id === court.id || b.court_name === court.name;
       if (!isSameCourt) return false;
       if (!b.start_at) return false;
-      const d = new Date(b.start_at);
-      const slotHourUtc = String(d.getUTCHours()).padStart(2, '0');
-      const slotHourLocal = String(d.getHours()).padStart(2, '0');
-      const timeHour = time.split(':')[0];
-      const matchesHour = (slotHourUtc === timeHour || slotHourLocal === timeHour);
-      return matchesHour && (b.status || '').toLowerCase() !== 'cancelled';
+      if ((b.status || '').toLowerCase() === 'cancelled') return false;
+
+      const bStartMs = new Date(b.start_at).getTime();
+      const bEndMs = new Date(b.end_at || (bStartMs + 60 * 60 * 1000)).getTime();
+
+      // Check interval overlap in both representations
+      const overlapIst = slotStartMs < bEndMs && slotEndMs > bStartMs;
+      const overlapUtc = slotStartUtcMs < bEndMs && slotEndUtcMs > bStartMs;
+
+      return overlapIst || overlapUtc;
     });
+  };
+
+  const handleCreateQuickBooking = async (e) => {
+    e.preventDefault();
+    if (!quickBooking) return;
+    setBookingLoading(true);
+    setBookingMessage(null);
+    try {
+      const { startAt, endAt, displayRange } = getSlotTimestamps(quickBooking.date, quickBooking.time);
+      await apiClient.post('/bookings', {
+        court_id: quickBooking.court.id,
+        start_at: startAt,
+        end_at: endAt,
+        guest_name: bookingPlayerName.trim() || 'Walk-in Guest',
+        channel: bookingChannel,
+        status: 'confirmed',
+      });
+
+      setBookingMessage({ text: `Court slot booked successfully for ${displayRange}!`, type: 'success' });
+      window.dispatchEvent(new CustomEvent('booking-updated'));
+      window.dispatchEvent(new CustomEvent('court-booked'));
+      localStorage.setItem('ldce_booking_updated', Date.now().toString());
+      loadCalendarData();
+      setTimeout(() => {
+        setQuickBooking(null);
+        setBookingPlayerName('');
+        setBookingMessage(null);
+      }, 1200);
+    } catch (err) {
+      setBookingMessage({
+        text: err.response?.data?.message || err.message || 'Court is already booked for this slot time.',
+        type: 'error',
+      });
+    } finally {
+      setBookingLoading(false);
+    }
   };
 
   const formattedDisplayDate = new Date(`${selectedDate}T12:00:00Z`).toLocaleDateString('en-US', {
@@ -206,6 +276,15 @@ export default function BookingCalendar() {
                   return (
                     <div
                       key={cIdx}
+                      onClick={() => {
+                        if (isBooked) {
+                          setSelectedBooking({ ...booking, slotCourt: court.name, slotTime: time });
+                        } else {
+                          setQuickBooking({ court, time, date: selectedDate });
+                          setBookingPlayerName('');
+                          setBookingMessage(null);
+                        }
+                      }}
                       style={{
                         background: isBooked ? '#EFF6FF' : '#ffffff',
                         padding: '0.5rem',
@@ -217,13 +296,21 @@ export default function BookingCalendar() {
                         justifyContent: 'center',
                         fontSize: '0.75rem',
                         color: isBooked ? '#1D4ED8' : '#10B981',
+                        cursor: 'pointer',
                         transition: 'all 0.15s ease',
+                      }}
+                      title={isBooked ? 'Click to view reservation details' : `Click to book 1-hr slot starting ${time}`}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.background = isBooked ? '#DBEAFE' : '#F0FDF4';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.background = isBooked ? '#EFF6FF' : '#ffffff';
                       }}
                     >
                       {isBooked ? (
                         <>
-                          <span style={{ fontWeight: 700, color: '#1E40AF', textAlign: 'center' }}>
-                            {booking.member_name || booking.guest_name || 'Member Reserved'}
+                          <span style={{ fontWeight: 700, color: '#1E40AF', textAlign: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '100%' }}>
+                            {booking.member_name || booking.guest_name || 'Reserved'}
                           </span>
                           <span style={{ fontSize: '0.65rem', color: '#3B82F6', fontWeight: 600 }}>
                             ● {booking.status || 'Confirmed'}
@@ -231,7 +318,7 @@ export default function BookingCalendar() {
                         </>
                       ) : (
                         <span style={{ color: '#94A3B8', fontWeight: 500, fontSize: '0.72rem' }}>
-                          + Open Slot
+                          + Book
                         </span>
                       )}
                     </div>
@@ -241,6 +328,277 @@ export default function BookingCalendar() {
             ))}
           </div>
         </div>
+
+        {/* Quick Booking Modal */}
+        {quickBooking && (
+          <div
+            style={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              backgroundColor: 'rgba(15, 23, 42, 0.65)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              zIndex: 1000,
+              padding: '1rem',
+              backdropFilter: 'blur(3px)',
+            }}
+          >
+            <div
+              style={{
+                backgroundColor: '#ffffff',
+                borderRadius: '0.75rem',
+                padding: '1.75rem',
+                maxWidth: '460px',
+                width: '100%',
+                boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.1)',
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+                <h3 style={{ fontSize: '1.25rem', fontWeight: 700, color: '#0f172a', margin: 0 }}>
+                  Book 1-Hour Court Slot
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => setQuickBooking(null)}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    fontSize: '1.25rem',
+                    color: '#94a3b8',
+                    cursor: 'pointer',
+                    padding: '0.25rem',
+                  }}
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div style={{ background: '#f8fafc', padding: '0.85rem 1rem', borderRadius: '0.5rem', marginBottom: '1.25rem', fontSize: '0.875rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.35rem' }}>
+                  <span style={{ color: '#64748b' }}>Court:</span>
+                  <span style={{ fontWeight: 600, color: '#0f172a' }}>{quickBooking.court.name}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.35rem' }}>
+                  <span style={{ color: '#64748b' }}>Date:</span>
+                  <span style={{ fontWeight: 600, color: '#0f172a' }}>{quickBooking.date}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span style={{ color: '#64748b' }}>1-Hour Duration:</span>
+                  <span style={{ fontWeight: 700, color: '#1F5C46' }}>
+                    {getSlotTimestamps(quickBooking.date, quickBooking.time).displayRange} (IST)
+                  </span>
+                </div>
+              </div>
+
+              {bookingMessage && (
+                <div
+                  style={{
+                    padding: '0.75rem',
+                    borderRadius: '0.375rem',
+                    marginBottom: '1rem',
+                    fontSize: '0.875rem',
+                    fontWeight: 600,
+                    background: bookingMessage.type === 'success' ? '#ecfdf5' : '#fef2f2',
+                    color: bookingMessage.type === 'success' ? '#065f46' : '#991b1b',
+                    border: `1px solid ${bookingMessage.type === 'success' ? '#a7f3d0' : '#fecaca'}`,
+                  }}
+                >
+                  {bookingMessage.text}
+                </div>
+              )}
+
+              <form onSubmit={handleCreateQuickBooking}>
+                <div style={{ marginBottom: '1rem' }}>
+                  <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 600, color: '#334155', marginBottom: '0.35rem' }}>
+                    Player / Guest Name
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Rahul Sharma"
+                    value={bookingPlayerName}
+                    onChange={(e) => setBookingPlayerName(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '0.6rem 0.75rem',
+                      border: '1px solid #cbd5e1',
+                      borderRadius: '0.375rem',
+                      fontSize: '0.875rem',
+                      outline: 'none',
+                    }}
+                  />
+                </div>
+
+                <div style={{ marginBottom: '1.5rem' }}>
+                  <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 600, color: '#334155', marginBottom: '0.35rem' }}>
+                    Booking Channel
+                  </label>
+                  <select
+                    value={bookingChannel}
+                    onChange={(e) => setBookingChannel(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '0.6rem 0.75rem',
+                      border: '1px solid #cbd5e1',
+                      borderRadius: '0.375rem',
+                      fontSize: '0.875rem',
+                      outline: 'none',
+                    }}
+                  >
+                    <option value="counter">Reception / Counter</option>
+                    <option value="phone">Phone Reservation</option>
+                    <option value="online">Online / Member Portal</option>
+                  </select>
+                </div>
+
+                <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end' }}>
+                  <button
+                    type="button"
+                    onClick={() => setQuickBooking(null)}
+                    style={{
+                      padding: '0.6rem 1rem',
+                      background: '#ffffff',
+                      border: '1px solid #cbd5e1',
+                      borderRadius: '0.375rem',
+                      fontWeight: 600,
+                      fontSize: '0.875rem',
+                      color: '#475569',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={bookingLoading}
+                    style={{
+                      padding: '0.6rem 1.25rem',
+                      background: '#1F5C46',
+                      border: 'none',
+                      borderRadius: '0.375rem',
+                      fontWeight: 600,
+                      fontSize: '0.875rem',
+                      color: '#ffffff',
+                      cursor: bookingLoading ? 'not-allowed' : 'pointer',
+                      opacity: bookingLoading ? 0.7 : 1,
+                    }}
+                  >
+                    {bookingLoading ? 'Reserving...' : 'Confirm 1-Hour Booking'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* Selected Booking Details Modal */}
+        {selectedBooking && (
+          <div
+            style={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              backgroundColor: 'rgba(15, 23, 42, 0.65)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              zIndex: 1000,
+              padding: '1rem',
+              backdropFilter: 'blur(3px)',
+            }}
+          >
+            <div
+              style={{
+                backgroundColor: '#ffffff',
+                borderRadius: '0.75rem',
+                padding: '1.75rem',
+                maxWidth: '440px',
+                width: '100%',
+                boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.1)',
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+                <h3 style={{ fontSize: '1.25rem', fontWeight: 700, color: '#0f172a', margin: 0 }}>
+                  Reservation Details
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => setSelectedBooking(null)}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    fontSize: '1.25rem',
+                    color: '#94a3b8',
+                    cursor: 'pointer',
+                    padding: '0.25rem',
+                  }}
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', fontSize: '0.875rem', marginBottom: '1.5rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #f1f5f9', paddingBottom: '0.5rem' }}>
+                  <span style={{ color: '#64748b' }}>Reserved By:</span>
+                  <span style={{ fontWeight: 700, color: '#0f172a' }}>
+                    {selectedBooking.member_name || selectedBooking.guest_name || 'Member'}
+                  </span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #f1f5f9', paddingBottom: '0.5rem' }}>
+                  <span style={{ color: '#64748b' }}>Court:</span>
+                  <span style={{ fontWeight: 600, color: '#0f172a' }}>
+                    {selectedBooking.court_name || selectedBooking.slotCourt || 'Court'}
+                  </span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #f1f5f9', paddingBottom: '0.5rem' }}>
+                  <span style={{ color: '#64748b' }}>Time Interval:</span>
+                  <span style={{ fontWeight: 600, color: '#1F5C46' }}>
+                    {selectedBooking.start_at
+                      ? `${new Date(selectedBooking.start_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })} - ${new Date(selectedBooking.end_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })}`
+                      : selectedBooking.slotTime}
+                  </span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #f1f5f9', paddingBottom: '0.5rem' }}>
+                  <span style={{ color: '#64748b' }}>Channel:</span>
+                  <span style={{ fontWeight: 600, color: '#0f172a', textTransform: 'capitalize' }}>
+                    {selectedBooking.channel || 'online'}
+                  </span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #f1f5f9', paddingBottom: '0.5rem' }}>
+                  <span style={{ color: '#64748b' }}>Status:</span>
+                  <span style={{ fontWeight: 700, color: '#059669', textTransform: 'uppercase' }}>
+                    {selectedBooking.status || 'CONFIRMED'}
+                  </span>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                <button
+                  type="button"
+                  onClick={() => setSelectedBooking(null)}
+                  style={{
+                    padding: '0.55rem 1.25rem',
+                    background: '#1F5C46',
+                    border: 'none',
+                    borderRadius: '0.375rem',
+                    fontWeight: 600,
+                    fontSize: '0.875rem',
+                    color: '#ffffff',
+                    cursor: 'pointer',
+                  }}
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

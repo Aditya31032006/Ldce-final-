@@ -53,6 +53,7 @@ export const GET_COURT_AVAILABILITY = `
     AND (
       r.start_at::date = $2::date
       OR (r.start_at AT TIME ZONE 'Asia/Kolkata')::date = $2::date
+      OR (r.end_at AT TIME ZONE 'Asia/Kolkata')::date = $2::date
       OR (r.start_at AT TIME ZONE 'UTC')::date = $2::date
     )
   ORDER BY r.start_at ASC;
@@ -71,8 +72,14 @@ export const GET_CALENDAR_BOOKINGS = `
   LEFT JOIN app.members m ON b.member_id = m.id
   LEFT JOIN app.users u ON m.user_id = u.id
   WHERE b.club_id = $1
-    AND r.start_at >= COALESCE($2::timestamptz, date_trunc('month', now()))
-    AND r.end_at <= COALESCE($3::timestamptz, date_trunc('month', now()) + interval '1 month')
+    AND (b.status IS NULL OR b.status::text NOT IN ('cancelled', 'void'))
+    AND r.status = 'active'
+    AND (
+      $2::timestamptz IS NULL OR r.end_at >= $2::timestamptz
+    )
+    AND (
+      $3::timestamptz IS NULL OR r.start_at <= $3::timestamptz
+    )
   ORDER BY r.start_at ASC;
 `;
 

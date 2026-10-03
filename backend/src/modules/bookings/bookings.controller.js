@@ -138,7 +138,9 @@ export async function getCourtAvailabilityController(req, res, next) {
 
 export async function getCalendarBookingsController(req, res, next) {
   try {
-    const { start, end } = req.query;
+    let { start, end } = req.query;
+    if (typeof start === 'string' && start.includes(' ')) start = start.replace(' ', '+');
+    if (typeof end === 'string' && end.includes(' ')) end = end.replace(' ', '+');
     const bookings = await bookingsRepo.getCalendarBookings(req.user.id, req.clubId, start || null, end || null);
     return res.status(200).json({ bookings });
   } catch (error) {
