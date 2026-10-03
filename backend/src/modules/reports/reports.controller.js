@@ -9,3 +9,28 @@ export async function getDailySummaryController(req, res, next) {
     next(error);
   }
 }
+
+export async function getDashboardDataController(req, res, next) {
+  try {
+    const data = await reportsRepo.getDashboardData(req.user.id, req.clubId);
+    return res.status(200).json({
+      success: true,
+      data,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function getAnalyticsDataController(req, res, next) {
+  try {
+    const range = req.query.range || 'all';
+    const data = await reportsRepo.getAnalyticsData(req.user.id, req.clubId, range);
+    return res.status(200).json({
+      success: true,
+      data,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
