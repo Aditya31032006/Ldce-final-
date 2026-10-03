@@ -56,3 +56,47 @@ export async function updateClubSettingsController(req, res, next) {
     next(error);
   }
 }
+
+export async function getClubGalleryController(req, res, next) {
+  try {
+    const gallery = await clubsRepo.getClubGallery(req.user?.id, req.clubId);
+    return res.status(200).json({ success: true, gallery });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function addClubGalleryController(req, res, next) {
+  try {
+    const { images, imageUrl, caption, sortOrder } = req.body;
+    const toInsert = images || (imageUrl ? [{ imageUrl, caption, sortOrder }] : []);
+    if (!toInsert || toInsert.length === 0) {
+      return res.status(400).json({ message: "At least one image URL is required" });
+    }
+    const addedImages = await clubsRepo.addClubGalleryImages(req.user.id, req.clubId, toInsert);
+    return res.status(201).json({
+      success: true,
+      message: `${addedImages.length} photo(s) added to club gallery`,
+      images: addedImages,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function deleteClubGalleryController(req, res, next) {
+  try {
+    const { imageId } = req.params;
+    if (!imageId) {
+      return res.status(400).json({ message: "Image ID is required" });
+    }
+    await clubsRepo.deleteClubGalleryImage(req.user.id, req.clubId, imageId);
+    return res.status(200).json({
+      success: true,
+      message: "Club photo removed successfully",
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+

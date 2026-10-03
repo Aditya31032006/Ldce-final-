@@ -62,3 +62,23 @@ export const UPDATE_CLUB_SETTINGS = `
   WHERE club_id = $1
   RETURNING *;
 `;
+
+export const GET_CLUB_GALLERY = `
+  SELECT id, club_id, image_url, caption, sort_order, is_active, created_at
+  FROM app.club_gallery
+  WHERE club_id = $1 AND is_active = true
+  ORDER BY sort_order ASC, created_at DESC;
+`;
+
+export const ADD_CLUB_GALLERY_IMAGE = `
+  INSERT INTO app.club_gallery (club_id, image_url, caption, sort_order, is_active)
+  VALUES ($1, $2, $3, COALESCE($4, 0), true)
+  RETURNING id, club_id, image_url, caption, sort_order, is_active, created_at;
+`;
+
+export const DELETE_CLUB_GALLERY_IMAGE = `
+  DELETE FROM app.club_gallery
+  WHERE club_id = $1 AND id = $2
+  RETURNING id, club_id;
+`;
+

@@ -62,6 +62,61 @@ export const authApi = {
   },
 
   /**
+   * Update user profile avatar picture (Base64)
+   */
+  async updateAvatar(avatarUrl) {
+    const response = await apiClient.put('/auth/profile/avatar', {
+      avatarUrl,
+      avatar_url: avatarUrl,
+    });
+    return response.data;
+  },
+
+
+  /**
+   * Delete user profile avatar picture
+   */
+  async deleteAvatar() {
+    const response = await apiClient.delete('/auth/profile/avatar');
+    return response.data;
+  },
+
+  /**
+   * Set local password for OAuth user who does not have a password yet
+   */
+  async setPassword(password) {
+    const response = await apiClient.post('/auth/profile/password/set', { password });
+    return response.data;
+  },
+
+  /**
+   * Change password for authenticated user (verifies old password)
+   */
+  async changePassword({ oldPassword, newPassword }) {
+    const response = await apiClient.post('/auth/profile/password/change', {
+      oldPassword,
+      newPassword,
+    });
+    return response.data;
+  },
+
+  /**
+   * Request OTP for password reset (guest or authenticated)
+   */
+  async requestPasswordResetOtp(email) {
+    const response = await apiClient.post('/auth/password/request-otp', { email });
+    return response.data;
+  },
+
+  /**
+   * Verify OTP and reset password (guest or authenticated)
+   */
+  async resetPasswordWithOtp({ email, otp, newPassword }) {
+    const response = await apiClient.post('/auth/password/reset', { email, otp, newPassword });
+    return response.data;
+  },
+
+  /**
    * Fetch list of clubs for the multi-tenant club selector
    */
   async getClubs() {
@@ -71,3 +126,5 @@ export const authApi = {
 };
 
 export default authApi;
+
+

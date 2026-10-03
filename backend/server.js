@@ -1,6 +1,7 @@
 import { app } from './src/app.js';
 import { config } from './src/config/config.js';
 import { pool } from './src/config/database.js';
+import { initEmailWorker } from './src/jobs/emailQueue.js';
 
 async function startServer() {
   try {
@@ -9,10 +10,14 @@ async function startServer() {
     client.release();
     console.log('Successfully connected to the database.');
 
+    // Initialize background queue worker (BullMQ + Redis)
+    initEmailWorker();
+
     const desiredPort = Number(config.port) || 3000;
     const server = app.listen(desiredPort, () => {
       console.log(`Server is running on port ${desiredPort} in ${config.nodeEnv} mode.`);
     });
+
 
     server.on('error', (err) => {
       if (err.code === 'EADDRINUSE') {

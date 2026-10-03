@@ -16,7 +16,8 @@ export const FIND_USER_BY_EMAIL = `
     u.last_login_at, 
     u.created_at, 
     u.updated_at,
-    uc.password_hash
+    uc.password_hash,
+    (uc.password_hash IS NOT NULL) AS has_password
   FROM app.users u
   LEFT JOIN app.user_credentials uc ON u.id = uc.user_id
   WHERE u.email = $1;
@@ -46,6 +47,12 @@ export const INSERT_USER = `
   RETURNING id, email, phone, full_name, avatar_url, is_active, email_verified_at, last_login_at, created_at, updated_at;
 `;
 
+export const FIND_USER_CREDENTIALS_BY_USER_ID = `
+  SELECT user_id, password_hash
+  FROM app.user_credentials
+  WHERE user_id = $1;
+`;
+
 export const INSERT_USER_CREDENTIALS = `
   INSERT INTO app.user_credentials (user_id, password_hash)
   VALUES ($1, $2)
@@ -69,6 +76,14 @@ export const UPDATE_USER_LAST_LOGIN = `
   UPDATE app.users
   SET last_login_at = now()
   WHERE id = $1;
+`;
+
+export const UPDATE_USER_AVATAR = `
+  UPDATE app.users
+  SET avatar_url = $2,
+      updated_at = now()
+  WHERE id = $1
+  RETURNING id, email, phone, full_name, avatar_url, is_active, email_verified_at, last_login_at, created_at, updated_at;
 `;
 
 export const UPDATE_GOOGLE_USER_SYNC = `

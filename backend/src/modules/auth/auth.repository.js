@@ -218,10 +218,26 @@ export async function updateUserProfile(userId, { fullName = null, phone = null,
 }
 
 /**
+ * Updates or deletes (sets null) user profile avatar
+ */
+export async function updateUserAvatar(userId, avatarUrl = null) {
+  const result = await pool.query(queries.UPDATE_USER_AVATAR, [userId, avatarUrl || null]);
+  return result.rows[0] || null;
+}
+
+/**
  * Sets or updates user password in app.user_credentials
  */
 export async function setUserPassword(userId, passwordHash) {
   const result = await pool.query(queries.INSERT_USER_CREDENTIALS, [userId, passwordHash]);
+  return result.rows[0] || null;
+}
+
+/**
+ * Retrieves user credentials (password_hash) by user ID
+ */
+export async function getUserCredentials(userId) {
+  const result = await pool.query(queries.FIND_USER_CREDENTIALS_BY_USER_ID, [userId]);
   return result.rows[0] || null;
 }
 
