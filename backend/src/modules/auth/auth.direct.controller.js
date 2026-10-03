@@ -44,6 +44,48 @@ export async function directRegisterController(req, res, next) {
 }
 
 /**
+ * Direct Club / Cafe Facility Registration
+ * Creates owner user + sets up club shell + assigns owner role via app.register_club
+ */
+export async function directRegisterClubController(req, res, next) {
+  try {
+    const { email, fullName, phone, password, clubName, slug, city, timezone, avatarUrl } = req.body;
+
+    const result = await authService.registerClubOwnerUser({
+      email,
+      fullName,
+      phone,
+      password,
+      clubName,
+      slug,
+      city,
+      timezone,
+      avatarUrl,
+    });
+
+    const token = await authService.generateTokenForUser(result.user, result.clubId, result.role);
+    setAuthCookie(res, token);
+
+    delete result.user.password_hash;
+    const userClubs = await authRepo.getUserClubs(result.user.id);
+
+    return res.status(STATUS_CODES.CREATED).json({
+      success: true,
+      message: 'Club registered successfully! You are now the Administrator.',
+      user: result.user,
+      clubId: result.clubId,
+      role: result.role,
+      slug: result.slug,
+      clubs: userClubs,
+      token,
+      isProfileComplete: true,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
  * Direct User Login (email + password)
  */
 export async function directLoginController(req, res, next) {
@@ -51,12 +93,12 @@ export async function directLoginController(req, res, next) {
     const { email, password, clubId } = req.body;
 
     const user = await authService.verifyDirectLogin(email, password);
+    const userClubs = await authRepo.getUserClubs(user.id);
 
     let role = 'public';
     let resolvedClubId = clubId || null;
 
     if (clubId) {
-      const userClubs = await authRepo.getUserClubs(user.id);
       const clubContext = userClubs.find((c) => c.club_id === clubId);
       if (clubContext) {
         role = clubContext.role;
@@ -66,6 +108,12 @@ export async function directLoginController(req, res, next) {
           message: MESSAGES.AUTH.CLUB_NOT_ASSOCIATED,
         });
       }
+    } else if (userClubs.length > 0) {
+      // Prioritize owner > manager > other staff > member
+      const rolePriority = { owner: 1, manager: 2, front_desk: 3, bar_staff: 4, kitchen: 5, shop_staff: 6, member: 7 };
+      const sorted = [...userClubs].sort((a, b) => (rolePriority[a.role] || 99) - (rolePriority[b.role] || 99));
+      resolvedClubId = sorted[0].club_id;
+      role = sorted[0].role;
     }
 
     const token = await authService.generateTokenForUser(user, resolvedClubId, role);
@@ -81,6 +129,7 @@ export async function directLoginController(req, res, next) {
       user,
       role,
       clubId: resolvedClubId,
+      clubs: userClubs,
       token,
       isProfileComplete: profileStatus.isComplete,
       missingFields: profileStatus.missingFields,

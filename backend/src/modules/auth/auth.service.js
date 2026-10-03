@@ -71,6 +71,61 @@ export async function registerDirectUser({ email, fullName, phone, password, ava
 }
 
 /**
+  * Direct Club / Cafe Facility Owner Registration
+  * Registers the owner user and executes app.register_club stored procedure
+  */
+export async function registerClubOwnerUser({
+  email,
+  fullName,
+  phone,
+  password,
+  clubName,
+  slug,
+  city = null,
+  timezone = 'Asia/Kolkata',
+  avatarUrl = null,
+}) {
+  const normalizedEmail = email.trim().toLowerCase();
+  const normalizedSlug = slug.trim().toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-');
+
+  const existing = await authRepo.findUserByEmail(normalizedEmail);
+  if (existing) {
+    const error = new Error('An account with this email already exists. Please log in.');
+    error.status = STATUS_CODES.CONFLICT;
+    throw error;
+  }
+
+  const hash = await argon2.hash(password);
+
+  const { user, clubId, slug: createdSlug } = await authRepo.createClubOwnerWithCredentialsTx({
+    email: normalizedEmail,
+    fullName: fullName.trim(),
+    phone: phone.trim(),
+    passwordHash: hash,
+    clubName: clubName.trim(),
+    slug: normalizedSlug,
+    city: city ? city.trim() : null,
+    timezone: timezone || 'Asia/Kolkata',
+    avatarUrl: avatarUrl || null,
+  });
+
+  // Dispatch welcome onboarding email asynchronously
+  sendWelcomeEmail({
+    toEmail: user.email,
+    name: user.full_name,
+  }).catch((err) => {
+    console.error('Failed to dispatch welcome email:', err.message);
+  });
+
+  return {
+    user,
+    clubId,
+    slug: createdSlug,
+    role: 'owner',
+  };
+}
+
+/**
  * Direct User Login (email + password)
  */
 export async function verifyDirectLogin(email, password) {

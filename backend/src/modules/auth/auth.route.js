@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import {
   directRegisterController,
+  directRegisterClubController,
   directLoginController,
   logoutController,
   getMeController,
@@ -14,6 +15,7 @@ import {
 import { verifyToken } from '../../shared/middleware/auth.middleware.js';
 import {
   directSignupValidation,
+  clubSignupValidation,
   directLoginValidation,
   setupProfileValidation,
 } from '../../validation/index.js';
@@ -26,8 +28,11 @@ const router = Router();
 // 1. Direct Authentication (All Fields Manual)
 // ==========================================
 
-// Register directly by entering all fields (fullName, email, phone, password)
+// Register as Normal Player / Member
 router.post('/register', directSignupValidation, directRegisterController);
+
+// Register as Club / Cafe Facility Owner & Admin (executes app.register_club)
+router.post('/register-club', clubSignupValidation, directRegisterClubController);
 
 // Login directly using email & password
 router.post('/login', directLoginValidation, directLoginController);

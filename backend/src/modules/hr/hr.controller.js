@@ -1,4 +1,6 @@
 import * as hrRepo from './hr.repository.js';
+import * as authRepo from '../auth/auth.repository.js';
+import * as authService from '../auth/auth.service.js';
 
 export async function getStaffController(req, res, next) {
   try {
@@ -12,12 +14,30 @@ export async function getStaffController(req, res, next) {
 
 export async function addStaffController(req, res, next) {
   try {
-    const { user_id, role } = req.body;
-    if (!user_id || !role) {
-      return res.status(400).json({ message: "user_id and role are required" });
+    let { user_id, email, fullName, phone, password, role } = req.body;
+    if (!role) {
+      return res.status(400).json({ message: "Role is required (e.g. manager, front_desk, bar_staff, kitchen, shop_staff)" });
     }
-    const staff = await hrRepo.addStaff(req.user.id, req.clubId, req.body);
-    return res.status(201).json({ message: "Staff added", staff });
+
+    if (!user_id) {
+      if (!email) {
+        return res.status(400).json({ message: "user_id or staff email is required" });
+      }
+      const normalizedEmail = email.trim().toLowerCase();
+      let user = await authRepo.findUserByEmail(normalizedEmail);
+      if (!user) {
+        user = await authService.registerDirectUser({
+          email: normalizedEmail,
+          fullName: fullName || normalizedEmail.split('@')[0],
+          phone: phone || '0000000000',
+          password: password || 'Staff@1234',
+        });
+      }
+      user_id = user.id;
+    }
+
+    const staff = await hrRepo.addStaff(req.user.id, req.clubId, { user_id, role });
+    return res.status(201).json({ message: "Staff added successfully", staff });
   } catch (error) {
     next(error);
   }

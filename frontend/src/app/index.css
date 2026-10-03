@@ -25,7 +25,7 @@
 html,
 body {
   width: 100%;
-  min-height: 100vh;
+  height: 100%;
   margin: 0;
   padding: 0;
   font-family: var(--df-font-family);
@@ -33,9 +33,7 @@ body {
   color: #1c1c1a;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  overflow-x: hidden;
-  overflow-y: scroll;
-  scrollbar-gutter: stable;
+  overflow: hidden;
 }
 
 #root {

@@ -87,6 +87,82 @@ export async function createUserWithCredentialsTx({
 }
 
 /**
+ * Creates a club owner user and registers their club shell in a single atomic transaction.
+ * Invokes PostgreSQL stored procedure app.register_club to create club, assign owner role in club_staff,
+ * default club_settings, and enable all standard club_modules.
+ */
+export async function createClubOwnerWithCredentialsTx({
+  email,
+  fullName,
+  phone,
+  passwordHash,
+  clubName,
+  slug,
+  city = null,
+  timezone = 'Asia/Kolkata',
+  avatarUrl = null,
+}) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    // 1. Check email uniqueness
+    const existing = await client.query(queries.FIND_USER_BY_EMAIL, [email.trim().toLowerCase()]);
+    if (existing.rows.length > 0) {
+      const err = new Error('An account with this work email already exists');
+      err.status = 409;
+      throw err;
+    }
+
+    // 2. Check slug uniqueness
+    const existingClub = await client.query('SELECT id FROM app.clubs WHERE slug = $1', [slug.trim().toLowerCase()]);
+    if (existingClub.rows.length > 0) {
+      const err = new Error(`Club subdomain "${slug}" is already taken. Please choose another.`);
+      err.status = 409;
+      throw err;
+    }
+
+    // 3. Insert user into app.users
+    const userResult = await client.query(queries.INSERT_USER, [
+      email.trim().toLowerCase(),
+      fullName.trim(),
+      phone.trim(),
+      avatarUrl || null,
+      new Date(), // emailVerifiedAt
+    ]);
+    const user = userResult.rows[0];
+
+    // 4. Insert password credentials
+    if (passwordHash) {
+      await client.query(queries.INSERT_USER_CREDENTIALS, [user.id, passwordHash]);
+    }
+
+    // 5. Register the club using PostgreSQL procedure app.register_club
+    const clubResult = await client.query(
+      `SELECT app.register_club($1, $2, $3, $4, $5, $6, $7) AS club_id`,
+      [
+        user.id,
+        clubName.trim(),
+        slug.trim().toLowerCase(),
+        city ? city.trim() : null,
+        phone.trim(),
+        email.trim().toLowerCase(),
+        timezone || 'Asia/Kolkata',
+      ]
+    );
+    const clubId = clubResult.rows[0]?.club_id;
+
+    await client.query('COMMIT');
+    return { user, clubId, slug: slug.trim().toLowerCase() };
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+/**
  * Creates a new user registered via Google OAuth (without password, phone initially null)
  */
 export async function createOAuthUserTx({ email, fullName, avatarUrl = null }) {

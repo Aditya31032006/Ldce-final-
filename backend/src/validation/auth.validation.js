@@ -58,6 +58,51 @@ export const directSignupValidation = [
 ];
 
 /**
+ * Validation rules for Club / Facility Owner Signup
+ */
+export const clubSignupValidation = [
+  body('email')
+    .trim()
+    .notEmpty().withMessage('Email address is required')
+    .isEmail().withMessage('Please provide a valid email address')
+    .normalizeEmail(),
+
+  body('password')
+    .notEmpty().withMessage('Password is required')
+    .isLength({ min: 6 }).withMessage('Password must be at least 6 characters long'),
+
+  body('phone')
+    .trim()
+    .notEmpty().withMessage('Phone number is required')
+    .matches(/^[0-9+\s\-]{7,15}$/).withMessage('Please provide a valid phone number (7-15 digits)'),
+
+  body().custom((_, { req }) => {
+    const fullName = req.body.fullName || req.body.full_name || req.body.name;
+    if (!fullName || typeof fullName !== 'string' || fullName.trim().length < 2) {
+      throw new Error('Administrator full name is required (minimum 2 characters)');
+    }
+    req.body.fullName = fullName.trim();
+    return true;
+  }),
+
+  body('clubName')
+    .trim()
+    .notEmpty().withMessage('Club or facility name is required')
+    .isLength({ min: 2 }).withMessage('Club name must be at least 2 characters'),
+
+  body('slug')
+    .trim()
+    .notEmpty().withMessage('Club subdomain slug is required')
+    .matches(/^[a-z0-9]+(-[a-z0-9]+)*$/).withMessage('Slug can only contain lowercase letters, numbers, and single hyphens (e.g. champions-club)'),
+
+  body('city')
+    .optional({ values: 'falsy' })
+    .trim(),
+
+  validate,
+];
+
+/**
  * Validation rules for Direct User Login
  */
 export const directLoginValidation = [
@@ -155,6 +200,7 @@ export const loginValidation = directLoginValidation;
 export default {
   validate,
   directSignupValidation,
+  clubSignupValidation,
   directLoginValidation,
   setupProfileValidation,
   signupValidation,

@@ -22,6 +22,14 @@ export const authApi = {
   },
 
   /**
+   * Register a new Club / Cafe Facility (Owner & Admin)
+   */
+  async registerClub(clubData) {
+    const response = await apiClient.post('/auth/register-club', clubData);
+    return response.data;
+  },
+
+  /**
    * Complete remaining profile fields (e.g. phone after Google OAuth)
    */
   async setupProfile(profileData) {

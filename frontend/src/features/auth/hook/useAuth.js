@@ -99,6 +99,35 @@ export function useAuth() {
   );
 
   /**
+   * Direct Club / Cafe Facility Owner Registration
+   */
+  const registerClubOwner = useCallback(
+    async (clubData) => {
+      dispatch(setLoading(true));
+      try {
+        const response = await authApi.registerClub(clubData);
+        dispatch(
+          setAuthSuccess({
+            user: response.user,
+            role: 'owner',
+            clubId: response.clubId,
+            clubs: response.clubs,
+            token: response.token,
+            isProfileComplete: true,
+            message: response.message,
+          })
+        );
+        return { success: true, user: response.user, clubId: response.clubId, role: 'owner' };
+      } catch (err) {
+        const msg = err.customMessage || 'Failed to register facility';
+        dispatch(setError(msg));
+        return { success: false, error: msg };
+      }
+    },
+    [dispatch]
+  );
+
+  /**
    * Complete remaining profile fields (e.g. phone after Google OAuth)
    */
   const completeProfile = useCallback(
@@ -203,6 +232,7 @@ export function useAuth() {
     successMessage,
     login,
     register,
+    registerClubOwner,
     completeProfile,
     loginWithGoogle,
     logout,

@@ -458,4 +458,379 @@ $court-error-border: #fee2e2;
       }
     }
   }
+
+  // Account Type Segmented Switcher with sliding indicator
+  &__tabs {
+    position: relative;
+    display: flex;
+    background: $court-surface-low;
+    border: 1px solid $court-border;
+    border-radius: 8px;
+    padding: 3px;
+    margin-bottom: 0.65rem;
+    overflow: hidden;
+    user-select: none;
+  }
+
+  &__tab-indicator {
+    position: absolute;
+    top: 3px;
+    bottom: 3px;
+    left: 3px;
+    width: calc(50% - 3px);
+    background: #ffffff;
+    border-radius: 6px;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08), 0 1px 1px rgba(0, 0, 0, 0.04);
+    border: 1px solid rgba(0, 0, 0, 0.04);
+    pointer-events: none;
+    z-index: 1;
+    will-change: transform;
+  }
+
+  &__tab {
+    flex: 1;
+    position: relative;
+    z-index: 2;
+    padding: 0.45rem 0.75rem;
+    font-family: 'Geist', 'Inter', sans-serif;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: $court-text-muted;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    transition: color 0.25s ease;
+
+    &:hover {
+      color: $court-text-primary;
+    }
+
+    &--active {
+      color: $court-primary;
+    }
+  }
+
+  // Grid for multi-column inputs
+  &__grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.75rem;
+
+    @media (max-width: 580px) {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  // Slug input container
+  &__slug-wrapper {
+    display: flex;
+    align-items: center;
+    background: $court-surface-low;
+    border: 1px solid $court-border;
+    border-radius: 6px;
+    overflow: hidden;
+    height: 38px;
+
+    .slug-prefix {
+      padding: 0 0.65rem;
+      font-family: 'Geist', monospace;
+      font-size: 0.78rem;
+      color: $court-text-muted;
+      background: #edeae4;
+      border-right: 1px solid $court-border;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      user-select: none;
+    }
+
+    input {
+      flex: 1;
+      height: 100%;
+      border: none;
+      background: transparent;
+      padding: 0 0.75rem;
+      font-family: 'Geist', monospace;
+      font-size: 0.8125rem;
+      color: $court-text-primary;
+      outline: none;
+    }
+  }
+
+  // Split-Screen Layout for Wide / Desktop view
+  &--split {
+    .cl-auth-page__main {
+      max-width: 1040px;
+      flex-direction: row;
+      align-items: stretch;
+      gap: 0;
+      background: $court-surface;
+      border: 1px solid $court-border;
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
+
+      @media (max-width: 860px) {
+        flex-direction: column;
+        max-width: 480px;
+      }
+    }
+
+    .cl-auth-page__form-panel {
+      flex: 1.25;
+      padding: 2.25rem;
+
+      @media (max-width: 600px) {
+        padding: 1.5rem;
+      }
+    }
+
+    .cl-auth-page__preview-panel {
+      flex: 0.95;
+      background: #f4f2ec;
+      border-left: 1px solid $court-border;
+      padding: 2.25rem;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+
+      @media (max-width: 860px) {
+        display: none;
+      }
+    }
+  }
+
+  // Strict No Page Scrollbar Mode (Only form has hidden scrollbar)
+  &--no-page-scroll {
+    height: 100vh;
+    max-height: 100vh;
+    overflow: hidden;
+    padding: 1rem 1.25rem;
+
+    .cl-auth-page__header {
+      padding: 0 0 0.5rem 0;
+      flex-shrink: 0;
+    }
+
+    .cl-auth-page__main {
+      flex: 1;
+      min-height: 0;
+      max-height: calc(100vh - 75px);
+      height: calc(100vh - 75px);
+      overflow: hidden;
+      margin: 0;
+    }
+
+    .cl-auth-page__form-panel {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      min-height: 0;
+      padding: 1.5rem 2rem;
+      overflow: hidden;
+      box-sizing: border-box;
+
+      @media (max-width: 600px) {
+        padding: 1rem 1.25rem;
+      }
+    }
+
+    .cl-auth-page__form-header {
+      flex-shrink: 0;
+    }
+
+    // Only this form area has a scrollbar to explore fields, and it is completely hidden
+    .cl-auth-page__form--scrollable {
+      flex: 1;
+      min-height: 0;
+      overflow-y: auto;
+      overflow-x: hidden;
+      padding-right: 4px;
+      padding-bottom: 0.75rem;
+
+      /* Hide scrollbar for IE, Edge and Firefox */
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+
+      /* Hide scrollbar for Chrome, Safari and Opera */
+      &::-webkit-scrollbar {
+        display: none;
+        width: 0;
+        height: 0;
+      }
+
+      .cl-auth-page__mobile-submit {
+        display: none;
+
+        @media (max-width: 860px) {
+          display: block !important;
+          margin-top: 0.5rem;
+        }
+      }
+    }
+
+    .cl-auth-page__form-footer {
+      flex-shrink: 0;
+      padding-top: 0.35rem;
+      border-top: 1px solid $court-border;
+    }
+
+    .cl-auth-page__preview-panel {
+      overflow: hidden;
+      height: 100%;
+      box-sizing: border-box;
+      padding: 1.5rem 1.75rem;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+
+      /* Absolutely suppress any scrollbar */
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+      &::-webkit-scrollbar {
+        display: none;
+        width: 0;
+        height: 0;
+      }
+    }
+  }
+
+  // Summary Card on Preview Panel
+  &__summary-card {
+    background: #ffffff;
+    border: 1px solid $court-border;
+    border-radius: 8px;
+    padding: 0.75rem 0.9rem;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+    margin: 0.65rem 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+
+    .summary-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.76rem;
+      line-height: 1.25;
+
+      .label {
+        color: $court-text-muted;
+        font-weight: 500;
+      }
+
+      .val {
+        color: $court-text-primary;
+        font-weight: 600;
+        text-align: right;
+        max-width: 60%;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+
+        &.slug-val {
+          font-family: 'Geist', monospace;
+          color: $court-primary;
+          background: $court-surface-low;
+          padding: 2px 6px;
+          border-radius: 4px;
+          font-size: 0.72rem;
+        }
+
+        &.modules-list {
+          font-size: 0.7rem;
+          color: #15803d;
+        }
+      }
+
+      .badge {
+        font-size: 0.7rem;
+        font-weight: 600;
+        padding: 2px 8px;
+        border-radius: 12px;
+
+        &--admin {
+          background: #ebf3f0;
+          color: $court-primary;
+          border: 1px solid #b2f0d3;
+        }
+      }
+    }
+  }
+
+  // Action Container for prominent unsqueezed Register Button
+  &__action-container {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    margin: 0.5rem 0;
+
+    .trial-badge {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 0.35rem;
+      font-size: 0.68rem;
+      color: $court-text-muted;
+    }
+  }
+
+  // Large Button variant
+  &__btn-primary--large {
+    height: 48px;
+    min-height: 48px;
+    font-size: 0.925rem;
+    font-weight: 600;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(31, 92, 70, 0.22);
+    cursor: pointer;
+    transition: all 0.15s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    width: 100%;
+    box-sizing: border-box;
+
+    &:hover {
+      background-color: $court-primary-hover;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(31, 92, 70, 0.28);
+    }
+
+    &:active {
+      transform: translateY(0);
+    }
+  }
+
+  &__preview-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-top: 0.5rem;
+    border-top: 1px solid $court-border;
+    font-size: 0.68rem;
+    color: #9c9a92;
+
+    .trust-item {
+      display: flex;
+      align-items: center;
+      gap: 0.25rem;
+    }
+  }
+
+  // Field validation error for React Hook Form
+  &__field-error {
+    font-family: 'Inter', sans-serif;
+    font-size: 0.72rem;
+    color: $court-error;
+    margin-top: 3px;
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+  }
 }
