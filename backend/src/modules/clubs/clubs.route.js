@@ -6,13 +6,17 @@ import {
   getClubDetailsController, 
   updateClubDetailsController,
   getClubSettingsController,
-  updateClubSettingsController
+  updateClubSettingsController,
+  getClubGalleryController,
+  addClubGalleryController,
+  deleteClubGalleryController
 } from "./clubs.controller.js";
 
 const router = Router();
 
 // Public routes (using club-scope from params if needed)
 router.get("/:clubId", resolveClubScope, getClubDetailsController);
+router.get("/:clubId/gallery", resolveClubScope, getClubGalleryController);
 
 // Authenticated routes
 router.use(verifyToken);
@@ -22,6 +26,12 @@ router.post("/register", registerClubController);
 
 // Scope by club for subsequent routes
 router.use(resolveClubScope);
+
+// Gallery management for club (Owner only for modifications)
+router.get("/gallery", getClubGalleryController);
+router.post("/gallery", requireRole('owner'), addClubGalleryController);
+router.delete("/gallery/:imageId", requireRole('owner'), deleteClubGalleryController);
+
 
 // Only owners and managers can update club details or settings
 router.put("/", requireRole('owner', 'manager'), updateClubDetailsController);

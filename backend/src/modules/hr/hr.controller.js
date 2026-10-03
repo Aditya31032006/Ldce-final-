@@ -14,34 +14,51 @@ export async function getStaffController(req, res, next) {
 
 export async function addStaffController(req, res, next) {
   try {
-    let { user_id, email, fullName, phone, password, role } = req.body;
+    let { user_id, email, role } = req.body;
     if (!role) {
       return res.status(400).json({ message: "Role is required (e.g. manager, front_desk, bar_staff, kitchen, shop_staff)" });
     }
 
     if (!user_id) {
       if (!email) {
-        return res.status(400).json({ message: "user_id or staff email is required" });
+        return res.status(400).json({ message: "Customer email or user_id is required" });
       }
       const normalizedEmail = email.trim().toLowerCase();
-      let user = await authRepo.findUserByEmail(normalizedEmail);
+      const user = await authRepo.findUserByEmail(normalizedEmail);
       if (!user) {
-        user = await authService.registerDirectUser({
-          email: normalizedEmail,
-          fullName: fullName || normalizedEmail.split('@')[0],
-          phone: phone || '0000000000',
-          password: password || 'Staff@1234',
+        return res.status(404).json({ 
+          message: `No existing user found with email "${normalizedEmail}". The customer must register first before being added as staff.` 
         });
       }
       user_id = user.id;
     }
 
     const staff = await hrRepo.addStaff(req.user.id, req.clubId, { user_id, role });
-    return res.status(201).json({ message: "Staff added successfully", staff });
+    return res.status(201).json({ message: "Staff member added successfully", staff });
   } catch (error) {
     next(error);
   }
 }
+
+export async function removeStaffController(req, res, next) {
+  try {
+    const { userId } = req.params;
+    if (!userId) {
+      return res.status(400).json({ message: "Staff user ID is required" });
+    }
+    if (userId === req.user.id) {
+      return res.status(400).json({ message: "You cannot remove yourself as staff" });
+    }
+    const removed = await hrRepo.removeStaff(req.user.id, req.clubId, userId);
+    if (!removed) {
+      return res.status(404).json({ message: "Staff member not found" });
+    }
+    return res.status(200).json({ message: "Staff member removed successfully", staff: removed });
+  } catch (error) {
+    next(error);
+  }
+}
+
 
 export async function getEmployeesController(req, res, next) {
   try {

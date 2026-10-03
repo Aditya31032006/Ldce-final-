@@ -3,6 +3,7 @@ import { Link, useNavigate, useLocation } from 'react-router';
 import { useForm } from 'react-hook-form';
 import useAuth from '../hook/useAuth.js';
 import authApi from '../services/auth.api.js';
+import { useToast } from '../../../shared/context/ToastContext.jsx';
 import '../styles/auth.scss';
 
 /**
@@ -24,15 +25,28 @@ export default function Login() {
     resetError,
   } = useAuth();
 
+  const { toast } = useToast();
   const [showPassword, setShowPassword] = useState(false);
   const [clubs, setClubs] = useState([]);
   const [selectedClub, setSelectedClub] = useState(null);
+
+  // --- Reset Password via Email OTP States ---
+  const [showForgotPasswordModal, setShowForgotPasswordModal] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [otpSent, setOtpSent] = useState(false);
+  const [otpLoading, setOtpLoading] = useState(false);
+  const [otpCode, setOtpCode] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [forgotError, setForgotError] = useState('');
+  const [forgotSuccess, setForgotSuccess] = useState('');
 
   // Initialize React Hook Form
   const {
     register,
     handleSubmit,
     setValue,
+    getValues,
     formState: { errors, isSubmitting },
   } = useForm({
     mode: 'onBlur',
@@ -87,6 +101,76 @@ export default function Login() {
     const nextClub = isTogglingOff ? null : club;
     setSelectedClub(nextClub);
     setValue('clubId', nextClub ? nextClub.id : '', { shouldValidate: true });
+  };
+
+  const handleRequestOtp = async () => {
+    setForgotError('');
+    setForgotSuccess('');
+
+    if (!forgotEmail || !forgotEmail.trim()) {
+      setForgotError('Please enter your account email address');
+      return;
+    }
+
+    setOtpLoading(true);
+    try {
+      const res = await authApi.requestPasswordResetOtp(forgotEmail.trim().toLowerCase());
+      setOtpSent(true);
+      setForgotSuccess(res.message || `Verification code sent to ${forgotEmail.trim()}`);
+      toast.success('6-digit OTP code sent! Check your email inbox');
+    } catch (err) {
+      const msg = err.response?.data?.message || err.customMessage || 'Failed to request OTP code';
+      setForgotError(msg);
+      toast.error(msg);
+    } finally {
+      setOtpLoading(false);
+    }
+  };
+
+  const handleResetPassword = async (e) => {
+    e.preventDefault();
+    setForgotError('');
+    setForgotSuccess('');
+
+    if (!otpCode.trim()) {
+      setForgotError('Please enter the 6-digit OTP code');
+      return;
+    }
+    if (newPassword.length < 6) {
+      setForgotError('Password must be at least 6 characters long');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setForgotError('Passwords do not match');
+      return;
+    }
+
+    setOtpLoading(true);
+    try {
+      const res = await authApi.resetPasswordWithOtp({
+        email: forgotEmail.trim().toLowerCase(),
+        otp: otpCode.trim(),
+        newPassword,
+      });
+      setForgotSuccess(res.message || 'Password updated successfully!');
+      toast.success('Password updated successfully! You can now log in.');
+      setValue('email', forgotEmail.trim().toLowerCase());
+      setTimeout(() => {
+        setShowForgotPasswordModal(false);
+        setOtpSent(false);
+        setOtpCode('');
+        setNewPassword('');
+        setConfirmPassword('');
+        setForgotError('');
+        setForgotSuccess('');
+      }, 1500);
+    } catch (err) {
+      const msg = err.response?.data?.message || err.customMessage || 'Password reset failed';
+      setForgotError(msg);
+      toast.error(msg);
+    } finally {
+      setOtpLoading(false);
+    }
   };
 
   const onSubmit = async (data) => {
@@ -194,12 +278,32 @@ export default function Login() {
             <div className="cl-auth-page__field">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <label htmlFor="password">Password</label>
-                <Link
-                  to="/forgot-password"
-                  style={{ fontSize: '0.75rem', color: '#1f5c46', textDecoration: 'none', fontWeight: 600 }}
+                <button
+                  type="button"
+                  onClick={() => {
+                    const currentEmail = getValues('email') || '';
+                    setForgotEmail(currentEmail);
+                    setForgotError('');
+                    setForgotSuccess('');
+                    setOtpSent(false);
+                    setOtpCode('');
+                    setNewPassword('');
+                    setConfirmPassword('');
+                    setShowForgotPasswordModal(true);
+                  }}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    padding: 0,
+                    fontSize: '0.75rem',
+                    color: '#1f5c46',
+                    textDecoration: 'none',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                  }}
                 >
                   Forgot password?
-                </Link>
+                </button>
               </div>
               <div className="input-wrapper">
                 <input
@@ -332,6 +436,248 @@ export default function Login() {
       <footer style={{ fontSize: '0.72rem', color: '#9c9a92', textAlign: 'center', padding: '0.35rem 0', flexShrink: 0 }}>
         Clubhouse Operating System • Enterprise Multi-Tenant Edition
       </footer>
+
+      {/* =========================================================
+          MODAL: RESET PASSWORD VIA OTP (BullMQ + Upstash Redis)
+         ========================================================= */}
+      {showForgotPasswordModal && (
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          background: 'rgba(15, 23, 42, 0.65)',
+          backdropFilter: 'blur(4px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 9999,
+          padding: '1rem',
+        }}>
+          <div style={{
+            background: '#ffffff',
+            borderRadius: '0.85rem',
+            maxWidth: '460px',
+            width: '100%',
+            padding: '2rem',
+            boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)',
+          }}>
+            <h3 style={{ fontSize: '1.25rem', fontWeight: 700, color: '#0f172a', margin: '0 0 0.35rem 0' }}>
+              Reset Password via Email OTP
+            </h3>
+            <p style={{ fontSize: '0.85rem', color: '#64748b', marginBottom: '1.25rem' }}>
+              We will send a 6-digit verification code to your registered work email.
+            </p>
+
+            {forgotError && (
+              <div style={{
+                background: '#fef2f2',
+                color: '#b91c1c',
+                padding: '0.65rem 0.85rem',
+                borderRadius: '0.375rem',
+                fontSize: '0.8rem',
+                marginBottom: '1rem',
+                border: '1px solid #fecaca',
+              }}>
+                {forgotError}
+              </div>
+            )}
+
+            {forgotSuccess && (
+              <div style={{
+                background: '#f0fdf4',
+                color: '#15803d',
+                padding: '0.65rem 0.85rem',
+                borderRadius: '0.375rem',
+                fontSize: '0.8rem',
+                marginBottom: '1rem',
+                border: '1px solid #bbf7d0',
+              }}>
+                {forgotSuccess}
+              </div>
+            )}
+
+            {!otpSent ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#334155', marginBottom: '0.25rem' }}>
+                    Your Registered Email
+                  </label>
+                  <input
+                    type="email"
+                    required
+                    placeholder="name@clubdomain.in"
+                    value={forgotEmail}
+                    onChange={(e) => setForgotEmail(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '0.6rem 0.85rem',
+                      fontSize: '0.875rem',
+                      borderRadius: '0.375rem',
+                      border: '1px solid #cbd5e1',
+                    }}
+                  />
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginTop: '0.5rem' }}>
+                  <button
+                    type="button"
+                    onClick={() => setShowForgotPasswordModal(false)}
+                    style={{
+                      padding: '0.55rem 1rem',
+                      background: '#f1f5f9',
+                      color: '#475569',
+                      border: 'none',
+                      borderRadius: '0.375rem',
+                      fontWeight: 600,
+                      fontSize: '0.85rem',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleRequestOtp}
+                    disabled={otpLoading || !forgotEmail.trim()}
+                    style={{
+                      padding: '0.55rem 1.25rem',
+                      background: '#1f5c46',
+                      color: '#ffffff',
+                      border: 'none',
+                      borderRadius: '0.375rem',
+                      fontWeight: 600,
+                      fontSize: '0.85rem',
+                      cursor: (otpLoading || !forgotEmail.trim()) ? 'not-allowed' : 'pointer',
+                      opacity: (otpLoading || !forgotEmail.trim()) ? 0.6 : 1,
+                    }}
+                  >
+                    {otpLoading ? 'Sending...' : '✉️ Send Verification Code'}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <form onSubmit={handleResetPassword} style={{ display: 'flex', flexDirection: 'column', gap: '0.9rem' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#334155', marginBottom: '0.25rem' }}>
+                    Enter 6-Digit OTP Code sent to {forgotEmail}
+                  </label>
+                  <input
+                    type="text"
+                    maxLength={6}
+                    required
+                    placeholder="123456"
+                    value={otpCode}
+                    onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ''))}
+                    style={{
+                      width: '100%',
+                      padding: '0.55rem 0.75rem',
+                      fontSize: '1.1rem',
+                      letterSpacing: '0.2em',
+                      textAlign: 'center',
+                      fontWeight: 700,
+                      borderRadius: '0.375rem',
+                      border: '1px solid #cbd5e1',
+                    }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#334155', marginBottom: '0.25rem' }}>
+                    New Password (min. 6 characters, Argon2)
+                  </label>
+                  <input
+                    type="password"
+                    required
+                    placeholder="••••••••"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '0.55rem 0.75rem',
+                      fontSize: '0.875rem',
+                      borderRadius: '0.375rem',
+                      border: '1px solid #cbd5e1',
+                    }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#334155', marginBottom: '0.25rem' }}>
+                    Confirm New Password
+                  </label>
+                  <input
+                    type="password"
+                    required
+                    placeholder="••••••••"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '0.55rem 0.75rem',
+                      fontSize: '0.875rem',
+                      borderRadius: '0.375rem',
+                      border: '1px solid #cbd5e1',
+                    }}
+                  />
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.5rem' }}>
+                  <button
+                    type="button"
+                    onClick={handleRequestOtp}
+                    disabled={otpLoading}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: '#1f5c46',
+                      fontSize: '0.775rem',
+                      cursor: 'pointer',
+                      padding: 0,
+                      textDecoration: 'underline',
+                    }}
+                  >
+                    Resend Code
+                  </button>
+
+                  <div style={{ display: 'flex', gap: '0.5rem' }}>
+                    <button
+                      type="button"
+                      onClick={() => setShowForgotPasswordModal(false)}
+                      style={{
+                        padding: '0.5rem 0.85rem',
+                        background: '#f1f5f9',
+                        color: '#475569',
+                        border: 'none',
+                        borderRadius: '0.375rem',
+                        fontWeight: 600,
+                        fontSize: '0.85rem',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={otpLoading}
+                      style={{
+                        padding: '0.5rem 1.25rem',
+                        background: '#1f5c46',
+                        color: '#ffffff',
+                        border: 'none',
+                        borderRadius: '0.375rem',
+                        fontWeight: 600,
+                        fontSize: '0.85rem',
+                        cursor: otpLoading ? 'not-allowed' : 'pointer',
+                      }}
+                    >
+                      {otpLoading ? 'Updating...' : 'Update Password'}
+                    </button>
+                  </div>
+                </div>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

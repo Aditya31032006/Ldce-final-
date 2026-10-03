@@ -6,7 +6,15 @@ import {
   logoutController,
   getMeController,
   setupProfileController,
+  updateAvatarController,
+  deleteAvatarController,
+  requestPasswordResetOtpController,
+  resetPasswordWithOtpController,
+  setPasswordController,
+  changePasswordController,
 } from './auth.direct.controller.js';
+
+
 import {
   googleAuthCallbackController,
   googleAuthFailureController,
@@ -97,4 +105,24 @@ router.post('/setup-profile', verifyToken, setupProfileValidation, setupProfileC
 router.put('/setup-profile', verifyToken, setupProfileValidation, setupProfileController);
 router.put('/profile', verifyToken, setupProfileValidation, setupProfileController);
 
+// Profile Picture Management (Add / Update / Delete)
+router.put('/profile/avatar', verifyToken, updateAvatarController);
+router.delete('/profile/avatar', verifyToken, deleteAvatarController);
+
+// Add / Set Password for OAuth users without password
+router.post('/profile/password/set', verifyToken, setPasswordController);
+
+// Change Password for users with existing password (requires old password)
+router.post('/profile/password/change', verifyToken, changePasswordController);
+
+// Password Reset via OTP (Authenticated User on Profile Page)
+router.post('/profile/password/request-otp', verifyToken, requestPasswordResetOtpController);
+router.post('/profile/password/reset', verifyToken, resetPasswordWithOtpController);
+
+// Password Reset via OTP (Public / Unauthenticated Flow)
+router.post('/password/request-otp', requestPasswordResetOtpController);
+router.post('/password/reset', resetPasswordWithOtpController);
+
 export default router;
+
+

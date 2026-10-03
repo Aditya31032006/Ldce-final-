@@ -19,9 +19,16 @@ export async function addStaff(userId, clubId, staffData) {
   });
 }
 
+export async function removeStaff(userId, clubId, staffUserId) {
+  return withTenantTransaction(userId, clubId, async (client) => {
+    const res = await client.query(queries.REMOVE_STAFF, [clubId, staffUserId]);
+    return res.rows[0];
+  });
+}
+
 export async function getEmployees(userId, clubId) {
   return withTenantTransaction(userId, clubId, async (client) => {
     const res = await client.query(queries.GET_EMPLOYEES, [clubId]);
     return res.rows;
   });
-}
+}

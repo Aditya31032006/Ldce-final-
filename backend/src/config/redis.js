@@ -6,6 +6,7 @@ export const redisConnection = {
   port: config.REDIS_PORT,
   username: config.REDIS_USERNAME,
   password: config.REDIS_PASSWORD || undefined,
+  tls: config.REDIS_TLS ? {} : undefined,
   lazyConnect: true,
   maxRetriesPerRequest: 1,
   enableReadyCheck: false,
@@ -18,19 +19,24 @@ export const redisConnection = {
   },
 };
 
+
 export const redisClient = new Redis(redisConnection);
 
 redisClient.on('connect', () => {
   console.log('⚡ Redis client connected successfully.');
 });
 
+let hasWarned = false;
 redisClient.on('error', (err) => {
   if (config.NODE_ENV === 'development') {
-    // Graceful warning in development when local Redis is not running
-    console.warn('⚠️ Redis notice:', err.message);
+    if (!hasWarned) {
+      console.log('ℹ️  Redis is not running on 127.0.0.1:6379. Memory fallback activated for OTP.');
+      hasWarned = true;
+    }
   } else {
     console.error('❌ Redis client connection error:', err.message);
   }
 });
+
 
 export default redisClient;
