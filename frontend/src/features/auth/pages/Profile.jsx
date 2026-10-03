@@ -332,7 +332,7 @@ export default function Profile() {
         })),
       };
 
-      await clubsApi.addClubGallery(payload);
+      await clubsApi.addClubGallery(clubId, payload);
       toast.success(`${imagesToUpload.length} Base64 photo(s) added to club gallery!`);
       setNewGalleryFiles([]);
       setGalleryCaption('');
@@ -350,7 +350,7 @@ export default function Profile() {
     if (!window.confirm('Delete this photo from the club gallery?')) return;
     setGalleryLoading(true);
     try {
-      await clubsApi.deleteClubGallery(imageId);
+      await clubsApi.deleteClubGallery(clubId, imageId);
       toast.success('Gallery photo removed successfully');
       setGalleryImages(prev => prev.filter(img => img.id !== imageId));
     } catch (err) {
@@ -650,7 +650,7 @@ export default function Profile() {
               textTransform: 'uppercase',
               letterSpacing: '0.05em',
             }}>
-              {role || 'Public User'}
+              {role ? role.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) : 'Member'}
             </span>
           </div>
 

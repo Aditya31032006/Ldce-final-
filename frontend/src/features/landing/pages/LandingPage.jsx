@@ -24,9 +24,10 @@ import {
 import '../styles/landing.scss';
 
 export default function LandingPage() {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, role } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [activeTimelineStep, setActiveTimelineStep] = useState(3); // 18:00 default
+  const dashboardLink = (role || '').toLowerCase() === 'member' || (role || '').toLowerCase() === 'public' ? '/user/dashboard' : '/dashboard';
 
   const timelineEvents = [
     {
@@ -150,10 +151,10 @@ export default function LandingPage() {
           <div className="nav-actions">
             {isAuthenticated ? (
               <>
-                <Link to="/dashboard" className="btn-login" id="nav-dash-link">
+                <Link to={dashboardLink} className="btn-login" id="nav-dash-link">
                   Dashboard
                 </Link>
-                <Link to="/dashboard" className="btn-register" id="nav-dashboard-btn">
+                <Link to={dashboardLink} className="btn-register" id="nav-dashboard-btn">
                   <span>Enter Dashboard</span>
                   <ArrowRight style={{ width: 15, height: 15 }} />
                 </Link>

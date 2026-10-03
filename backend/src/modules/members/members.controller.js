@@ -6,9 +6,13 @@ export async function createMemberController(req, res, next) {
     if (!first_name || (!phone && !email)) {
       return res.status(400).json({ message: "First name and either phone or email are required" });
     }
+<<<<<<< HEAD
 
     // Defaulting user_id to req.user.id if public/member self-registering? 
     // Usually, front desk creates members.
+=======
+    
+>>>>>>> f6853aee10fa09bcb5b55e9d06ca22e550bf4dd1
     if (req.user.role === 'public') {
       req.body.user_id = req.user.id;
     }
@@ -20,15 +24,28 @@ export async function createMemberController(req, res, next) {
   }
 }
 
+export async function getMembersController(req, res, next) {
+  try {
+    const { status } = req.query;
+    const members = await membersRepo.getMembers(req.user.id, req.clubId, status || null);
+    return res.status(200).json({ members });
+  } catch (error) {
+    next(error);
+  }
+}
+
 export async function getMemberByIdController(req, res, next) {
   try {
     const memberId = req.params.id;
+<<<<<<< HEAD
 
     // Member can only view their own
     if (req.user.role === 'member' && req.user.memberId !== memberId) {
       // Wait, we didn't put memberId in JWT. RLS handles this mostly, but good to check.
     }
 
+=======
+>>>>>>> f6853aee10fa09bcb5b55e9d06ca22e550bf4dd1
     const member = await membersRepo.getMemberById(req.user.id, req.clubId, memberId);
     if (!member) {
       return res.status(404).json({ message: "Member not found" });

@@ -24,17 +24,6 @@ export default function AppLayout() {
     setSidebarOpen(false);
   }, [location.pathname]);
 
-  // Lock body scroll when mobile drawer is open
-  useEffect(() => {
-    if (sidebarOpen) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = '';
-    }
-    return () => {
-      document.body.style.overflow = '';
-    };
-  }, [sidebarOpen]);
 
   return (
     <div className="cl-app-layout">
