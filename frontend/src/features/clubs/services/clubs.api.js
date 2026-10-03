@@ -51,20 +51,30 @@ export const clubsApi = {
     const response = await api.get(`/clubs/${clubId}`);
     return response.data?.club;
   },
+
+  /**
+   * Fetch club gallery images (owner: uses clubId in context header)
+   */
   async getClubGallery(clubId) {
-    const url = clubId ? `/clubs/${clubId}/gallery` : '/clubs/gallery';
-    const res = await apiClient.get(url);
-    return res.data;
+    const response = await api.get(`/clubs/${clubId}/gallery`);
+    return response.data;
   },
-  async addClubGallery(data) {
-    const res = await apiClient.post('/clubs/gallery', data);
-    return res.data;
+
+  /**
+   * Add images to club gallery (owner only)
+   */
+  async addClubGallery(clubId, data) {
+    const response = await api.post(`/clubs/${clubId}/gallery`, data);
+    return response.data;
   },
-  async deleteClubGallery(imageId) {
-    const res = await apiClient.delete(`/clubs/gallery/${imageId}`);
-    return res.data;
+
+  /**
+   * Delete an image from club gallery (owner only)
+   */
+  async deleteClubGallery(clubId, imageId) {
+    const response = await api.delete(`/clubs/${clubId}/gallery/${imageId}`);
+    return response.data;
   },
 };
 
 export default clubsApi;
-
