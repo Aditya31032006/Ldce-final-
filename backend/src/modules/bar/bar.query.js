@@ -249,7 +249,12 @@ export const GET_MEMBER_TABS = `
   SELECT t.id, t.member_id, t.guest_name, t.status, t.opened_at, t.settled_at,
          coalesce(m.full_name, t.guest_name, 'Club Member') AS member_name,
          m.member_code, m.phone AS member_phone,
-         coalesce(sum(o.total), 0) AS balance,
+         CASE 
+           WHEN t.status = 'settled' THEN 0.00
+           ELSE greatest(0, coalesce(sum(o.total), 0) - coalesce((SELECT sum(p.amount) FROM app.payments p WHERE p.tab_id = t.id AND p.status = 'completed'), 0))
+         END AS balance,
+         coalesce(sum(o.total), 0) AS total_orders_amount,
+         coalesce((SELECT sum(p.amount) FROM app.payments p WHERE p.tab_id = t.id AND p.status = 'completed'), 0) AS total_paid,
          count(o.id)::int AS orders_count,
          coalesce(
            (SELECT json_agg(
@@ -273,7 +278,9 @@ export const GET_MEMBER_TABS = `
   LEFT JOIN app.bar_orders o ON o.tab_id = t.id AND o.status <> 'void'
   WHERE t.club_id = $1 AND ($2::text IS NULL OR t.status = $2::app.tab_status)
   GROUP BY t.id, m.full_name, m.member_code, m.phone
-  ORDER BY t.opened_at DESC;
+  ORDER BY 
+    CASE WHEN t.status = 'open' THEN 0 ELSE 1 END,
+    t.opened_at DESC;
 `;
 
 export const SETTLE_TAB = `

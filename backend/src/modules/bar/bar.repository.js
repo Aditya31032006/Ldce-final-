@@ -146,18 +146,41 @@ export async function getOrderById(userId, clubId, orderId) {
 export async function createBarOrderTx(userId, clubId, orderData, items) {
   return withTenantTransaction(userId, clubId, async (client) => {
     let tabId = orderData.tab_id || null;
+    let memberId = orderData.member_id || null;
+    let guestName = orderData.guest_name || null;
+
+    // Resolve or validate memberId for this user & club
+    if (!memberId && userId) {
+      const memRes = await client.query(
+        "SELECT id, full_name FROM app.members WHERE (user_id = $1 OR id = $1) AND club_id = $2 LIMIT 1",
+        [userId, clubId]
+      );
+      if (memRes.rows.length > 0) {
+        memberId = memRes.rows[0].id;
+        if (!guestName) guestName = memRes.rows[0].full_name;
+      }
+    } else if (memberId) {
+      const memRes = await client.query(
+        "SELECT id, full_name FROM app.members WHERE (id = $1 OR user_id = $1) AND club_id = $2 LIMIT 1",
+        [memberId, clubId]
+      );
+      if (memRes.rows.length > 0) {
+        memberId = memRes.rows[0].id;
+        if (!guestName) guestName = memRes.rows[0].full_name;
+      }
+    }
 
     // If customer wants to put on member tab:
     if (orderData.open_new_tab || orderData.charge_to_tab) {
-      if (orderData.member_id) {
-        const existingTab = await client.query(queries.GET_ACTIVE_TAB_BY_MEMBER, [clubId, orderData.member_id]);
+      if (memberId) {
+        const existingTab = await client.query(queries.GET_ACTIVE_TAB_BY_MEMBER, [clubId, memberId]);
         if (existingTab.rows.length > 0) {
           tabId = existingTab.rows[0].id;
         } else {
           const tabResult = await client.query(queries.INSERT_TAB, [
             clubId,
-            orderData.member_id,
-            orderData.guest_name || null,
+            memberId,
+            guestName || null,
             userId,
           ]);
           tabId = tabResult.rows[0].id;
@@ -166,7 +189,7 @@ export async function createBarOrderTx(userId, clubId, orderData, items) {
         const tabResult = await client.query(queries.INSERT_TAB, [
           clubId,
           null,
-          orderData.guest_name || 'Counter Guest',
+          guestName || 'Counter Guest',
           userId,
         ]);
         tabId = tabResult.rows[0].id;
@@ -178,8 +201,8 @@ export async function createBarOrderTx(userId, clubId, orderData, items) {
       clubId,
       orderData.table_id || null,
       tabId,
-      orderData.member_id || null,
-      orderData.guest_name || null,
+      memberId || null,
+      guestName || null,
       userId,
       orderData.notes || null,
     ]);
@@ -343,7 +366,14 @@ export async function getMemberTabs(userId, clubId, status = 'open') {
 
 export async function settleTabTx(userId, clubId, tabId, paymentData) {
   return withTenantTransaction(userId, clubId, async (client) => {
-    // 1. Get tab outstanding balance
+    // 1. Get tab details and member info
+    const tabInfo = await client.query("SELECT * FROM app.tabs WHERE id = $1 AND club_id = $2", [tabId, clubId]);
+    const tab = tabInfo.rows[0];
+    if (!tab) {
+      throw new Error('Member tab not found');
+    }
+
+    // 2. Get tab outstanding balance
     const ordersRes = await client.query(
       "SELECT coalesce(sum(total), 0) AS due FROM app.bar_orders WHERE tab_id = $1 AND status <> 'void'",
       [tabId]
@@ -363,17 +393,38 @@ export async function settleTabTx(userId, clubId, tabId, paymentData) {
         clubId,
         paymentData.method || 'cash',
         balance,
-        paymentData.member_id || null,
+        tab.member_id || paymentData.member_id || null,
         null,
         tabId,
-        paymentData.reference || null,
+        paymentData.reference || 'In-person Tab Clearance',
         userId,
-        `Tab settlement: ${tabId}`,
+        paymentData.notes || `Tab settlement: ${tabId}`,
       ]);
     }
 
-    // 2. Mark tab settled (trigger trg_tab_settle & trg_tab_close_orders will execute)
+    // 3. Mark tab settled (trigger trg_tab_settle & trg_tab_close_orders will execute)
     const tabRes = await client.query(queries.SETTLE_TAB, [clubId, tabId, userId]);
+
+    // 4. Free dining tables associated with this tab if no other active orders remain on them
+    const tablesRes = await client.query(
+      "SELECT DISTINCT table_id FROM app.bar_orders WHERE tab_id = $1 AND table_id IS NOT NULL",
+      [tabId]
+    );
+    for (const row of tablesRes.rows) {
+      if (row.table_id) {
+        const otherOrders = await client.query(
+          "SELECT id FROM app.bar_orders WHERE table_id = $1 AND status IN ('open', 'sent', 'served', 'billed') AND tab_id <> $2 LIMIT 1",
+          [row.table_id, tabId]
+        );
+        if (otherOrders.rows.length === 0) {
+          await client.query(
+            "UPDATE app.dining_tables SET status = 'available', updated_at = now() WHERE club_id = $1 AND id = $2",
+            [clubId, row.table_id]
+          );
+        }
+      }
+    }
+
     return tabRes.rows[0];
   });
 }
