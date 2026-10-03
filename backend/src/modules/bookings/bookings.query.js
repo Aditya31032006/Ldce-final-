@@ -17,9 +17,11 @@ export const INSERT_RESERVATION = `
 
 export const INSERT_BOOKING = `
   INSERT INTO app.bookings (
-    club_id, reservation_id, member_id, guest_name, guest_phone, channel, status, created_by
+    club_id, reservation_id, member_id, guest_name, guest_phone, channel, status, created_by,
+    base_price, discount_amount, tax_amount, total_amount, plan_id
   ) VALUES (
-    $1, $2, $3, $4, $5, $6, $7, $8
+    $1, $2, $3, $4, $5, $6, $7, $8,
+    COALESCE($9, 0), COALESCE($10, 0), COALESCE($11, 0), COALESCE($12, 0), $13
   ) RETURNING *;
 `;
 

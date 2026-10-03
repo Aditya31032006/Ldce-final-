@@ -8,6 +8,8 @@ export default function BookingCalendar() {
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [quickBooking, setQuickBooking] = useState(null); // { court, time, date }
+  const [quickPrice, setQuickPrice] = useState(null);
+  const [quickPriceLoading, setQuickPriceLoading] = useState(false);
   const [selectedBooking, setSelectedBooking] = useState(null);
   const [bookingPlayerName, setBookingPlayerName] = useState('');
   const [bookingChannel, setBookingChannel] = useState('counter');
@@ -72,19 +74,51 @@ export default function BookingCalendar() {
     loadCalendarData();
     const handleUpdate = () => loadCalendarData();
     const handleStorage = (e) => {
-      if (e.key === 'ldce_booking_updated') {
+      if (e.key === 'ldce_booking_updated' || e.key === 'ldce_court_rates_updated') {
         loadCalendarData();
       }
     };
     window.addEventListener('booking-updated', handleUpdate);
     window.addEventListener('court-booked', handleUpdate);
+    window.addEventListener('court-rates-updated', handleUpdate);
     window.addEventListener('storage', handleStorage);
     return () => {
       window.removeEventListener('booking-updated', handleUpdate);
       window.removeEventListener('court-booked', handleUpdate);
+      window.removeEventListener('court-rates-updated', handleUpdate);
       window.removeEventListener('storage', handleStorage);
     };
   }, [loadCalendarData]);
+
+  // Fetch resolved dynamic price for the selected court and time slot
+  useEffect(() => {
+    if (!quickBooking?.court?.id || !quickBooking?.date || !quickBooking?.time) {
+      setQuickPrice(null);
+      return;
+    }
+    let cancelled = false;
+    const fetchSlotPrice = async () => {
+      try {
+        setQuickPriceLoading(true);
+        const { startAt } = getSlotTimestamps(quickBooking.date, quickBooking.time);
+        const res = await apiClient.get('/bookings/price', {
+          params: {
+            court_id: quickBooking.court.id,
+            start_at: startAt,
+          }
+        });
+        if (!cancelled && res.data?.success) {
+          setQuickPrice(Number(res.data.price));
+        }
+      } catch {
+        if (!cancelled) setQuickPrice(Number(quickBooking.court.hourly_rate || 400));
+      } finally {
+        if (!cancelled) setQuickPriceLoading(false);
+      }
+    };
+    fetchSlotPrice();
+    return () => { cancelled = true; };
+  }, [quickBooking]);
 
   // Find booking matching court and time slot interval overlap
   const getBookingForSlot = (court, time) => {
@@ -125,6 +159,7 @@ export default function BookingCalendar() {
         guest_name: bookingPlayerName.trim() || 'Walk-in Guest',
         channel: bookingChannel,
         status: 'confirmed',
+        amount: quickPrice !== null ? quickPrice : undefined,
       });
 
       setBookingMessage({ text: `Court slot booked successfully for ${displayRange}!`, type: 'success' });
@@ -386,10 +421,16 @@ export default function BookingCalendar() {
                   <span style={{ color: '#64748b' }}>Date:</span>
                   <span style={{ fontWeight: 600, color: '#0f172a' }}>{quickBooking.date}</span>
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.35rem' }}>
                   <span style={{ color: '#64748b' }}>1-Hour Duration:</span>
                   <span style={{ fontWeight: 700, color: '#1F5C46' }}>
                     {getSlotTimestamps(quickBooking.date, quickBooking.time).displayRange} (IST)
+                  </span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: '0.35rem', borderTop: '1px solid #e2e8f0' }}>
+                  <span style={{ color: '#64748b' }}>Rate / Slot Fee:</span>
+                  <span style={{ fontWeight: 700, color: '#0f172a' }}>
+                    {quickPriceLoading ? 'Resolving rate...' : quickPrice !== null ? `₹${quickPrice.toFixed(0)}` : 'Standard'}
                   </span>
                 </div>
               </div>

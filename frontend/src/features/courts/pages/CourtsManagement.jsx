@@ -167,7 +167,12 @@ function CourtsTab({ role }) {
     } catch { toast.error('Failed to load courts'); } finally { setLoading(false); }
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    load();
+    const handleRatesUpdate = () => load();
+    window.addEventListener('court-rates-updated', handleRatesUpdate);
+    return () => window.removeEventListener('court-rates-updated', handleRatesUpdate);
+  }, [load]);
 
   const resetForm = () => { setForm({ name: '', sport_id: '', surface: '', description: '', is_indoor: false, has_lighting: false, max_players: 4, sort_order: 0, is_active: true }); setEditing(null); setShowForm(false); };
 
@@ -261,7 +266,7 @@ function CourtsTab({ role }) {
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
             <thead>
               <tr style={{ borderBottom: '2px solid #e2e8f0' }}>
-                {['Court', 'Sport', 'Surface', 'Type', 'Max Players', 'Lighting', 'Status', canEdit ? 'Actions' : ''].filter(Boolean).map(h => (
+                {['Court', 'Sport', 'Surface', 'Type', 'Max Players', 'Lighting', 'Rate / Hr', 'Status', canEdit ? 'Actions' : ''].filter(Boolean).map(h => (
                   <th key={h} style={{ padding: '0.75rem', textAlign: 'left', fontWeight: 700, color: '#64748b', fontSize: '0.75rem', textTransform: 'uppercase' }}>{h}</th>
                 ))}
               </tr>
@@ -275,6 +280,7 @@ function CourtsTab({ role }) {
                   <td style={{ padding: '0.85rem 0.75rem' }}>{court.is_indoor ? '🏠 Indoor' : '☀️ Outdoor'}</td>
                   <td style={{ padding: '0.85rem 0.75rem' }}>{court.max_players}</td>
                   <td style={{ padding: '0.85rem 0.75rem' }}>{court.has_lighting ? '✅' : '—'}</td>
+                  <td style={{ padding: '0.85rem 0.75rem', fontWeight: 700, color: '#1F5C46' }}>₹{Number(court.hourly_rate || 400).toFixed(0)}</td>
                   <td style={{ padding: '0.85rem 0.75rem' }}>
                     <span style={{ padding: '0.2rem 0.6rem', borderRadius: '9999px', fontSize: '0.75rem', fontWeight: 700, background: court.is_active ? '#dcfce7' : '#fee2e2', color: court.is_active ? '#16a34a' : '#dc2626' }}>
                       {court.is_active ? 'Active' : 'Inactive'}
@@ -418,11 +424,23 @@ function CourtRatesTab({ role }) {
 
   useEffect(() => { load(); }, []);
 
-  const resetForm = () => { setForm({ sport_id: '', court_id: '', plan_id: '', weekday: '', time_from: '', time_to: '', valid_from: '', valid_to: '', price: '', priority: 0 }); setEditing(null); setShowForm(false); };
+  const openNewRateForm = () => {
+    setEditing(null);
+    setForm({ sport_id: '', court_id: '', plan_id: '', weekday: '', time_from: '', time_to: '', valid_from: '', valid_to: '', price: '', priority: 0 });
+    setShowForm(true);
+  };
+
+  const resetForm = () => {
+    setForm({ sport_id: '', court_id: '', plan_id: '', weekday: '', time_from: '', time_to: '', valid_from: '', valid_to: '', price: '', priority: 0 });
+    setEditing(null);
+    setShowForm(false);
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!form.price) return toast.error('Price is required');
+    if (form.price === '' || form.price === null || isNaN(form.price) || +form.price < 0) {
+      return toast.error('A valid non-negative price is required');
+    }
     const payload = {
       ...form,
       sport_id: form.sport_id || null,
@@ -434,14 +452,15 @@ function CourtRatesTab({ role }) {
       valid_from: form.valid_from || null,
       valid_to: form.valid_to || null,
       price: +form.price,
+      priority: form.priority !== '' ? +form.priority : 0,
     };
     try {
       if (editing) {
         await courtRatesApi.update(editing.id, payload);
-        toast.success('Rate updated!');
+        toast.success('Pricing rule updated successfully!');
       } else {
         await courtRatesApi.create(payload);
-        toast.success('Rate created!');
+        toast.success('Pricing rule created successfully!');
       }
       window.dispatchEvent(new CustomEvent('court-rates-updated'));
       localStorage.setItem('ldce_court_rates_updated', Date.now().toString());
@@ -470,7 +489,20 @@ function CourtRatesTab({ role }) {
           <h2 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#0f172a', margin: 0 }}>Court Pricing Rules</h2>
           <p style={{ color: '#64748b', fontSize: '0.85rem', margin: '0.2rem 0 0' }}>Most specific match wins. Higher priority = applied first.</p>
         </div>
-        {canEdit && <button style={btnPrimary} onClick={() => { setShowForm(!showForm); setEditing(null); resetForm(); }}>+ Add Rate</button>}
+        {canEdit && (
+          <button
+            style={btnPrimary}
+            onClick={() => {
+              if (showForm && !editing) {
+                setShowForm(false);
+              } else {
+                openNewRateForm();
+              }
+            }}
+          >
+            {showForm && !editing ? '✕ Close Form' : '+ Add Rate'}
+          </button>
+        )}
       </div>
 
       {showForm && (
@@ -580,8 +612,20 @@ function CourtRatesTab({ role }) {
                       <div style={{ display: 'flex', gap: '0.4rem' }}>
                         <button style={{ ...btnSecondary, padding: '0.25rem 0.6rem', fontSize: '0.8rem' }} onClick={() => {
                           setEditing(rate);
-                          setForm({ sport_id: rate.sport_id || '', court_id: rate.court_id || '', plan_id: rate.plan_id || '', weekday: rate.weekday != null ? String(rate.weekday) : '', time_from: rate.time_from || '', time_to: rate.time_to || '', valid_from: rate.valid_from || '', valid_to: rate.valid_to || '', price: rate.price, priority: rate.priority });
+                          setForm({
+                            sport_id: rate.sport_id || '',
+                            court_id: rate.court_id || '',
+                            plan_id: rate.plan_id || '',
+                            weekday: rate.weekday != null ? String(rate.weekday) : '',
+                            time_from: rate.time_from || '',
+                            time_to: rate.time_to || '',
+                            valid_from: rate.valid_from ? String(rate.valid_from).split('T')[0] : '',
+                            valid_to: rate.valid_to ? String(rate.valid_to).split('T')[0] : '',
+                            price: rate.price,
+                            priority: rate.priority ?? 0,
+                          });
                           setShowForm(true);
+                          window.scrollTo({ top: 0, behavior: 'smooth' });
                         }}>Edit</button>
                         <button style={btnDanger} onClick={() => handleDelete(rate.id)}>Del</button>
                       </div>

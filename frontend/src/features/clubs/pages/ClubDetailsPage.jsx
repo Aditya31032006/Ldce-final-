@@ -720,6 +720,16 @@ export default function ClubDetailsPage() {
 
   useEffect(() => {
     loadClub();
+    const handleRatesUpdated = () => loadClub();
+    const handleStorage = (e) => {
+      if (e.key === 'ldce_court_rates_updated') loadClub();
+    };
+    window.addEventListener('court-rates-updated', handleRatesUpdated);
+    window.addEventListener('storage', handleStorage);
+    return () => {
+      window.removeEventListener('court-rates-updated', handleRatesUpdated);
+      window.removeEventListener('storage', handleStorage);
+    };
   }, [loadClub]);
 
   const loadMemberBookings = useCallback(async () => {
@@ -1916,7 +1926,9 @@ export default function ClubDetailsPage() {
                     }}>
                       <div>
                         <div style={{ fontWeight: 600, fontSize: '0.9rem', color: '#1A1A18' }}>{c.name}</div>
-                        <div style={{ fontSize: '0.75rem', color: '#6B6B66' }}>{c.surface || 'Standard'} • {c.sport_name || 'Racquet'}</div>
+                        <div style={{ fontSize: '0.75rem', color: '#6B6B66' }}>
+                          {c.surface || 'Standard'} • {c.sport_name || 'Racquet'} • <strong style={{ color: '#1F5C46', fontWeight: 700 }}>₹{Number(c.hourly_rate || 400).toFixed(0)}/hr</strong>
+                        </div>
                       </div>
                       <button
                         type="button"
@@ -1973,6 +1985,8 @@ export default function ClubDetailsPage() {
                         <span>{c.is_indoor ? 'Indoor' : 'Outdoor'}</span>
                         <span>•</span>
                         <span>Max {c.max_players || 4} Players</span>
+                        <span>•</span>
+                        <span>Rate: <strong style={{ color: '#1F5C46', fontWeight: 700 }}>₹{Number(c.hourly_rate || 400).toFixed(0)}/hr</strong></span>
                       </div>
                     </div>
 

@@ -169,7 +169,19 @@ export const GET_CLUB_SPORTS = `
 
 export const GET_CLUB_COURTS_OVERVIEW = `
   SELECT c.id, c.name, c.is_indoor, c.surface, c.max_players,
-         s.name AS sport_name, s.icon AS sport_icon
+         s.name AS sport_name, s.icon AS sport_icon,
+         COALESCE(
+           (SELECT price FROM app.court_rates cr
+            WHERE cr.club_id = c.club_id AND cr.court_id = c.id AND cr.is_active
+            ORDER BY cr.priority DESC, cr.created_at DESC LIMIT 1),
+           (SELECT price FROM app.court_rates cr
+            WHERE cr.club_id = c.club_id AND cr.sport_id = c.sport_id AND cr.court_id IS NULL AND cr.is_active
+            ORDER BY cr.priority DESC, cr.created_at DESC LIMIT 1),
+           (SELECT price FROM app.court_rates cr
+            WHERE cr.club_id = c.club_id AND cr.sport_id IS NULL AND cr.court_id IS NULL AND cr.is_active
+            ORDER BY cr.priority DESC, cr.created_at DESC LIMIT 1),
+           400
+         ) AS hourly_rate
   FROM app.courts c
   LEFT JOIN app.sports s ON c.sport_id = s.id
   WHERE c.club_id = $1 AND c.is_active = true

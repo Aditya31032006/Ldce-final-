@@ -21,14 +21,14 @@ export const INSERT_COURT_RATE = `
 
 export const UPDATE_COURT_RATE = `
   UPDATE app.court_rates
-  SET sport_id   = COALESCE($3, sport_id),
-      court_id   = COALESCE($4, court_id),
-      plan_id    = COALESCE($5, plan_id),
-      weekday    = COALESCE($6, weekday),
-      time_from  = COALESCE($7, time_from),
-      time_to    = COALESCE($8, time_to),
-      valid_from = COALESCE($9, valid_from),
-      valid_to   = COALESCE($10, valid_to),
+  SET sport_id   = $3,
+      court_id   = $4,
+      plan_id    = $5,
+      weekday    = $6,
+      time_from  = $7,
+      time_to    = $8,
+      valid_from = $9,
+      valid_to   = $10,
       price      = COALESCE($11, price),
       priority   = COALESCE($12, priority),
       is_active  = COALESCE($13, is_active),
