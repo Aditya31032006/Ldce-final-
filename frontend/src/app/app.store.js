@@ -6,7 +6,6 @@ import courtsReducer from '../features/courts/courts.slice.js';
 import bookingsReducer from '../features/bookings/bookings.slice.js';
 import membersReducer from '../features/members/members.slice.js';
 import plansReducer from '../features/plans/plans.slice.js';
-import socialSessionsReducer from '../features/socialSessions/socialSessions.slice.js';
 import ordersReducer from '../features/orders/orders.slice.js';
 import barReducer from '../features/bar/bar.slice.js';
 import inventoryReducer from '../features/inventory/inventory.slice.js';
@@ -23,7 +22,6 @@ export const store = configureStore({
     bookings: bookingsReducer,
     members: membersReducer,
     plans: plansReducer,
-    socialSessions: socialSessionsReducer,
     orders: ordersReducer,
     bar: barReducer,
     inventory: inventoryReducer,

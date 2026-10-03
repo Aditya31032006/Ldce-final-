@@ -17,7 +17,7 @@ const EMPTY_PLAN = {
   min_age: '', max_age: '',
   court_free: false, court_discount_percent: 0, shop_discount_percent: 0, bar_discount_percent: 0,
   max_bookings_per_day: '', advance_booking_days: '',
-  allows_social_play: true, is_public: true, is_active: true, sort_order: 0,
+  is_public: true, is_active: true, sort_order: 0,
 };
 
 // ─── Plan Form Modal ──────────────────────────────────────────────────────────
@@ -218,7 +218,7 @@ function PlanForm({ plan, onSave, onCancel }) {
               </div>
             </div>
             <div style={{ display: 'flex', gap: '1.5rem', marginTop: '0.75rem', flexWrap: 'wrap' }}>
-              {[['allows_social_play', '👥 Social Play'], ['is_public', '🌐 Show on Public Site'], ['is_active', '✅ Active']].map(([key, label]) => (
+              {[['is_public', '🌐 Show on Public Site'], ['is_active', '✅ Active']].map(([key, label]) => (
                 <label key={key} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontWeight: 600, fontSize: '0.875rem' }}>
                   <input type="checkbox" checked={form[key]} onChange={e => set(key, e.target.checked)} />
                   {label}

@@ -60,10 +60,10 @@ export default function LandingPage() {
     {
       time: '18:00',
       tag: 'Prime Time Rush',
-      title: 'Peak Evening Bookings & Social Play',
-      desc: 'Synthetic, clay courts and padel enclosures host club leagues and open mixers. Court lights and waitlists synchronize dynamically.',
-      module: 'Social Play & Leagues',
-      metric: '16 players in mixer session',
+      title: 'Peak Evening Bookings & Tournaments',
+      desc: 'Synthetic, clay courts and padel enclosures host club championships and open ladders. Court lights and waitlists synchronize dynamically.',
+      module: 'Court Booking & Tournaments',
+      metric: '16 players in evening slots',
       image: 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?auto=format&fit=crop&w=800&q=80',
     },
     {
@@ -98,7 +98,7 @@ export default function LandingPage() {
       type: 'Padel Club',
       badge: 'Fast Growing',
       courts: 'Panoramic Glass Enclosures',
-      modules: 'Doubles Booking · Social Mixers · Racket Rental · Bar Tabs',
+      modules: 'Doubles Booking · Tournaments · Racket Rental · Bar Tabs',
       image: 'https://images.unsplash.com/photo-1554068865-24cecd4e34b8?auto=format&fit=crop&w=600&q=80',
     },
     {

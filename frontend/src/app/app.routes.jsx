@@ -19,7 +19,6 @@ const BookingCalendar = lazy(() => import('../features/bookings/pages/BookingCal
 const CourtsManagement = lazy(() => import('../features/courts/pages/CourtsManagement.jsx'));
 const MembersList = lazy(() => import('../features/members/pages/MembersList.jsx'));
 const MembershipPlans = lazy(() => import('../features/plans/pages/MembershipPlans.jsx'));
-const SocialSessionsList = lazy(() => import('../features/socialSessions/pages/SocialSessionsList.jsx'));
 const BarPOS = lazy(() => import('../features/bar/pages/BarPOS.jsx'));
 const InventoryList = lazy(() => import('../features/inventory/pages/InventoryList.jsx'));
 const OrdersList = lazy(() => import('../features/orders/pages/OrdersList.jsx'));
@@ -151,10 +150,6 @@ export const router = createBrowserRouter([
           {
             path: '/courts',
             element: withSuspense(CourtsManagement),
-          },
-          {
-            path: '/social-sessions',
-            element: withSuspense(SocialSessionsList),
           },
           {
             path: '/members',
