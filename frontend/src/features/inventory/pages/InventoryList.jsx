@@ -129,12 +129,21 @@ export default function InventoryList() {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    const isImageMime = file.type && file.type.startsWith('image/');
+    const isImageExt = /\.(jpe?g|png|webp|gif|svg|bmp|avif)$/i.test(file.name || '');
+    if (!isImageMime && !isImageExt) {
+      toast.error('Please choose a valid image file (PNG, JPG, WebP, etc.)');
+      return;
+    }
+
     try {
       const base64 = await fileToBase64(file, 800, 800, 0.85);
       setFormData(prev => ({ ...prev, image_url: base64 }));
-      toast.info('Product photo uploaded & converted to Base64');
+      toast.success('Product photo loaded successfully');
     } catch (err) {
       toast.error('Failed to read image file');
+    } finally {
+      if (e.target) e.target.value = '';
     }
   };
 
@@ -1666,7 +1675,7 @@ export default function InventoryList() {
                       flexShrink: 0
                     }}>
                       {formData.image_url ? (
-                        <img src={formData.image_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        <img src={formData.image_url} alt="" referrerPolicy="no-referrer" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                       ) : (
                         <ImageIcon size={22} style={{ color: '#94a3b8' }} />
                       )}
@@ -1674,7 +1683,7 @@ export default function InventoryList() {
                     <div>
                       <input
                         type="file"
-                        accept="image/*"
+                        accept="image/*,.png,.jpg,.jpeg,.webp,.gif,.svg,.bmp,.avif"
                         ref={fileInputRef}
                         onChange={handleImageFileChange}
                         style={{ display: 'none' }}

@@ -337,12 +337,25 @@ export default function Sidebar({ isOpen, onClose }) {
       <div className="cl-app-layout__sidebar-footer">
         <div className="user-card">
           {user?.avatar_url ? (
-            <img src={user.avatar_url} alt={user.full_name || 'User'} className="user-avatar" />
-          ) : (
-            <div className="user-avatar">
-              {user?.full_name ? user.full_name.charAt(0).toUpperCase() : 'U'}
-            </div>
-          )}
+            <img
+              src={user.avatar_url}
+              alt={user.full_name || 'User'}
+              className="user-avatar"
+              referrerPolicy="no-referrer"
+              onError={(e) => {
+                e.currentTarget.style.display = 'none';
+                if (e.currentTarget.nextSibling) {
+                  e.currentTarget.nextSibling.style.display = 'flex';
+                }
+              }}
+            />
+          ) : null}
+          <div
+            className="user-avatar"
+            style={{ display: user?.avatar_url ? 'none' : 'flex' }}
+          >
+            {user?.full_name ? user.full_name.charAt(0).toUpperCase() : 'U'}
+          </div>
           <div className="user-info">
             <span className="user-name">{user?.full_name || user?.email || 'User'}</span>
             <span className="user-role-badge">{userRole.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}</span>

@@ -125,6 +125,7 @@ export default function Navbar() {
                 <img
                   src={user.avatar_url}
                   alt={user?.fullName || user?.full_name || 'Profile'}
+                  referrerPolicy="no-referrer"
                   style={{
                     width: '24px',
                     height: '24px',
@@ -133,6 +134,9 @@ export default function Navbar() {
                   }}
                   onError={(e) => {
                     e.currentTarget.style.display = 'none';
+                    if (e.currentTarget.nextSibling) {
+                      e.currentTarget.nextSibling.style.display = 'flex';
+                    }
                   }}
                 />
               ) : (

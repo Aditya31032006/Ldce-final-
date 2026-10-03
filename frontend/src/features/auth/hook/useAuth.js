@@ -156,8 +156,10 @@ export function useAuth() {
   /**
    * Fetch current authenticated user session details from cookie
    */
-  const fetchCurrentUser = useCallback(async () => {
-    dispatch(setLoading(true));
+  const fetchCurrentUser = useCallback(async (options = {}) => {
+    if (!isAuthenticated && !options.silent) {
+      dispatch(setLoading(true));
+    }
     try {
       const response = await authApi.getMe();
       if (response.user) {
@@ -185,7 +187,7 @@ export function useAuth() {
       dispatch(logoutSuccess());
       return { success: false };
     }
-  }, [dispatch]);
+  }, [dispatch, isAuthenticated]);
 
   /**
    * Logout user from backend and reset local state

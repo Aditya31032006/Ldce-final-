@@ -72,7 +72,8 @@ export async function getMyClubsController(req, res, next) {
 
 export async function getClubGalleryController(req, res, next) {
   try {
-    const gallery = await clubsRepo.getClubGallery(req.user?.id, req.clubId);
+    const clubId = req.params.clubId || req.clubId;
+    const gallery = await clubsRepo.getClubGallery(req.user?.id, clubId);
     return res.status(200).json({ success: true, gallery });
   } catch (error) {
     next(error);
@@ -130,12 +131,18 @@ export async function joinClubController(req, res, next) {
 
 export async function addClubGalleryController(req, res, next) {
   try {
-    const { images, imageUrl, caption, sortOrder } = req.body;
-    const toInsert = images || (imageUrl ? [{ imageUrl, caption, sortOrder }] : []);
-    if (!toInsert || toInsert.length === 0) {
-      return res.status(400).json({ message: "At least one image URL is required" });
+    const clubId = req.params.clubId || req.clubId;
+    const { images, imageUrl, image_url, caption, sortOrder, sort_order } = req.body;
+    let toInsert = [];
+    if (Array.isArray(images) && images.length > 0) {
+      toInsert = images;
+    } else if (imageUrl || image_url) {
+      toInsert = [{ imageUrl: imageUrl || image_url, caption, sortOrder: sortOrder || sort_order }];
     }
-    const addedImages = await clubsRepo.addClubGalleryImages(req.user.id, req.clubId, toInsert);
+    if (!toInsert || toInsert.length === 0) {
+      return res.status(400).json({ message: "At least one image is required" });
+    }
+    const addedImages = await clubsRepo.addClubGalleryImages(req.user.id, clubId, toInsert);
     return res.status(201).json({
       success: true,
       message: `${addedImages.length} photo(s) added to club gallery`,
@@ -148,11 +155,12 @@ export async function addClubGalleryController(req, res, next) {
 
 export async function deleteClubGalleryController(req, res, next) {
   try {
+    const clubId = req.params.clubId || req.clubId;
     const { imageId } = req.params;
     if (!imageId) {
       return res.status(400).json({ message: "Image ID is required" });
     }
-    await clubsRepo.deleteClubGalleryImage(req.user.id, req.clubId, imageId);
+    await clubsRepo.deleteClubGalleryImage(req.user.id, clubId, imageId);
     return res.status(200).json({
       success: true,
       message: "Club photo removed successfully",

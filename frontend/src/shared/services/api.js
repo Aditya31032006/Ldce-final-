@@ -10,12 +10,16 @@ export const apiClient = axios.create({
   },
 });
 
-// Request interceptor to attach active club id header
+// Request interceptor to attach active club id header and auth token
 apiClient.interceptors.request.use((config) => {
   try {
     const activeClubId = localStorage.getItem('activeClubId');
     if (activeClubId && activeClubId !== 'undefined' && activeClubId !== 'null') {
       config.headers['x-club-id'] = activeClubId;
+    }
+    const token = localStorage.getItem('token');
+    if (token && !config.headers['Authorization']) {
+      config.headers['Authorization'] = `Bearer ${token}`;
     }
   } catch (_) {
     // Ignore localStorage errors
