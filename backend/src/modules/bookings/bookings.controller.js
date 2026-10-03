@@ -1,5 +1,6 @@
 import * as bookingsRepo from './bookings.repository.js';
 import { pool } from '../../config/database.js';
+import { addBookingConfirmationEmailJob } from '../../../jobs/emailQueue.js';
 
 export async function createBookingController(req, res, next) {
   try {
@@ -32,6 +33,38 @@ export async function createBookingController(req, res, next) {
     }
 
     const booking = await bookingsRepo.createBooking(req.user.id, req.clubId, req.body);
+
+    // Asynchronously dispatch booking confirmation email via BullMQ
+    (async () => {
+      try {
+        let recipientEmail = req.user.email;
+        let recipientName = req.user.full_name || req.body.guest_name || 'Valued Member';
+
+        if (!recipientEmail && req.body.member_id) {
+          const memRes = await pool.query('SELECT email, first_name, last_name FROM app.members WHERE id = $1', [req.body.member_id]);
+          if (memRes.rows.length) {
+            recipientEmail = memRes.rows[0].email;
+            recipientName = `${memRes.rows[0].first_name || ''} ${memRes.rows[0].last_name || ''}`.trim() || recipientName;
+          }
+        }
+
+        if (recipientEmail) {
+          const courtRes = await pool.query('SELECT name FROM app.courts WHERE id = $1', [court_id]);
+          const courtName = courtRes.rows[0]?.name || 'Court';
+          await addBookingConfirmationEmailJob({
+            toEmail: recipientEmail,
+            memberName: recipientName,
+            courtName,
+            startTime: start_at,
+            endTime: end_at,
+            bookingRef: booking.id ? String(booking.id).slice(0, 8).toUpperCase() : 'CONFIRMED',
+          });
+        }
+      } catch (emailErr) {
+        console.warn('Booking confirmation email enqueue notice:', emailErr.message);
+      }
+    })();
+
     return res.status(201).json({ message: "Booking created", booking });
   } catch (error) {
     next(error);

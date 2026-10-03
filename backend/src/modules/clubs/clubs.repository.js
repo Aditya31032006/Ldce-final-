@@ -1,6 +1,7 @@
 import * as queries from './clubs.query.js';
 import { withTenantTransaction } from '../../shared/utils/transaction.util.js';
 import { pool } from '../../config/database.js';
+import { addWelcomeEmailJob } from '../../../jobs/emailQueue.js';
 
 export async function registerClub(userId, { name, slug, city, phone, email, timezone }) {
   // We use the owner role (superuser) or a public role to register since the club_app 
@@ -207,7 +208,20 @@ export async function joinClub(userId, clubId, planId = null, paymentDetails = n
         }
       }
     }
-  }
+  // Asynchronously dispatch club membership welcome email via BullMQ
+  (async () => {
+    try {
+      const clubRes = await pool.query('SELECT name FROM app.clubs WHERE id = $1', [clubId]);
+      const clubName = clubRes.rows[0]?.name || 'Sports Club';
+      await addWelcomeEmailJob({
+        name: u.full_name,
+        email: u.email,
+        clubName,
+      });
+    } catch (err) {
+      console.warn('Membership welcome email enqueue warning:', err.message);
+    }
+  })();
 
   return { member, membership };
 }

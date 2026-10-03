@@ -1,10 +1,9 @@
 import argon2 from 'argon2';
 import * as authRepo from './auth.repository.js';
 import { issueAccessToken } from '../../shared/utils/token.util.js';
-import { sendWelcomeEmail } from '../../services/mail.service.js';
 import { STATUS_CODES, MESSAGES } from '../../constants/index.js';
 import { generateOtp, storeOtp, verifyOtp, invalidateOtp } from '../../utils/otp.util.js';
-import { addOtpEmailJob } from '../../jobs/emailQueue.js';
+import { addWelcomeEmailJob, addOtpEmailJob } from '../../jobs/emailQueue.js';
 import { hashPassword, verifyPassword } from '../../utils/password.util.js';
 
 /**
@@ -62,9 +61,9 @@ export async function registerDirectUser({ email, fullName, phone, password, ava
     emailVerifiedAt: new Date(),
   });
 
-  // Dispatch welcome onboarding email asynchronously
-  sendWelcomeEmail({
-    toEmail: user.email,
+  // Dispatch welcome onboarding email asynchronously via BullMQ
+  addWelcomeEmailJob({
+    email: user.email,
     name: user.full_name,
   }).catch((err) => {
     console.error('Failed to dispatch welcome email:', err.message);
@@ -112,10 +111,11 @@ export async function registerClubOwnerUser({
     avatarUrl: avatarUrl || null,
   });
 
-  // Dispatch welcome onboarding email asynchronously
-  sendWelcomeEmail({
-    toEmail: user.email,
+  // Dispatch welcome onboarding email asynchronously via BullMQ
+  addWelcomeEmailJob({
+    email: user.email,
     name: user.full_name,
+    clubName: clubName.trim(),
   }).catch((err) => {
     console.error('Failed to dispatch welcome email:', err.message);
   });
@@ -191,9 +191,9 @@ export async function handleGoogleAuthUser(profile) {
     });
     isNewUser = true;
 
-    // Send Welcome Email
-    sendWelcomeEmail({
-      toEmail: email,
+    // Send Welcome Email via BullMQ
+    addWelcomeEmailJob({
+      email,
       name: fullName,
     }).catch((err) => {
       console.error('Failed to send welcome email for Google user:', err.message);
