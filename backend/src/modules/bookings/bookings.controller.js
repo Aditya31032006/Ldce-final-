@@ -12,18 +12,36 @@ export async function createBookingController(req, res, next) {
       return res.status(400).json({ message: "Either member_id or guest_name is required" });
     }
 
-    // Force member_id to current user if role is 'member' to prevent booking for others
     if (req.user.role === 'member') {
       req.body.member_id = req.user.memberId; 
       req.body.channel = 'online';
       req.body.status = 'pending'; 
-      // The DB triggers trg_a_booking_member_pricing and trg_b_booking_rules will handle pricing and limits.
     } else {
       req.body.channel = req.body.channel || 'counter';
     }
 
     const booking = await bookingsRepo.createBooking(req.user.id, req.clubId, req.body);
     return res.status(201).json({ message: "Booking created", booking });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function getBookingsController(req, res, next) {
+  try {
+    const { status } = req.query;
+    const bookings = await bookingsRepo.getBookings(req.user.id, req.clubId, status || null);
+    return res.status(200).json({ bookings });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function getCalendarBookingsController(req, res, next) {
+  try {
+    const { start, end } = req.query;
+    const bookings = await bookingsRepo.getCalendarBookings(req.user.id, req.clubId, start || null, end || null);
+    return res.status(200).json({ bookings });
   } catch (error) {
     next(error);
   }
@@ -36,6 +54,18 @@ export async function getBookingByIdController(req, res, next) {
       return res.status(404).json({ message: "Booking not found" });
     }
     return res.status(200).json({ booking });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function cancelBookingController(req, res, next) {
+  try {
+    const booking = await bookingsRepo.cancelBooking(req.user.id, req.clubId, req.params.id);
+    if (!booking) {
+      return res.status(404).json({ message: "Booking not found" });
+    }
+    return res.status(200).json({ message: "Booking cancelled successfully", booking });
   } catch (error) {
     next(error);
   }

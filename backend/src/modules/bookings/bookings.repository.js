@@ -49,9 +49,31 @@ export async function createBooking(userId, clubId, bookingData) {
   });
 }
 
+export async function getBookings(userId, clubId, status = null) {
+  return withTenantTransaction(userId, clubId, async (client) => {
+    const res = await client.query(queries.GET_BOOKINGS, [clubId, status]);
+    return res.rows || [];
+  });
+}
+
+export async function getCalendarBookings(userId, clubId, startAt = null, endAt = null) {
+  return withTenantTransaction(userId, clubId, async (client) => {
+    const res = await client.query(queries.GET_CALENDAR_BOOKINGS, [clubId, startAt, endAt]);
+    return res.rows || [];
+  });
+}
+
 export async function getBookingById(userId, clubId, bookingId) {
   return withTenantTransaction(userId, clubId, async (client) => {
     const res = await client.query(queries.GET_BOOKING_BY_ID, [bookingId, clubId]);
+    return res.rows[0] || null;
+  });
+}
+
+export async function cancelBooking(userId, clubId, bookingId) {
+  return withTenantTransaction(userId, clubId, async (client) => {
+    await client.query(queries.CANCEL_RESERVATION, [bookingId]);
+    const res = await client.query(queries.CANCEL_BOOKING, [bookingId, clubId]);
     return res.rows[0] || null;
   });
 }

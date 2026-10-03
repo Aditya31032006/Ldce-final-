@@ -9,7 +9,7 @@ export const authSlice = createSlice({
   initialState: {
     user: null,
     role: null,
-    clubId: null,
+    clubId: typeof window !== 'undefined' ? localStorage.getItem('activeClubId') : null,
     clubs: [],
     token: null,
     isAuthenticated: false,
@@ -30,7 +30,7 @@ export const authSlice = createSlice({
       const { user, role, clubId, clubs, token, isProfileComplete, missingFields, message } = action.payload;
       state.user = user || state.user;
       state.role = role || user?.role || state.role || 'public';
-      state.clubId = clubId || user?.clubId || state.clubId;
+      state.clubId = clubId || user?.clubId || (clubs && clubs[0]?.id) || (clubs && clubs[0]?.club_id) || state.clubId;
       state.clubs = clubs || state.clubs || [];
       state.token = token || state.token;
       state.isAuthenticated = true;
@@ -39,6 +39,9 @@ export const authSlice = createSlice({
       state.loading = false;
       state.error = null;
       state.successMessage = message || null;
+      if (state.clubId) {
+        try { localStorage.setItem('activeClubId', state.clubId); } catch (_) {}
+      }
     },
     setUser: (state, action) => {
       const payload = action.payload;
@@ -50,17 +53,24 @@ export const authSlice = createSlice({
       }
       state.user = payload.user || payload;
       state.role = payload.role || state.user?.role || state.role || 'public';
-      state.clubId = payload.clubId || state.user?.clubId || state.clubId;
-      state.clubs = payload.clubs || state.clubs || [];
+      const clubsList = payload.clubs || state.clubs || [];
+      state.clubId = payload.clubId || state.user?.clubId || (clubsList[0]?.id || clubsList[0]?.club_id) || state.clubId;
+      state.clubs = clubsList;
       state.isProfileComplete = payload.isProfileComplete !== undefined ? Boolean(payload.isProfileComplete) : true;
       state.missingFields = payload.missingFields || [];
       state.isAuthenticated = Boolean(state.user);
       state.loading = false;
+      if (state.clubId) {
+        try { localStorage.setItem('activeClubId', state.clubId); } catch (_) {}
+      }
     },
     setClubContext: (state, action) => {
       state.clubId = action.payload.clubId;
       if (action.payload.role) {
         state.role = action.payload.role;
+      }
+      if (state.clubId) {
+        try { localStorage.setItem('activeClubId', state.clubId); } catch (_) {}
       }
     },
     setProfileComplete: (state, action) => {
@@ -92,6 +102,7 @@ export const authSlice = createSlice({
       state.loading = false;
       state.error = null;
       state.successMessage = null;
+      try { localStorage.removeItem('activeClubId'); } catch (_) {}
     },
   },
 });
