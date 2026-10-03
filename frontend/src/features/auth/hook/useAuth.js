@@ -5,6 +5,7 @@ import {
   setAuthSuccess,
   setUser,
   setClubContext,
+  setProfileComplete,
   setError,
   clearError,
   clearSuccess,
@@ -12,14 +13,30 @@ import {
 } from '../auth.slice.js';
 import { authApi } from '../services/auth.api.js';
 
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
+
+/**
+ * Layer 2: Auth Custom Hook
+ * Encapsulates all business logic, Redux dispatches, and API interactions for authentication
+ */
 export function useAuth() {
   const dispatch = useDispatch();
-  const { user, role, clubId, isAuthenticated, loading, error, successMessage } = useSelector(
-    (state) => state.auth
-  );
+  const {
+    user,
+    role,
+    clubId,
+    clubs,
+    token,
+    isAuthenticated,
+    isProfileComplete,
+    missingFields,
+    loading,
+    error,
+    successMessage,
+  } = useSelector((state) => state.auth);
 
   /**
-   * Log in user
+   * Direct Login (Email + Password, optional clubId)
    */
   const login = useCallback(
     async (credentials) => {
@@ -31,10 +48,20 @@ export function useAuth() {
             user: response.user,
             role: response.role,
             clubId: response.clubId,
+            token: response.token,
+            isProfileComplete: response.isProfileComplete,
+            missingFields: response.missingFields,
             message: response.message,
           })
         );
-        return { success: true, user: response.user, role: response.role, clubId: response.clubId };
+        return {
+          success: true,
+          user: response.user,
+          role: response.role,
+          clubId: response.clubId,
+          isProfileComplete: response.isProfileComplete,
+          requiresSetup: !response.isProfileComplete,
+        };
       } catch (err) {
         const msg = err.customMessage || 'Invalid email or password';
         dispatch(setError(msg));
@@ -45,7 +72,7 @@ export function useAuth() {
   );
 
   /**
-   * Register new user
+   * Direct Registration (Full Name, Email, Phone, Password)
    */
   const register = useCallback(
     async (userData) => {
@@ -56,12 +83,14 @@ export function useAuth() {
           setAuthSuccess({
             user: response.user,
             role: 'public',
+            token: response.token,
+            isProfileComplete: true,
             message: response.message,
           })
         );
         return { success: true, user: response.user };
       } catch (err) {
-        const msg = err.customMessage || 'Failed to register account';
+        const msg = err.customMessage || 'Failed to create account';
         dispatch(setError(msg));
         return { success: false, error: msg };
       }
@@ -70,7 +99,33 @@ export function useAuth() {
   );
 
   /**
-   * Fetch profile of currently authenticated user using session cookie
+   * Complete remaining profile fields (e.g. phone after Google OAuth)
+   */
+  const completeProfile = useCallback(
+    async (profileData) => {
+      dispatch(setLoading(true));
+      try {
+        const response = await authApi.setupProfile(profileData);
+        dispatch(setProfileComplete({ user: response.user }));
+        return { success: true, user: response.user, message: response.message };
+      } catch (err) {
+        const msg = err.customMessage || 'Failed to complete profile';
+        dispatch(setError(msg));
+        return { success: false, error: msg };
+      }
+    },
+    [dispatch]
+  );
+
+  /**
+   * Trigger Google OAuth Flow
+   */
+  const loginWithGoogle = useCallback(() => {
+    window.location.href = `${API_BASE_URL}/auth/google`;
+  }, []);
+
+  /**
+   * Fetch current authenticated user session details from cookie
    */
   const fetchCurrentUser = useCallback(async () => {
     dispatch(setLoading(true));
@@ -82,9 +137,17 @@ export function useAuth() {
             user: response.user,
             role: response.role,
             clubId: response.clubId,
+            clubs: response.clubs,
+            isProfileComplete: response.isProfileComplete,
+            missingFields: response.missingFields,
           })
         );
-        return { success: true, user: response.user, role: response.role };
+        return {
+          success: true,
+          user: response.user,
+          role: response.role,
+          isProfileComplete: response.isProfileComplete,
+        };
       } else {
         dispatch(logoutSuccess());
         return { success: false };
@@ -96,7 +159,7 @@ export function useAuth() {
   }, [dispatch]);
 
   /**
-   * Log out user from backend and reset local Redux state
+   * Logout user from backend and reset local state
    */
   const logout = useCallback(async () => {
     try {
@@ -109,7 +172,7 @@ export function useAuth() {
   }, [dispatch]);
 
   /**
-   * Switch or set active club context
+   * Switch active club context
    */
   const changeClub = useCallback(
     (newClubId, newRole) => {
@@ -130,12 +193,18 @@ export function useAuth() {
     user,
     role,
     clubId,
+    clubs,
+    token,
     isAuthenticated,
+    isProfileComplete,
+    missingFields,
     loading,
     error,
     successMessage,
     login,
     register,
+    completeProfile,
+    loginWithGoogle,
     logout,
     fetchCurrentUser,
     changeClub,

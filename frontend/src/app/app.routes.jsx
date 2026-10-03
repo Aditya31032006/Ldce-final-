@@ -7,6 +7,7 @@ import RoleGuard from '../features/auth/components/RoleGuard.jsx';
 // Lazy-loaded page views
 const Login = lazy(() => import('../features/auth/pages/Login.jsx'));
 const Register = lazy(() => import('../features/auth/pages/Register.jsx'));
+const SetupProfile = lazy(() => import('../features/auth/pages/SetupProfile.jsx'));
 const Profile = lazy(() => import('../features/auth/pages/Profile.jsx'));
 
 const Dashboard = lazy(() => import('../features/dashboard/pages/Dashboard.jsx'));
@@ -25,7 +26,7 @@ const StaffManagement = lazy(() => import('../features/hr/pages/StaffManagement.
 const ReportsDashboard = lazy(() => import('../features/reports/pages/ReportsDashboard.jsx'));
 const ClubsList = lazy(() => import('../features/clubs/pages/ClubsList.jsx'));
 
-// Sleek loading fallback for Suspense transitions
+// Sleek loading fallback for Suspense transitions matching Court & Ledger aesthetic
 const RouteLoader = () => (
   <div style={{
     minHeight: '60vh',
@@ -34,14 +35,14 @@ const RouteLoader = () => (
     justifyContent: 'center',
     flexDirection: 'column',
     gap: '1rem',
-    color: '#94a3b8',
+    color: '#6b6b66',
     fontFamily: 'Inter, sans-serif'
   }}>
     <div style={{
       width: '32px',
       height: '32px',
-      border: '3px solid rgba(59, 130, 246, 0.2)',
-      borderTopColor: '#3b82f6',
+      border: '3px solid rgba(31, 92, 70, 0.2)',
+      borderTopColor: '#1f5c46',
       borderRadius: '50%',
       animation: 'df-spin 0.8s linear infinite'
     }} />
@@ -138,7 +139,7 @@ export const router = createBrowserRouter([
     ],
   },
 
-  // Public Guest Routes (Accessible only when logged out)
+  // Public Guest Routes (Accessible when logged out)
   {
     element: <PublicRoute />,
     children: [
@@ -151,6 +152,12 @@ export const router = createBrowserRouter([
         element: withSuspense(Register),
       },
     ],
+  },
+
+  // OAuth Profile Completion Route (Accessible during post-OAuth redirect or profile setup)
+  {
+    path: '/setup-profile',
+    element: withSuspense(SetupProfile),
   },
 
   // Fallback catch-all -> redirect to root

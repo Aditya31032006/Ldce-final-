@@ -5,11 +5,11 @@ import useAuth from '../hook/useAuth.js';
 /**
  * PublicRoute Component
  * Guards guest-only routes (/login, /register).
- * If the user is already authenticated, redirects them to '/'.
+ * If the user is already authenticated, redirects them to '/dashboard' (or '/setup-profile' if incomplete).
  * If unauthenticated, renders the guest page via Outlet.
  */
 export default function PublicRoute() {
-  const { isAuthenticated, loading } = useAuth();
+  const { isAuthenticated, isProfileComplete, loading } = useAuth();
 
   if (loading) {
     return (
@@ -18,15 +18,15 @@ export default function PublicRoute() {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        background: '#f8fafc',
-        color: '#64748b',
+        background: '#fcf9f5',
+        color: '#6b6b66',
         fontFamily: 'Inter, sans-serif'
       }}>
         <div style={{
           width: '32px',
           height: '32px',
-          border: '3px solid rgba(59, 130, 246, 0.2)',
-          borderTopColor: '#3b82f6',
+          border: '3px solid rgba(31, 92, 70, 0.2)',
+          borderTopColor: '#1f5c46',
           borderRadius: '50%',
           animation: 'df-spin 0.8s linear infinite'
         }} />
@@ -35,6 +35,9 @@ export default function PublicRoute() {
   }
 
   if (isAuthenticated) {
+    if (!isProfileComplete) {
+      return <Navigate to="/setup-profile" replace />;
+    }
     return <Navigate to="/" replace />;
   }
 
