@@ -208,6 +208,8 @@ export async function joinClub(userId, clubId, planId = null, paymentDetails = n
         }
       }
     }
+  }
+
   // Asynchronously dispatch club membership welcome email via BullMQ
   (async () => {
     try {
