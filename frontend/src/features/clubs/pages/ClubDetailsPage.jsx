@@ -4,6 +4,8 @@ import useAuth from '../../auth/hook/useAuth.js';
 import { useToast } from '../../../shared/context/ToastContext.jsx';
 import { clubsApi } from '../services/clubs.api.js';
 import api from '../../../shared/services/api.js';
+import MemberCafe from '../../bar/pages/MemberCafe.jsx';
+import { openRazorpayCheckout } from '../../../shared/utils/razorpay.util.js';
 import {
   MapPin, Phone, Mail, Trophy, ShieldCheck,
   Calendar, Check, AlertCircle, ArrowLeft, ExternalLink,
@@ -23,9 +25,9 @@ const DEFAULT_SPORT_IMAGES = {
   default: 'https://images.unsplash.com/photo-1574629810360-7efbbe195018?auto=format&fit=crop&w=1200&q=80',
 };
 
-// ─── Razorpay Simulation Modal (For Non-Members) ─────────────────────────────
+// ─── Razorpay Simulation & Gateway Modal (For Non-Members) ─────────────────────────────
 function RazorpayModal({ club, plan, onClose, onSuccess }) {
-  const [method, setMethod] = useState('upi');
+  const [method, setMethod] = useState('razorpay');
   const [processing, setProcessing] = useState(false);
   const price = Number(plan?.price || 0);
   const joiningFee = Number(plan?.joining_fee || 0);
@@ -33,9 +35,32 @@ function RazorpayModal({ club, plan, onClose, onSuccess }) {
 
   const handlePay = async () => {
     setProcessing(true);
-    await new Promise((r) => setTimeout(r, 800));
     try {
-      await onSuccess(plan.id);
+      if (method === 'razorpay') {
+        const rzpOrder = await api.post('/bar/payments/razorpay/create-order', {
+          amount: total,
+        }, { headers: { 'x-club-id': club.id } });
+
+        await openRazorpayCheckout({
+          orderId: rzpOrder.data.data.orderId,
+          amount: rzpOrder.data.data.amount,
+          currency: rzpOrder.data.data.currency,
+          name: club.name,
+          description: `Membership - ${plan.name}`,
+          onSuccess: async (rzpResponse) => {
+            await onSuccess(plan.id, {
+              method: 'online',
+              reference: rzpResponse.razorpay_payment_id,
+              notes: `Razorpay Payment ID: ${rzpResponse.razorpay_payment_id}`,
+            });
+          },
+        });
+        return;
+      }
+      await new Promise((r) => setTimeout(r, 600));
+      await onSuccess(plan.id, { method });
+    } catch (err) {
+      console.error('Membership payment error:', err);
     } finally {
       setProcessing(false);
     }
@@ -96,7 +121,8 @@ function RazorpayModal({ club, plan, onClose, onSuccess }) {
             </label>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
               {[
-                { id: 'upi', label: 'UPI / Google Pay / PhonePe', desc: 'Fast, instant bank transfer' },
+                { id: 'razorpay', label: 'Razorpay Online (UPI / QR / Cards)', desc: 'Official test gateway integration' },
+                { id: 'upi', label: 'Direct UPI / PhonePe / GPay', desc: 'Instant bank transfer' },
                 { id: 'card', label: 'Credit or Debit Card', desc: 'Visa, Mastercard, RuPay' },
                 { id: 'netbanking', label: 'Net Banking', desc: 'All Indian major banks' },
               ].map(opt => (
@@ -389,9 +415,9 @@ export default function ClubDetailsPage() {
     setSelectedPlanForCheckout(plan);
   };
 
-  const handleJoinSuccess = async (planId) => {
+  const handleJoinSuccess = async (planId, paymentDetails = null) => {
     try {
-      const res = await clubsApi.joinClub(club.id, planId);
+      const res = await clubsApi.joinClub(club.id, planId, paymentDetails);
       toast.success(res.message || 'Successfully joined club!');
       changeClub(club.id, 'member');
       setSelectedPlanForCheckout(null);
@@ -841,44 +867,9 @@ export default function ClubDetailsPage() {
           )}
 
           {/* ─── TAB 4: POS (Point of Sale Module Placeholder) ─── */}
+          {/* ─── TAB 4: POS & CLUB CAFE ─── */}
           {activeTab === 'pos' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div>
-                  <h2 style={{ fontSize: '1.25rem', fontWeight: 700, color: '#1A1A18', margin: 0 }}>
-                    POS
-                  </h2>
-                  <span style={{ fontSize: '0.85rem', color: '#6B6B66' }}>
-                    Club Cafe & Counter Point-of-Sale Module
-                  </span>
-                </div>
-                <span style={{
-                  fontSize: '0.75rem', fontWeight: 600, color: '#1F5C46',
-                  background: '#EBF3F0', padding: '0.25rem 0.6rem', borderRadius: '4px'
-                }}>
-                  POS Module Scoped to {club.name}
-                </span>
-              </div>
-
-              <div style={{
-                background: '#FFFFFF', border: '1px solid #E7E5DF', borderRadius: '10px',
-                padding: '3rem 2rem', textAlign: 'center'
-              }}>
-                <Coffee size={44} color="#1F5C46" style={{ margin: '0 auto 1rem' }} />
-                <h3 style={{ margin: '0 0 0.5rem', color: '#1A1A18', fontSize: '1.2rem', fontWeight: 700 }}>
-                  POS Module
-                </h3>
-                <p style={{ color: '#6B6B66', fontSize: '0.875rem', maxWidth: '480px', margin: '0 auto 1.5rem' }}>
-                  This is the dedicated in-club POS route for {club.name}. You can build out customized counter sales, beverage tabs, and quick checkout here.
-                </p>
-                <div style={{
-                  display: 'inline-flex', gap: '0.5rem', padding: '0.5rem 1rem', background: '#FAF9F6',
-                  border: '1px dashed #E7E5DF', borderRadius: '6px', fontSize: '0.8rem', color: '#6B6B66'
-                }}>
-                  Route: <code style={{ color: '#1F5C46' }}>/club/{club.slug || club.id}/pos</code>
-                </div>
-              </div>
-            </div>
+            <MemberCafe club={club} membership={club?.membership} />
           )}
 
           {/* ─── TAB 5: SHOP (Pro Shop Module Placeholder) ─── */}

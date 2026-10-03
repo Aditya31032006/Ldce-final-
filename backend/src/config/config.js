@@ -52,6 +52,14 @@ const app_config = {
   REDIS_USERNAME: process.env.REDIS_USERNAME || 'default',
   REDIS_PASSWORD: process.env.REDIS_PASSWORD || process.env.UPSTASH_REDIS_REST_TOKEN || '',
   REDIS_TLS: process.env.REDIS_TLS === 'true' || Boolean(process.env.UPSTASH_REDIS_REST_URL),
+
+  // Razorpay
+  RAZORPAY_KEY_ID: process.env.RAZORPAY_KEY_ID || 'rzp_test_SQOga2rRgYRMaJ',
+  RAZORPAY_KEY_SECRET: process.env.RAZORPAY_KEY_SECRET || 'qBFMLno35AFDV70XGKVhXgYq',
+  razorpay: {
+    keyId: process.env.RAZORPAY_KEY_ID || 'rzp_test_SQOga2rRgYRMaJ',
+    keySecret: process.env.RAZORPAY_KEY_SECRET || 'qBFMLno35AFDV70XGKVhXgYq',
+  },
 };
 
 

@@ -186,6 +186,10 @@ export const router = createBrowserRouter([
             element: withSuspense(BarPOS),
           },
           {
+            path: '/pos',
+            element: withSuspense(BarPOS),
+          },
+          {
             path: '/orders',
             element: withSuspense(OrdersList),
           },

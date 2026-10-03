@@ -91,8 +91,9 @@ export async function getPublicClubsController(req, res, next) {
 export async function joinClubController(req, res, next) {
   try {
     const { clubId } = req.params;
-    const { plan_id, planId } = req.body || {};
+    const { plan_id, planId, paymentDetails, razorpay_payment_id } = req.body || {};
     const selectedPlanId = plan_id || planId || null;
+    const paymentInfo = paymentDetails || (razorpay_payment_id ? { method: 'online', reference: razorpay_payment_id } : null);
 
     if (!clubId) {
       return res.status(400).json({ message: "Club ID is required" });
@@ -108,7 +109,7 @@ export async function joinClubController(req, res, next) {
       }
     }
 
-    const { member, membership } = await clubsRepo.joinClub(req.user.id, targetClubId, selectedPlanId);
+    const { member, membership } = await clubsRepo.joinClub(req.user.id, targetClubId, selectedPlanId, paymentInfo);
     const userClubs = await authRepo.getUserClubs(req.user.id);
 
     return res.status(201).json({
