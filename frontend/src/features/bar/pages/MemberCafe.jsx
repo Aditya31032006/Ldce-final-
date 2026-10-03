@@ -358,10 +358,11 @@ export default function MemberCafe({ club, membership }) {
     setSubmitting(true);
     try {
       const selectedTable = tables.find((t) => t.id === selectedTableId);
+      const resolvedMemberId = membership?.member_id || membership?.id || user?.member_id || null;
       const orderPayload = {
         table_id: servingLocation === 'table' ? selectedTableId || null : null,
-        member_id: membership?.member_id || null,
-        guest_name: user?.full_name || 'Member',
+        member_id: resolvedMemberId,
+        guest_name: user?.full_name || 'Club Member',
         charge_to_tab: true,
         notes: `Member tab order (${servingLocation === 'table' ? 'Table ' + (selectedTable?.name || '') : 'Takeaway'})${deliveryNote ? ' - ' + deliveryNote : ''}`,
         items: cart.map((i) => ({
@@ -390,7 +391,7 @@ export default function MemberCafe({ club, membership }) {
       localStorage.setItem('ldce_tabs_updated', Date.now().toString());
       localStorage.setItem('ldce_kds_updated', Date.now().toString());
       localStorage.setItem('ldce_orders_updated', Date.now().toString());
-      showToast('Order placed & charged to your club account tab! Table is now occupied.', 'success');
+      showToast('Order placed & charged to your member tab! Outstanding due updated.', 'success');
     } catch (err) {
       console.error('Tab checkout error:', err);
       showToast(err.customMessage || 'Could not charge to tab.', 'error');

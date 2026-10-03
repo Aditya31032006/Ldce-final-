@@ -338,7 +338,8 @@ export async function verifyRazorpayPaymentController(req, res, next) {
 export async function getTabsController(req, res, next) {
   try {
     const status = req.query.status || 'open';
-    const tabs = await barRepo.getMemberTabs(req.user.id, req.clubId, status);
+    const filterStatus = status === 'all' ? null : status;
+    const tabs = await barRepo.getMemberTabs(req.user.id, req.clubId, filterStatus);
     return res.status(200).json({ success: true, data: tabs });
   } catch (error) {
     next(error);
