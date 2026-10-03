@@ -12,7 +12,8 @@ import {
   joinClubController,
   getClubGalleryController,
   addClubGalleryController,
-  deleteClubGalleryController
+  deleteClubGalleryController,
+  createClubRazorpayOrderController,
 } from "./clubs.controller.js";
 
 const router = Router();
@@ -51,6 +52,7 @@ router.post("/gallery", requireRole('owner', 'admin', 'manager'), addClubGallery
 router.delete("/gallery/:imageId", requireRole('owner', 'admin', 'manager'), deleteClubGalleryController);
 // Join a club as a member
 router.post("/:clubId/join", verifyToken, joinClubController);
+router.post("/:clubId/payments/razorpay/create-order", verifyToken, createClubRazorpayOrderController);
 
 // ───── Scoped Club Management (Owner/Manager) ─────
 // These use club scope resolved from request context (header/cookie), not URL param

@@ -1,6 +1,7 @@
 import * as queries from './clubs.query.js';
 import { withTenantTransaction } from '../../shared/utils/transaction.util.js';
 import { pool } from '../../config/database.js';
+import { addWelcomeEmailJob } from '../../../jobs/emailQueue.js';
 
 export async function registerClub(userId, { name, slug, city, phone, email, timezone }) {
   // We use the owner role (superuser) or a public role to register since the club_app 
@@ -136,7 +137,7 @@ export async function getPublicClubs({ search = '', page = 1, limit = 9 }) {
   };
 }
 
-export async function joinClub(userId, clubId, planId = null) {
+export async function joinClub(userId, clubId, planId = null, paymentDetails = null) {
   // Fetch user info for name, email, phone
   const userRes = await pool.query('SELECT full_name, email, phone FROM app.users WHERE id = $1', [userId]);
   if (!userRes.rows.length) {
@@ -182,8 +183,47 @@ export async function joinClub(userId, clubId, planId = null) {
       `, [clubId, member.id, plan.id, durationDays, price, userId]);
 
       membership = msRes.rows[0];
+
+      // Record payment in ledger if payment details provided or plan has price
+      if (price > 0) {
+        try {
+          await pool.query(`
+            INSERT INTO app.payments (
+              club_id, kind, method, status, amount, member_id, membership_id, reference, received_by, notes
+            ) VALUES (
+              $1, 'payment', $2::app.payment_method, 'completed', $3, $4, $5, $6, $7, $8
+            );
+          `, [
+            clubId,
+            paymentDetails?.method || 'online',
+            price,
+            member.id,
+            membership.id,
+            paymentDetails?.reference || 'Direct / Gateway',
+            userId,
+            paymentDetails?.notes || `Membership subscription: ${plan.name}`,
+          ]);
+        } catch (payErr) {
+          console.warn('Could not record membership payment in ledger:', payErr.message);
+        }
+      }
     }
   }
+
+  // Asynchronously dispatch club membership welcome email via BullMQ
+  (async () => {
+    try {
+      const clubRes = await pool.query('SELECT name FROM app.clubs WHERE id = $1', [clubId]);
+      const clubName = clubRes.rows[0]?.name || 'Sports Club';
+      await addWelcomeEmailJob({
+        name: u.full_name,
+        email: u.email,
+        clubName,
+      });
+    } catch (err) {
+      console.warn('Membership welcome email enqueue warning:', err.message);
+    }
+  })();
 
   return { member, membership };
 }

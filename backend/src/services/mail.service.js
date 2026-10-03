@@ -441,6 +441,206 @@ export async function sendPasswordResetEmail({ toEmail, name, resetLink }) {
   });
 }
 
+/**
+ * Generates an HTML staff invitation email.
+ */
+export function generateStaffInvitationEmail({ name, email, role, tempPassword }) {
+  return `
+  <!DOCTYPE html>
+  <html>
+  <head>
+    <meta charset="utf-8">
+    <title>Staff Invitation</title>
+    <style>
+      body { margin: 0; padding: 0; background-color: #0b1120; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; color: #e2e8f0; }
+      .email-container { max-width: 540px; margin: 30px auto; background-color: #1e293b; border: 1px solid #334155; border-radius: 12px; overflow: hidden; }
+      .header { background: linear-gradient(135deg, #10b981 0%, #059669 100%); padding: 24px; text-align: center; color: white; }
+      .body { padding: 28px; line-height: 1.6; }
+      .card { background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 18px; margin: 18px 0; }
+      .footer { padding: 16px; text-align: center; font-size: 12px; color: #64748b; background: #0f172a; }
+    </style>
+  </head>
+  <body>
+    <div class="email-container">
+      <div class="header">
+        <h2 style="margin:0;">🎉 Welcome to the Team!</h2>
+      </div>
+      <div class="body">
+        <p>Hello <strong>${name || 'Staff Member'}</strong>,</p>
+        <p>You have been invited to join the sports club platform as a <strong>${role}</strong>.</p>
+        <div class="card">
+          <p style="margin: 4px 0;"><strong>Email:</strong> ${email}</p>
+          ${tempPassword ? `<p style="margin: 4px 0;"><strong>Temporary Password:</strong> <code style="color: #34d399; font-size: 1.1em;">${tempPassword}</code></p>` : ''}
+          <p style="margin: 4px 0;"><strong>Assigned Role:</strong> ${role}</p>
+        </div>
+        <p>Please log in and update your password immediately.</p>
+      </div>
+      <div class="footer">&copy; ${new Date().getFullYear()} Sports Club Platform.</div>
+    </div>
+  </body>
+  </html>
+  `;
+}
+
+/**
+ * Generates an HTML client company invitation email.
+ */
+export function generateCompanyInvitationEmail({ name, email, companyName, tempPassword }) {
+  return `
+  <!DOCTYPE html>
+  <html>
+  <head>
+    <meta charset="utf-8">
+    <title>Company Account Provisioned</title>
+    <style>
+      body { margin: 0; padding: 0; background-color: #0b1120; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; color: #e2e8f0; }
+      .email-container { max-width: 540px; margin: 30px auto; background-color: #1e293b; border: 1px solid #334155; border-radius: 12px; overflow: hidden; }
+      .header { background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); padding: 24px; text-align: center; color: white; }
+      .body { padding: 28px; line-height: 1.6; }
+      .card { background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 18px; margin: 18px 0; }
+      .footer { padding: 16px; text-align: center; font-size: 12px; color: #64748b; background: #0f172a; }
+    </style>
+  </head>
+  <body>
+    <div class="email-container">
+      <div class="header">
+        <h2 style="margin:0;">🏢 Corporate Account Provisioned</h2>
+      </div>
+      <div class="body">
+        <p>Dear <strong>${name || 'Client'}</strong>,</p>
+        <p>A corporate membership and booking account has been created for <strong>${companyName}</strong>.</p>
+        <div class="card">
+          <p style="margin: 4px 0;"><strong>Company:</strong> ${companyName}</p>
+          <p style="margin: 4px 0;"><strong>Authorized User:</strong> ${email}</p>
+          ${tempPassword ? `<p style="margin: 4px 0;"><strong>Temporary Password:</strong> <code style="color: #60a5fa; font-size: 1.1em;">${tempPassword}</code></p>` : ''}
+        </div>
+      </div>
+      <div class="footer">&copy; ${new Date().getFullYear()} Sports Club Platform.</div>
+    </div>
+  </body>
+  </html>
+  `;
+}
+
+/**
+ * Generates an HTML quotation issued email.
+ */
+export function generateQuotationIssuedEmail({ customerName, quotationNumber, grandTotal, validUntil }) {
+  return `
+  <!DOCTYPE html>
+  <html>
+  <head>
+    <meta charset="utf-8">
+    <title>Quotation Issued</title>
+    <style>
+      body { margin: 0; padding: 0; background-color: #0b1120; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; color: #e2e8f0; }
+      .email-container { max-width: 540px; margin: 30px auto; background-color: #1e293b; border: 1px solid #334155; border-radius: 12px; overflow: hidden; }
+      .header { background: linear-gradient(135deg, #059669 0%, #10b981 100%); padding: 24px; text-align: center; color: white; }
+      .body { padding: 28px; line-height: 1.6; }
+      .card { background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 18px; margin: 18px 0; }
+      .footer { padding: 16px; text-align: center; font-size: 12px; color: #64748b; background: #0f172a; }
+    </style>
+  </head>
+  <body>
+    <div class="email-container">
+      <div class="header">
+        <h2 style="margin:0;">📄 New Quotation Issued</h2>
+      </div>
+      <div class="body">
+        <p>Dear <strong>${customerName || 'Valued Customer'}</strong>,</p>
+        <p>Your quotation <strong>#${quotationNumber}</strong> is ready for review.</p>
+        <div class="card">
+          <p style="margin: 4px 0;"><strong>Quotation #:</strong> ${quotationNumber}</p>
+          <p style="margin: 4px 0;"><strong>Estimated Total:</strong> ₹${Number(grandTotal || 0).toLocaleString()}</p>
+          ${validUntil ? `<p style="margin: 4px 0;"><strong>Valid Until:</strong> ${validUntil}</p>` : ''}
+        </div>
+      </div>
+      <div class="footer">&copy; ${new Date().getFullYear()} Sports Club Platform.</div>
+    </div>
+  </body>
+  </html>
+  `;
+}
+
+/**
+ * Generates an HTML counter-offer email.
+ */
+export function generateCounterOfferEmail({ customerName, quotationNumber, counterDiscount, requestedDeliveryDate, message }) {
+  return `
+  <!DOCTYPE html>
+  <html>
+  <head>
+    <meta charset="utf-8">
+    <title>Counter-Offer</title>
+    <style>
+      body { margin: 0; padding: 0; background-color: #0b1120; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; color: #e2e8f0; }
+      .email-container { max-width: 540px; margin: 30px auto; background-color: #1e293b; border: 1px solid #334155; border-radius: 12px; overflow: hidden; }
+      .header { background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); padding: 24px; text-align: center; color: white; }
+      .body { padding: 28px; line-height: 1.6; }
+      .card { background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 18px; margin: 18px 0; }
+      .footer { padding: 16px; text-align: center; font-size: 12px; color: #64748b; background: #0f172a; }
+    </style>
+  </head>
+  <body>
+    <div class="email-container">
+      <div class="header">
+        <h2 style="margin:0;">💬 Counter-Offer for Quotation #${quotationNumber}</h2>
+      </div>
+      <div class="body">
+        <p>Dear <strong>${customerName || 'Customer'}</strong>,</p>
+        <p>A counter-proposal has been submitted for your quotation:</p>
+        <div class="card">
+          ${counterDiscount ? `<p style="margin: 4px 0;"><strong>Discount Offered:</strong> ${counterDiscount}%</p>` : ''}
+          ${requestedDeliveryDate ? `<p style="margin: 4px 0;"><strong>Delivery Date:</strong> ${requestedDeliveryDate}</p>` : ''}
+          ${message ? `<p style="margin: 4px 0;"><strong>Note:</strong> ${message}</p>` : ''}
+        </div>
+      </div>
+      <div class="footer">&copy; ${new Date().getFullYear()} Sports Club Platform.</div>
+    </div>
+  </body>
+  </html>
+  `;
+}
+
+/**
+ * Generates an HTML quotation approved email.
+ */
+export function generateQuotationApprovedEmail({ customerName, quotationNumber, grandTotal }) {
+  return `
+  <!DOCTYPE html>
+  <html>
+  <head>
+    <meta charset="utf-8">
+    <title>Quotation Approved</title>
+    <style>
+      body { margin: 0; padding: 0; background-color: #0b1120; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; color: #e2e8f0; }
+      .email-container { max-width: 540px; margin: 30px auto; background-color: #1e293b; border: 1px solid #334155; border-radius: 12px; overflow: hidden; }
+      .header { background: linear-gradient(135deg, #10b981 0%, #059669 100%); padding: 24px; text-align: center; color: white; }
+      .body { padding: 28px; line-height: 1.6; }
+      .card { background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 18px; margin: 18px 0; }
+      .footer { padding: 16px; text-align: center; font-size: 12px; color: #64748b; background: #0f172a; }
+    </style>
+  </head>
+  <body>
+    <div class="email-container">
+      <div class="header">
+        <h2 style="margin:0;">✅ Quotation Approved!</h2>
+      </div>
+      <div class="body">
+        <p>Dear <strong>${customerName || 'Customer'}</strong>,</p>
+        <p>Your quotation <strong>#${quotationNumber}</strong> has been officially approved.</p>
+        <div class="card">
+          <p style="margin: 4px 0;"><strong>Quotation #:</strong> ${quotationNumber}</p>
+          <p style="margin: 4px 0;"><strong>Total Amount:</strong> ₹${Number(grandTotal || 0).toLocaleString()}</p>
+        </div>
+      </div>
+      <div class="footer">&copy; ${new Date().getFullYear()} Sports Club Platform.</div>
+    </div>
+  </body>
+  </html>
+  `;
+}
+
 export default {
   sendMail,
   generateOtpEmail,
@@ -451,4 +651,9 @@ export default {
   sendBookingConfirmationEmail,
   generatePasswordResetEmail,
   sendPasswordResetEmail,
+  generateStaffInvitationEmail,
+  generateCompanyInvitationEmail,
+  generateQuotationIssuedEmail,
+  generateCounterOfferEmail,
+  generateQuotationApprovedEmail,
 };

@@ -29,8 +29,11 @@ export const clubsApi = {
   /**
    * Join an active public club as a member (optionally with selected plan)
    */
-  async joinClub(clubId, planId = null) {
-    const response = await api.post(`/clubs/${clubId}/join`, planId ? { plan_id: planId } : {});
+  async joinClub(clubId, planId = null, paymentDetails = null) {
+    const payload = {};
+    if (planId) payload.plan_id = planId;
+    if (paymentDetails) payload.paymentDetails = paymentDetails;
+    const response = await api.post(`/clubs/${clubId}/join`, payload);
     return response.data;
   },
 
