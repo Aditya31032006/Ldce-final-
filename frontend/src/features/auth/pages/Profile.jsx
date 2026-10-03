@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router';
 import useAuth from '../hook/useAuth.js';
 import authApi from '../services/auth.api.js';
 import clubsApi from '../../clubs/services/clubs.api.js';
@@ -9,15 +10,25 @@ import { fileToBase64, urlToBase64 } from '../../../shared/utils/image.util.js';
 export default function Profile() {
   const { user, role, clubId, clubs, logout, updateUserLocal } = useAuth();
   const { toast } = useToast();
+  const navigate = useNavigate();
 
   const isOwner = (role || '').toLowerCase() === 'owner';
   const isClubAdmin = ['owner', 'admin', 'manager'].includes((role || '').toLowerCase());
   const effectiveClubId = clubId || user?.clubId || (clubs && clubs[0]?.id) || (clubs && clubs[0]?.club_id) || (typeof window !== 'undefined' ? localStorage.getItem('activeClubId') : null);
 
+  const activeClubObj = clubs?.find(c => (c.club_id === effectiveClubId || c.id === effectiveClubId)) || clubs?.[0];
+  const activeClubName = activeClubObj?.name || 'Local Sports Facility';
+  const activeClubSlug = activeClubObj?.slug || activeClubObj?.id || effectiveClubId;
+
   // Navigation tab for Owner / Admin: 'profile' | 'staff' | 'gallery'
+  // Normal members/players are ALWAYS locked to 'profile' tab
   const [activeTab, setActiveTabState] = useState(() => {
+    if (!isClubAdmin) return 'profile';
     try {
-      return localStorage.getItem('profile_active_tab') || 'profile';
+      const saved = localStorage.getItem('profile_active_tab');
+      if (saved === 'staff' && !isOwner) return 'profile';
+      if (saved === 'gallery' && !isClubAdmin) return 'profile';
+      return saved || 'profile';
     } catch {
       return 'profile';
     }
@@ -29,6 +40,16 @@ export default function Profile() {
       localStorage.setItem('profile_active_tab', tab);
     } catch (_) {}
   };
+
+  const effectiveTab = isClubAdmin
+    ? (activeTab === 'staff' && !isOwner ? 'profile' : (activeTab || 'profile'))
+    : 'profile';
+
+  useEffect(() => {
+    if (!isClubAdmin && activeTab !== 'profile') {
+      setActiveTab('profile');
+    }
+  }, [isClubAdmin, activeTab]);
 
   // --- Avatar States ---
   const [avatarLoading, setAvatarLoading] = useState(false);
@@ -538,14 +559,16 @@ export default function Profile() {
       {/* Header */}
       <div style={{ marginBottom: '1.75rem' }}>
         <h1 style={{ fontSize: '1.85rem', fontWeight: 700, color: '#0f172a', marginBottom: '0.35rem' }}>
-          Account & Club Settings
+          {isClubAdmin ? 'Account & Club Settings' : 'My Member Profile'}
         </h1>
         <p style={{ color: '#64748b', fontSize: '0.95rem' }}>
-          Manage your personal profile, credentials, and club operational controls
+          {isClubAdmin
+            ? 'Manage your personal profile, credentials, and club operational controls'
+            : 'Manage your personal details, membership credentials, and account security'}
         </p>
       </div>
 
-      {/* Navigation Tabs (Owner & Admin get quick access to Staff and Gallery) */}
+      {/* Navigation Tabs (Only rendered for Club Admins / Owners) */}
       {isClubAdmin && (
         <div style={{
           display: 'flex',
@@ -562,10 +585,10 @@ export default function Profile() {
               padding: '0.65rem 1.25rem',
               fontWeight: 600,
               fontSize: '0.9rem',
-              color: activeTab === 'profile' ? '#2563eb' : '#64748b',
-              background: activeTab === 'profile' ? '#eff6ff' : 'transparent',
+              color: effectiveTab === 'profile' ? '#2563eb' : '#64748b',
+              background: effectiveTab === 'profile' ? '#eff6ff' : 'transparent',
               border: 'none',
-              borderBottom: activeTab === 'profile' ? '2px solid #2563eb' : '2px solid transparent',
+              borderBottom: effectiveTab === 'profile' ? '2px solid #2563eb' : '2px solid transparent',
               borderRadius: '0.375rem 0.375rem 0 0',
               cursor: 'pointer',
               display: 'flex',
@@ -584,10 +607,10 @@ export default function Profile() {
                 padding: '0.65rem 1.25rem',
                 fontWeight: 600,
                 fontSize: '0.9rem',
-                color: activeTab === 'staff' ? '#2563eb' : '#64748b',
-                background: activeTab === 'staff' ? '#eff6ff' : 'transparent',
+                color: effectiveTab === 'staff' ? '#2563eb' : '#64748b',
+                background: effectiveTab === 'staff' ? '#eff6ff' : 'transparent',
                 border: 'none',
-                borderBottom: activeTab === 'staff' ? '2px solid #2563eb' : '2px solid transparent',
+                borderBottom: effectiveTab === 'staff' ? '2px solid #2563eb' : '2px solid transparent',
                 borderRadius: '0.375rem 0.375rem 0 0',
                 cursor: 'pointer',
                 display: 'flex',
@@ -606,10 +629,10 @@ export default function Profile() {
               padding: '0.65rem 1.25rem',
               fontWeight: 600,
               fontSize: '0.9rem',
-              color: activeTab === 'gallery' ? '#2563eb' : '#64748b',
-              background: activeTab === 'gallery' ? '#eff6ff' : 'transparent',
+              color: effectiveTab === 'gallery' ? '#2563eb' : '#64748b',
+              background: effectiveTab === 'gallery' ? '#eff6ff' : 'transparent',
               border: 'none',
-              borderBottom: activeTab === 'gallery' ? '2px solid #2563eb' : '2px solid transparent',
+              borderBottom: effectiveTab === 'gallery' ? '2px solid #2563eb' : '2px solid transparent',
               borderRadius: '0.375rem 0.375rem 0 0',
               cursor: 'pointer',
               display: 'flex',
@@ -625,13 +648,13 @@ export default function Profile() {
       {/* =========================================================
           TAB 1: USER PROFILE & SECURITY
          ========================================================= */}
-      {activeTab === 'profile' && (
+      {effectiveTab === 'profile' && (
         <div style={{
           background: '#ffffff',
           borderRadius: '0.85rem',
           border: '1px solid #e2e8f0',
           padding: '2rem',
-          maxWidth: '640px',
+          maxWidth: '680px',
           boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
         }}>
           {/* Avatar & Header */}
@@ -799,6 +822,141 @@ export default function Profile() {
             </span>
           </div>
 
+          {/* Member Digital Pass Card for non-admins */}
+          {!isClubAdmin && (
+            <div style={{
+              background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)',
+              borderRadius: '0.75rem',
+              padding: '1.25rem 1.5rem',
+              color: '#ffffff',
+              marginBottom: '1.5rem',
+              boxShadow: '0 4px 14px rgba(15, 23, 42, 0.12)',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              flexWrap: 'wrap',
+              gap: '1rem',
+            }}>
+              <div>
+                <div style={{ fontSize: '0.7rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '0.2rem' }}>
+                  Verified Club Member Pass
+                </div>
+                <div style={{ fontSize: '1.2rem', fontWeight: 800, color: '#ffffff', letterSpacing: '-0.02em' }}>
+                  {activeClubName}
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.4rem', flexWrap: 'wrap' }}>
+                  <span style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.3rem',
+                    background: 'rgba(16, 185, 129, 0.2)',
+                    color: '#34d399',
+                    padding: '0.2rem 0.65rem',
+                    borderRadius: '9999px',
+                    fontSize: '0.72rem',
+                    fontWeight: 700,
+                  }}>
+                    ● Active Membership
+                  </span>
+                  <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>
+                    Pass ID: {user?.id ? `MEM-${user.id.slice(0, 6).toUpperCase()}` : 'MEM-ACTIVE'}
+                  </span>
+                </div>
+              </div>
+              {activeClubObj && (
+                <button
+                  type="button"
+                  onClick={() => navigate(`/club/${activeClubSlug}`)}
+                  style={{
+                    background: 'rgba(255, 255, 255, 0.12)',
+                    border: '1px solid rgba(255, 255, 255, 0.25)',
+                    color: '#ffffff',
+                    borderRadius: '0.5rem',
+                    padding: '0.55rem 1rem',
+                    fontSize: '0.8rem',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                  }}
+                >
+                  Club Portal →
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* Member Quick Shortcuts (Courts, Shop, Orders) */}
+          {!isClubAdmin && (
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(3, 1fr)',
+              gap: '0.75rem',
+              marginBottom: '1.5rem',
+            }}>
+              <button
+                type="button"
+                onClick={() => navigate(`/club/${activeClubSlug}/courts`)}
+                style={{
+                  padding: '0.85rem 0.5rem',
+                  background: '#f8fafc',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: '0.6rem',
+                  cursor: 'pointer',
+                  textAlign: 'center',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  gap: '0.25rem',
+                }}
+              >
+                <span style={{ fontSize: '1.35rem' }}>🎾</span>
+                <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#0f172a' }}>Book Court</span>
+                <span style={{ fontSize: '0.7rem', color: '#64748b' }}>Reserve a slot</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => navigate(`/inventory?clubId=${effectiveClubId}`)}
+                style={{
+                  padding: '0.85rem 0.5rem',
+                  background: '#f8fafc',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: '0.6rem',
+                  cursor: 'pointer',
+                  textAlign: 'center',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  gap: '0.25rem',
+                }}
+              >
+                <span style={{ fontSize: '1.35rem' }}>🛍️</span>
+                <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#0f172a' }}>Pro Shop</span>
+                <span style={{ fontSize: '0.7rem', color: '#64748b' }}>Buy gear</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => navigate(`/orders?clubId=${effectiveClubId}`)}
+                style={{
+                  padding: '0.85rem 0.5rem',
+                  background: '#f8fafc',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: '0.6rem',
+                  cursor: 'pointer',
+                  textAlign: 'center',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  gap: '0.25rem',
+                }}
+              >
+                <span style={{ fontSize: '1.35rem' }}>📦</span>
+                <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#0f172a' }}>My Orders</span>
+                <span style={{ fontSize: '0.7rem', color: '#64748b' }}>Track status</span>
+              </button>
+            </div>
+          )}
+
           {/* User Details Grid */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '1.5rem' }}>
             <div style={{ background: '#f8fafc', padding: '0.75rem', borderRadius: '0.5rem', border: '1px solid #f1f5f9' }}>
@@ -814,18 +972,73 @@ export default function Profile() {
               </div>
             </div>
             <div style={{ background: '#f8fafc', padding: '0.75rem', borderRadius: '0.5rem', border: '1px solid #f1f5f9' }}>
-              <label style={{ fontSize: '0.7rem', color: '#64748b', textTransform: 'uppercase', fontWeight: 700 }}>Active Club ID</label>
-              <div style={{ fontSize: '0.8rem', color: '#0f172a', marginTop: '0.2rem', fontWeight: 600, wordBreak: 'break-all' }}>
-                {clubId || 'None'}
+              <label style={{ fontSize: '0.7rem', color: '#64748b', textTransform: 'uppercase', fontWeight: 700 }}>Active Sports Club</label>
+              <div style={{ fontSize: '0.85rem', color: '#0f172a', marginTop: '0.2rem', fontWeight: 600, wordBreak: 'break-word' }}>
+                {activeClubName}
               </div>
             </div>
             <div style={{ background: '#f8fafc', padding: '0.75rem', borderRadius: '0.5rem', border: '1px solid #f1f5f9' }}>
-              <label style={{ fontSize: '0.7rem', color: '#64748b', textTransform: 'uppercase', fontWeight: 700 }}>Account ID</label>
+              <label style={{ fontSize: '0.7rem', color: '#64748b', textTransform: 'uppercase', fontWeight: 700 }}>Member ID Code</label>
               <div style={{ fontSize: '0.8rem', color: '#0f172a', marginTop: '0.2rem', fontWeight: 600, wordBreak: 'break-all' }}>
-                {user?.id ? `${user.id.slice(0, 8)}...` : 'N/A'}
+                {user?.id ? `MEM-${user.id.slice(0, 6).toUpperCase()}` : 'N/A'}
               </div>
             </div>
           </div>
+
+          {/* My Joined Clubs Section */}
+          {clubs && clubs.length > 0 && (
+            <div style={{
+              background: '#f8fafc',
+              border: '1px solid #e2e8f0',
+              borderRadius: '0.75rem',
+              padding: '1.25rem',
+              marginBottom: '1.5rem',
+            }}>
+              <h3 style={{ fontSize: '0.95rem', fontWeight: 700, color: '#0f172a', margin: '0 0 0.75rem 0', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                🏛️ My Joined Clubs ({clubs.length})
+              </h3>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                {clubs.map((c) => (
+                  <div
+                    key={c.id || c.club_id}
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      padding: '0.65rem 0.85rem',
+                      background: '#ffffff',
+                      border: '1px solid #e2e8f0',
+                      borderRadius: '0.5rem',
+                    }}
+                  >
+                    <div>
+                      <div style={{ fontWeight: 700, fontSize: '0.85rem', color: '#0f172a' }}>{c.name}</div>
+                      <div style={{ fontSize: '0.75rem', color: '#64748b' }}>
+                        Role: <span style={{ textTransform: 'capitalize', fontWeight: 600 }}>{c.role || 'Member'}</span>
+                        {c.city ? ` • ${c.city}` : ''}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => navigate(`/club/${c.slug || c.id || c.club_id}`)}
+                      style={{
+                        padding: '0.35rem 0.75rem',
+                        fontSize: '0.75rem',
+                        fontWeight: 600,
+                        color: '#2563eb',
+                        background: '#eff6ff',
+                        border: '1px solid #bfdbfe',
+                        borderRadius: '0.375rem',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Visit Club →
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* =========================================================
               PROMINENT SECURITY & PASSWORD SECTION
@@ -948,7 +1161,7 @@ export default function Profile() {
       {/* =========================================================
           TAB 2: CLUB STAFF MEMBERS (Owner Only)
          ========================================================= */}
-      {activeTab === 'staff' && (
+      {isOwner && effectiveTab === 'staff' && (
         <div style={{
           background: '#ffffff',
           borderRadius: '0.85rem',
@@ -1133,7 +1346,7 @@ export default function Profile() {
       {/* =========================================================
           TAB 3: CLUB SHOWCASE GALLERY (Owner & Admin)
          ========================================================= */}
-      {activeTab === 'gallery' && (
+      {isClubAdmin && effectiveTab === 'gallery' && (
         <div style={{
           background: '#ffffff',
           borderRadius: '0.85rem',
