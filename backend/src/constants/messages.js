@@ -21,6 +21,8 @@ export const MESSAGES = Object.freeze({
     OTP_EXPIRED: 'OTP has expired. Please request a new code.',
     PASSWORD_RESET_SENT: 'Password reset instructions have been sent to your email.',
     PASSWORD_RESET_SUCCESS: 'Password has been reset successfully.',
+    PROFILE_SETUP_SUCCESS: 'Profile setup completed successfully!',
+    PROFILE_SETUP_REQUIRED: 'Please complete your profile setup to continue.',
   }),
   CLUBS: Object.freeze({
     REGISTER_SUCCESS: 'Club registered successfully!',

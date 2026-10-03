@@ -7,20 +7,24 @@ import { STATUS_CODES } from '../constants/statusCodes.js';
 export function validate(req, res, next) {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
-    const firstError = errors.array()[0];
+    const errorList = errors.array();
+    const firstError = errorList[0];
     return res.status(STATUS_CODES.BAD_REQUEST).json({
       success: false,
       message: firstError.msg,
-      errors: errors.array(),
+      errors: errorList.map((err) => ({
+        field: err.path || err.param,
+        message: err.msg,
+      })),
     });
   }
   next();
 }
 
 /**
- * Validation rules for User Signup / Registration
+ * Validation rules for Direct User Signup (all fields entered manually)
  */
-export const signupValidation = [
+export const directSignupValidation = [
   body('email')
     .trim()
     .notEmpty().withMessage('Email address is required')
@@ -32,13 +36,12 @@ export const signupValidation = [
     .isLength({ min: 6 }).withMessage('Password must be at least 6 characters long'),
 
   body('phone')
-    .optional({ values: 'falsy' })
     .trim()
-    .matches(/^[0-9+\s\-]{7,15}$/)
-    .withMessage('Please provide a valid phone number (7-15 digits)'),
+    .notEmpty().withMessage('Phone number is required for direct registration')
+    .matches(/^[0-9+\s\-]{7,15}$/).withMessage('Please provide a valid phone number (7-15 digits)'),
 
   body().custom((_, { req }) => {
-    const fullName = req.body.fullName || req.body.name;
+    const fullName = req.body.fullName || req.body.full_name || req.body.name;
     if (!fullName || typeof fullName !== 'string' || fullName.trim().length < 2) {
       throw new Error('Full name is required (minimum 2 characters)');
     }
@@ -47,13 +50,17 @@ export const signupValidation = [
     return true;
   }),
 
+  body('avatarUrl')
+    .optional({ values: 'falsy' })
+    .isURL().withMessage('Avatar URL must be a valid URL'),
+
   validate,
 ];
 
 /**
- * Validation rules for User Login
+ * Validation rules for Direct User Login
  */
-export const loginValidation = [
+export const directLoginValidation = [
   body('email')
     .trim()
     .notEmpty().withMessage('Email address is required')
@@ -66,6 +73,31 @@ export const loginValidation = [
   body('clubId')
     .optional({ values: 'falsy' })
     .trim(),
+
+  validate,
+];
+
+/**
+ * Validation rules for Setup Profile (adding remaining fields like phone after Google OAuth)
+ */
+export const setupProfileValidation = [
+  body('phone')
+    .trim()
+    .notEmpty().withMessage('Phone number is required to complete profile setup')
+    .matches(/^[0-9+\s\-]{7,15}$/).withMessage('Please provide a valid phone number (7-15 digits)'),
+
+  body('fullName')
+    .optional({ values: 'falsy' })
+    .trim()
+    .isLength({ min: 2 }).withMessage('Full name must be at least 2 characters'),
+
+  body('avatarUrl')
+    .optional({ values: 'falsy' })
+    .isURL().withMessage('Avatar URL must be a valid URL'),
+
+  body('password')
+    .optional({ values: 'falsy' })
+    .isLength({ min: 6 }).withMessage('Password must be at least 6 characters long'),
 
   validate,
 ];
@@ -116,8 +148,15 @@ export const passwordResetConfirmValidation = [
   validate,
 ];
 
+// Aliases for compatibility
+export const signupValidation = directSignupValidation;
+export const loginValidation = directLoginValidation;
+
 export default {
   validate,
+  directSignupValidation,
+  directLoginValidation,
+  setupProfileValidation,
   signupValidation,
   loginValidation,
   otpValidation,
