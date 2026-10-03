@@ -6,12 +6,13 @@ import { clubsApi } from '../services/clubs.api.js';
 import api from '../../../shared/services/api.js';
 import MemberCafe from '../../bar/pages/MemberCafe.jsx';
 import { openRazorpayCheckout } from '../../../shared/utils/razorpay.util.js';
+import { fileToBase64 } from '../../../shared/utils/image.util.js';
 import {
   MapPin, Phone, Mail, Trophy, ShieldCheck,
   Calendar, Check, AlertCircle, ArrowLeft, ExternalLink,
   CreditCard, Sparkles, Clock, Copy, CheckCircle2, ChevronRight,
   UserCheck, ShoppingBag, Coffee, IdCard, Plus, Trash2, X, RefreshCw,
-  Layers, Warehouse, Tag
+  Layers, Warehouse, Tag, Camera, ChevronLeft, Upload, Image as ImageIcon
 } from 'lucide-react';
 
 // Fallback high-res curated sports imagery for clubs with no uploaded gallery
@@ -680,7 +681,19 @@ export default function ClubDetailsPage() {
   const [bookingCourt, setBookingCourt] = useState(null);
   const [copiedDomain, setCopiedDomain] = useState(false);
 
-  // Tab State: overview, courts, bookings, pos, shop, orders, membership
+  // Lightbox & Image Showcase States
+  const [lightboxIndex, setLightboxIndex] = useState(null);
+
+  // Admin Photo / Cover / Logo Upload Modal
+  const [showUploadModal, setShowUploadModal] = useState(false);
+  const [uploadTarget, setUploadTarget] = useState('gallery'); // 'gallery' | 'cover' | 'logo'
+  const [uploadPhotoUrl, setUploadPhotoUrl] = useState('');
+  const [uploadPhotoCaption, setUploadPhotoCaption] = useState('');
+  const [uploadPhotoLoading, setUploadPhotoLoading] = useState(false);
+  const [selectedUploadFiles, setSelectedUploadFiles] = useState([]);
+  const uploadFileInputRef = React.useRef(null);
+
+  // Tab State: overview, courts, bookings, pos, shop, orders, membership, gallery
   const activeTab = tab || 'overview';
 
   // Bookings list state for member
@@ -810,6 +823,46 @@ export default function ClubDetailsPage() {
     return `https://${club.slug}.clubos.app`;
   }, [club]);
 
+  // Admin gallery images vs fallback imagery
+  const hasAdminGallery = Boolean(club?.gallery && club.gallery.length > 0);
+  const displayGallery = useMemo(() => {
+    if (hasAdminGallery) return club.gallery;
+    return [
+      { id: 'def-1', image_url: DEFAULT_SPORT_IMAGES[club?.sports?.[0]?.name?.toLowerCase()] || DEFAULT_SPORT_IMAGES.default, caption: 'Centre Championship Glass Court' },
+      { id: 'def-2', image_url: DEFAULT_SPORT_IMAGES.padel, caption: 'Indoor Training Arena' },
+      { id: 'def-3', image_url: DEFAULT_SPORT_IMAGES.tennis, caption: 'Floodlit Match Play Courts' },
+    ];
+  }, [hasAdminGallery, club]);
+
+  const effectiveCoverUrl = club?.cover_url || (hasAdminGallery ? club?.gallery?.[0]?.image_url : null);
+
+  const handleOpenLightbox = (index) => {
+    setLightboxIndex(index);
+  };
+
+  const handleCloseLightbox = () => {
+    setLightboxIndex(null);
+  };
+
+  const handlePrevLightbox = () => {
+    setLightboxIndex((prev) => (prev > 0 ? prev - 1 : Math.max(0, displayGallery.length - 1)));
+  };
+
+  const handleNextLightbox = () => {
+    setLightboxIndex((prev) => (prev < displayGallery.length - 1 ? prev + 1 : 0));
+  };
+
+  useEffect(() => {
+    if (lightboxIndex === null) return;
+    const handleKey = (e) => {
+      if (e.key === 'Escape') setLightboxIndex(null);
+      if (e.key === 'ArrowLeft') setLightboxIndex((prev) => (prev > 0 ? prev - 1 : Math.max(0, displayGallery.length - 1)));
+      if (e.key === 'ArrowRight') setLightboxIndex((prev) => (prev < displayGallery.length - 1 ? prev + 1 : 0));
+    };
+    window.addEventListener('keydown', handleKey);
+    return () => window.removeEventListener('keydown', handleKey);
+  }, [lightboxIndex, displayGallery.length]);
+
   if (loading) {
     return (
       <div style={{
@@ -847,12 +900,720 @@ export default function ClubDetailsPage() {
   const isMember = Boolean(membership?.is_member);
   const hasPlans = club.plans && club.plans.length > 0;
 
-  // Fallback gallery images
-  const displayGallery = club.gallery?.length > 0 ? club.gallery : [
-    { id: 'def-1', image_url: DEFAULT_SPORT_IMAGES[club.sports?.[0]?.name?.toLowerCase()] || DEFAULT_SPORT_IMAGES.default, caption: 'Main Championship Court' },
-    { id: 'def-2', image_url: DEFAULT_SPORT_IMAGES.padel, caption: 'Indoor Training Arena' },
-    { id: 'def-3', image_url: DEFAULT_SPORT_IMAGES.tennis, caption: 'Floodlit Match Play' },
-  ];
+  // Check if current authenticated user has administrative control over this club
+  const isAdmin = Boolean(
+    user && (
+      user.role === 'owner' ||
+      user.role === 'admin' ||
+      user.role === 'manager' ||
+      club?.owner_user_id === user.id
+    )
+  );
+
+  const handleFileChange = async (e) => {
+    const files = Array.from(e.target.files || []);
+    if (!files.length) return;
+    setUploadPhotoLoading(true);
+    try {
+      const converted = await Promise.all(
+        files.map(async (file) => ({
+          id: Math.random().toString(36).substring(7),
+          dataUrl: await fileToBase64(file, 1600, 1200, 0.85),
+          name: file.name,
+          caption: uploadPhotoCaption.trim() || file.name.replace(/\.[^/.]+$/, ""),
+        }))
+      );
+      setSelectedUploadFiles((prev) => [...prev, ...converted]);
+    } catch (err) {
+      toast.error('Failed to process image file');
+    } finally {
+      setUploadPhotoLoading(false);
+      if (uploadFileInputRef.current) uploadFileInputRef.current.value = '';
+    }
+  };
+
+  const handleSaveUpload = async (e) => {
+    e.preventDefault();
+    const photosToSubmit = [...selectedUploadFiles];
+    if (uploadPhotoUrl.trim()) {
+      photosToSubmit.push({
+        dataUrl: uploadPhotoUrl.trim(),
+        caption: uploadPhotoCaption.trim() || 'Club Facility Photo',
+      });
+    }
+
+    if (!photosToSubmit.length) {
+      toast.error('Please select an image file or enter an image URL');
+      return;
+    }
+
+    setUploadPhotoLoading(true);
+    try {
+      if (uploadTarget === 'cover') {
+        const coverImg = photosToSubmit[0].dataUrl;
+        await api.put(`/clubs/${club.id}`, { cover_url: coverImg }, { headers: { 'x-club-id': club.id } });
+        toast.success('Club cover photo updated successfully!');
+      } else if (uploadTarget === 'logo') {
+        const logoImg = photosToSubmit[0].dataUrl;
+        await api.put(`/clubs/${club.id}`, { logo_url: logoImg }, { headers: { 'x-club-id': club.id } });
+        toast.success('Club logo updated successfully!');
+      } else {
+        const payload = {
+          images: photosToSubmit.map((p, idx) => ({
+            image_url: p.dataUrl,
+            caption: p.caption || uploadPhotoCaption.trim() || undefined,
+            sort_order: (club.gallery?.length || 0) + idx,
+          })),
+        };
+        await clubsApi.addClubGallery(club.id, payload);
+        toast.success(`${photosToSubmit.length} photo(s) added to club gallery!`);
+      }
+
+      setShowUploadModal(false);
+      setSelectedUploadFiles([]);
+      setUploadPhotoCaption('');
+      setUploadPhotoUrl('');
+      await loadClub();
+    } catch (err) {
+      toast.error(err.response?.data?.message || err.message || 'Failed to save photo');
+    } finally {
+      setUploadPhotoLoading(false);
+    }
+  };
+
+  const handleDeletePhoto = async (photoId) => {
+    if (!window.confirm('Delete this photo from the club gallery?')) return;
+    try {
+      await clubsApi.deleteClubGallery(club.id, photoId);
+      toast.success('Photo removed from club gallery');
+      await loadClub();
+    } catch (err) {
+      toast.error(err.response?.data?.message || err.message || 'Failed to remove photo');
+    }
+  };
+
+  // Render Club Gallery Showcase
+  const renderClubGallery = (isMemberSection = false) => {
+    return (
+      <div style={{
+        background: '#FFFFFF',
+        border: '1px solid #E7E5DF',
+        borderRadius: '12px',
+        padding: '1.75rem',
+        marginBottom: '1.5rem',
+        boxShadow: '0 1px 3px rgba(0,0,0,0.02)'
+      }}>
+        {/* Section Header */}
+        <div style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'flex-start',
+          flexWrap: 'wrap',
+          gap: '1rem',
+          marginBottom: '1.25rem',
+          borderBottom: '1px solid #F4F2EC',
+          paddingBottom: '1rem'
+        }}>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
+              <Camera size={20} color="#1F5C46" />
+              <h2 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#1A1A18', margin: 0 }}>
+                Club Gallery & Facility Photos
+              </h2>
+              {hasAdminGallery ? (
+                <span style={{
+                  fontSize: '0.72rem',
+                  fontWeight: 700,
+                  color: '#15803D',
+                  background: '#F0FDF4',
+                  border: '1px solid #DCFCE7',
+                  padding: '0.2rem 0.6rem',
+                  borderRadius: '9999px',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.3rem'
+                }}>
+                  <CheckCircle2 size={12} />
+                  Official Admin Photos ({club.gallery.length})
+                </span>
+              ) : (
+                <span style={{
+                  fontSize: '0.72rem',
+                  fontWeight: 600,
+                  color: '#6B6B66',
+                  background: '#FAF9F6',
+                  border: '1px solid #E7E5DF',
+                  padding: '0.2rem 0.5rem',
+                  borderRadius: '9999px'
+                }}>
+                  Facility Preview
+                </span>
+              )}
+            </div>
+            <p style={{ margin: 0, fontSize: '0.85rem', color: '#6B6B66' }}>
+              {hasAdminGallery
+                ? `High-definition photographs and court views provided directly by ${club.name} administration.`
+                : `Photographs and visual tour of the courts, arenas, and hospitality spaces at ${club.name}.`}
+            </p>
+          </div>
+
+          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+            {isAdmin && (
+              <button
+                type="button"
+                onClick={() => {
+                  setUploadTarget('gallery');
+                  setShowUploadModal(true);
+                }}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.4rem',
+                  padding: '0.5rem 1rem',
+                  background: '#1F5C46',
+                  color: '#FFFFFF',
+                  border: 'none',
+                  borderRadius: '6px',
+                  fontSize: '0.85rem',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  boxShadow: '0 2px 4px rgba(31, 92, 70, 0.15)'
+                }}
+              >
+                <Plus size={15} />
+                <span>Upload Club Photos</span>
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Gallery Grid */}
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
+          gap: '1rem',
+        }}>
+          {displayGallery.map((img, idx) => (
+            <div
+              key={img.id || idx}
+              onClick={() => handleOpenLightbox(idx)}
+              style={{
+                position: 'relative',
+                height: '210px',
+                borderRadius: '10px',
+                overflow: 'hidden',
+                border: '1px solid #E7E5DF',
+                background: '#FAF9F6',
+                cursor: 'pointer',
+                transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                boxShadow: '0 2px 6px rgba(0,0,0,0.04)'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = 'translateY(-3px)';
+                e.currentTarget.style.boxShadow = '0 8px 20px rgba(0,0,0,0.1)';
+                const imageEl = e.currentTarget.querySelector('img');
+                if (imageEl) imageEl.style.transform = 'scale(1.05)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = 'translateY(0)';
+                e.currentTarget.style.boxShadow = '0 2px 6px rgba(0,0,0,0.04)';
+                const imageEl = e.currentTarget.querySelector('img');
+                if (imageEl) imageEl.style.transform = 'scale(1)';
+              }}
+            >
+              <img
+                src={img.image_url}
+                alt={img.caption || `${club.name} Photo ${idx + 1}`}
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  objectFit: 'cover',
+                  transition: 'transform 0.35s ease',
+                }}
+              />
+
+              {/* Top Tag & Admin Delete Button */}
+              <div style={{
+                position: 'absolute',
+                top: '0.6rem',
+                left: '0.6rem',
+                right: '0.6rem',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                pointerEvents: 'none'
+              }}>
+                <span style={{
+                  fontSize: '0.68rem',
+                  fontWeight: 700,
+                  color: '#FFFFFF',
+                  background: 'rgba(15, 23, 42, 0.65)',
+                  backdropFilter: 'blur(4px)',
+                  padding: '0.2rem 0.5rem',
+                  borderRadius: '4px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.25rem'
+                }}>
+                  <Camera size={11} />
+                  <span>{hasAdminGallery ? 'Official Photo' : `Facility ${idx + 1}`}</span>
+                </span>
+
+                {isAdmin && img.club_id && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDeletePhoto(img.id);
+                    }}
+                    title="Delete Photo"
+                    style={{
+                      pointerEvents: 'auto',
+                      background: 'rgba(220, 38, 38, 0.85)',
+                      backdropFilter: 'blur(4px)',
+                      color: '#FFFFFF',
+                      border: 'none',
+                      borderRadius: '50%',
+                      width: '26px',
+                      height: '26px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      cursor: 'pointer',
+                      transition: 'background 0.15s ease'
+                    }}
+                  >
+                    <Trash2 size={13} />
+                  </button>
+                )}
+              </div>
+
+              {/* Bottom Gradient Caption Bar */}
+              <div style={{
+                position: 'absolute',
+                bottom: 0,
+                insetInline: 0,
+                background: 'linear-gradient(transparent 0%, rgba(15, 23, 42, 0.85) 100%)',
+                padding: '1.25rem 0.85rem 0.65rem',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'flex-end',
+                color: '#FFFFFF'
+              }}>
+                <div style={{
+                  fontSize: '0.8rem',
+                  fontWeight: 600,
+                  textShadow: '0 1px 3px rgba(0,0,0,0.8)',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                  paddingRight: '0.5rem'
+                }}>
+                  {img.caption || `${club.name} Court & Facility`}
+                </div>
+                <span style={{
+                  fontSize: '0.7rem',
+                  opacity: 0.85,
+                  fontWeight: 500,
+                  whiteSpace: 'nowrap'
+                }}>
+                  Enlarge ↗
+                </span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
+  // Fullscreen Lightbox Modal
+  const renderLightboxModal = () => {
+    if (lightboxIndex === null || !displayGallery[lightboxIndex]) return null;
+    return (
+      <div
+        onClick={handleCloseLightbox}
+        style={{
+          position: 'fixed',
+          inset: 0,
+          zIndex: 10000,
+          background: 'rgba(15, 23, 42, 0.94)',
+          backdropFilter: 'blur(8px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '1.5rem',
+        }}
+      >
+        <div
+          onClick={(e) => e.stopPropagation()}
+          style={{
+            position: 'relative',
+            maxWidth: '1050px',
+            width: '100%',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+          }}
+        >
+          {/* Top Toolbar */}
+          <div style={{
+            width: '100%',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            color: '#FFFFFF',
+            marginBottom: '0.75rem',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+              <Camera size={18} color="#34D399" />
+              <span style={{ fontSize: '0.9rem', fontWeight: 600 }}>
+                {club.name} • Photo {lightboxIndex + 1} of {displayGallery.length}
+              </span>
+              {hasAdminGallery && (
+                <span style={{
+                  fontSize: '0.7rem',
+                  background: 'rgba(16, 185, 129, 0.2)',
+                  color: '#34D399',
+                  border: '1px solid rgba(16, 185, 129, 0.4)',
+                  padding: '0.15rem 0.5rem',
+                  borderRadius: '4px',
+                  fontWeight: 600,
+                }}>
+                  ✓ Admin Upload
+                </span>
+              )}
+            </div>
+
+            <button
+              type="button"
+              onClick={handleCloseLightbox}
+              style={{
+                background: 'rgba(255,255,255,0.15)',
+                border: 'none',
+                borderRadius: '50%',
+                width: '36px',
+                height: '36px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#FFFFFF',
+                cursor: 'pointer',
+                fontSize: '1.1rem',
+              }}
+            >
+              ✕
+            </button>
+          </div>
+
+          {/* Main Image with Navigation Arrows */}
+          <div style={{ position: 'relative', width: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+            {displayGallery.length > 1 && (
+              <button
+                type="button"
+                onClick={handlePrevLightbox}
+                title="Previous Photo (Left Arrow)"
+                style={{
+                  position: 'absolute',
+                  left: '10px',
+                  zIndex: 10,
+                  background: 'rgba(15, 23, 42, 0.8)',
+                  border: '1px solid rgba(255,255,255,0.25)',
+                  borderRadius: '50%',
+                  width: '44px',
+                  height: '44px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#FFFFFF',
+                  cursor: 'pointer',
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
+                }}
+              >
+                <ChevronLeft size={24} />
+              </button>
+            )}
+
+            <img
+              src={displayGallery[lightboxIndex].image_url}
+              alt={displayGallery[lightboxIndex].caption || `${club.name} Photo`}
+              style={{
+                maxWidth: '100%',
+                maxHeight: '75vh',
+                objectFit: 'contain',
+                borderRadius: '8px',
+                boxShadow: '0 20px 40px -5px rgba(0,0,0,0.6)',
+              }}
+            />
+
+            {displayGallery.length > 1 && (
+              <button
+                type="button"
+                onClick={handleNextLightbox}
+                title="Next Photo (Right Arrow)"
+                style={{
+                  position: 'absolute',
+                  right: '10px',
+                  zIndex: 10,
+                  background: 'rgba(15, 23, 42, 0.8)',
+                  border: '1px solid rgba(255,255,255,0.25)',
+                  borderRadius: '50%',
+                  width: '44px',
+                  height: '44px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#FFFFFF',
+                  cursor: 'pointer',
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
+                }}
+              >
+                <ChevronRight size={24} />
+              </button>
+            )}
+          </div>
+
+          {/* Bottom Caption */}
+          {displayGallery[lightboxIndex].caption && (
+            <div style={{
+              marginTop: '1rem',
+              color: '#F1F5F9',
+              fontSize: '0.95rem',
+              fontWeight: 500,
+              textAlign: 'center',
+              maxWidth: '800px',
+              background: 'rgba(0,0,0,0.5)',
+              padding: '0.45rem 1.25rem',
+              borderRadius: '6px',
+            }}>
+              {displayGallery[lightboxIndex].caption}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  // Admin Photo Upload Modal
+  const renderUploadModal = () => {
+    if (!showUploadModal) return null;
+    return (
+      <div
+        style={{
+          position: 'fixed',
+          inset: 0,
+          zIndex: 10000,
+          background: 'rgba(15, 23, 42, 0.7)',
+          backdropFilter: 'blur(5px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '1rem',
+        }}
+      >
+        <div
+          style={{
+            background: '#FFFFFF',
+            borderRadius: '12px',
+            maxWidth: '520px',
+            width: '100%',
+            padding: '1.75rem',
+            boxShadow: '0 20px 25px -5px rgba(0,0,0,0.15)',
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <Camera size={20} color="#1F5C46" />
+              <h3 style={{ fontSize: '1.2rem', fontWeight: 700, color: '#0f172a', margin: 0 }}>
+                {uploadTarget === 'cover' ? 'Update Club Cover Photo' : uploadTarget === 'logo' ? 'Update Club Logo' : 'Upload Photos to Club Gallery'}
+              </h3>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setShowUploadModal(false);
+                setSelectedUploadFiles([]);
+                setUploadPhotoUrl('');
+              }}
+              style={{ background: 'none', border: 'none', fontSize: '1.25rem', color: '#94a3b8', cursor: 'pointer' }}
+            >
+              ✕
+            </button>
+          </div>
+
+          <form onSubmit={handleSaveUpload}>
+            {/* Target Selector */}
+            <div style={{ marginBottom: '1rem' }}>
+              <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#334155', marginBottom: '0.35rem' }}>
+                Photo Destination
+              </label>
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                {[
+                  { id: 'gallery', label: 'Club Gallery' },
+                  { id: 'cover', label: 'Cover Banner' },
+                  { id: 'logo', label: 'Club Logo' },
+                ].map((tgt) => (
+                  <button
+                    key={tgt.id}
+                    type="button"
+                    onClick={() => setUploadTarget(tgt.id)}
+                    style={{
+                      flex: 1,
+                      padding: '0.45rem',
+                      borderRadius: '6px',
+                      border: '1px solid',
+                      borderColor: uploadTarget === tgt.id ? '#1F5C46' : '#cbd5e1',
+                      background: uploadTarget === tgt.id ? '#F0FDF4' : '#ffffff',
+                      color: uploadTarget === tgt.id ? '#1F5C46' : '#64748b',
+                      fontSize: '0.8rem',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    {tgt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* File input */}
+            <div style={{ marginBottom: '1rem' }}>
+              <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#334155', marginBottom: '0.35rem' }}>
+                Select Image File from Device
+              </label>
+              <input
+                type="file"
+                accept="image/*"
+                multiple={uploadTarget === 'gallery'}
+                ref={uploadFileInputRef}
+                onChange={handleFileChange}
+                style={{
+                  width: '100%',
+                  padding: '0.55rem',
+                  border: '1px dashed #cbd5e1',
+                  borderRadius: '6px',
+                  fontSize: '0.85rem',
+                  cursor: 'pointer',
+                }}
+              />
+            </div>
+
+            {/* Or URL input */}
+            <div style={{ marginBottom: '1rem' }}>
+              <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#334155', marginBottom: '0.35rem' }}>
+                Or Paste Image Web URL
+              </label>
+              <input
+                type="url"
+                placeholder="https://images.unsplash.com/..."
+                value={uploadPhotoUrl}
+                onChange={(e) => setUploadPhotoUrl(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '0.55rem 0.75rem',
+                  border: '1px solid #cbd5e1',
+                  borderRadius: '6px',
+                  fontSize: '0.85rem',
+                }}
+              />
+            </div>
+
+            {/* Caption */}
+            {uploadTarget === 'gallery' && (
+              <div style={{ marginBottom: '1.25rem' }}>
+                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#334155', marginBottom: '0.35rem' }}>
+                  Caption / Description
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. Centre Championship Glass Court with Floodlights"
+                  value={uploadPhotoCaption}
+                  onChange={(e) => setUploadPhotoCaption(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '0.55rem 0.75rem',
+                    border: '1px solid #cbd5e1',
+                    borderRadius: '6px',
+                    fontSize: '0.85rem',
+                  }}
+                />
+              </div>
+            )}
+
+            {/* Previews if any */}
+            {selectedUploadFiles.length > 0 && (
+              <div style={{ marginBottom: '1.25rem' }}>
+                <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#64748b', display: 'block', marginBottom: '0.4rem' }}>
+                  Selected Image ({selectedUploadFiles.length}):
+                </span>
+                <div style={{ display: 'flex', gap: '0.5rem', overflowX: 'auto', paddingBottom: '0.5rem' }}>
+                  {selectedUploadFiles.map((f) => (
+                    <div key={f.id} style={{ position: 'relative', width: '70px', height: '55px', borderRadius: '4px', overflow: 'hidden', flexShrink: 0 }}>
+                      <img src={f.dataUrl} alt={f.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      <button
+                        type="button"
+                        onClick={() => setSelectedUploadFiles((prev) => prev.filter((p) => p.id !== f.id))}
+                        style={{
+                          position: 'absolute', top: 2, right: 2, background: 'rgba(0,0,0,0.6)',
+                          color: '#fff', border: 'none', borderRadius: '50%', width: '16px', height: '16px',
+                          fontSize: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer'
+                        }}
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowUploadModal(false);
+                  setSelectedUploadFiles([]);
+                  setUploadPhotoUrl('');
+                }}
+                style={{
+                  padding: '0.55rem 1rem',
+                  background: '#ffffff',
+                  border: '1px solid #cbd5e1',
+                  borderRadius: '6px',
+                  fontSize: '0.85rem',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={uploadPhotoLoading}
+                style={{
+                  padding: '0.55rem 1.25rem',
+                  background: '#1F5C46',
+                  color: '#ffffff',
+                  border: 'none',
+                  borderRadius: '6px',
+                  fontSize: '0.85rem',
+                  fontWeight: 600,
+                  cursor: uploadPhotoLoading ? 'not-allowed' : 'pointer',
+                  opacity: uploadPhotoLoading ? 0.7 : 1,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.4rem',
+                }}
+              >
+                <Upload size={14} />
+                <span>{uploadPhotoLoading ? 'Saving...' : 'Save Photo'}</span>
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    );
+  };
 
   // ═════════════════════════════════════════════════════════════════════════════
   // VIEW 1: MEMBER ACTIVE CLUB PORTAL (When User IS a Member)
@@ -905,30 +1666,90 @@ export default function ClubDetailsPage() {
           </span>
         </div>
 
-        {/* ─── Club Member Workspace Header ─── */}
+        {/* ─── Club Member Hero Cover & Workspace Header ─── */}
         <div style={{ maxWidth: '1200px', margin: '1rem auto 0', padding: '0 1.5rem' }}>
+          {/* Hero Cover Banner */}
           <div style={{
-            background: '#FFFFFF', border: '1px solid #E7E5DF', borderRadius: '12px',
+            position: 'relative', height: '220px', borderRadius: '12px 12px 0 0',
+            overflow: 'hidden', background: club.brand_color || '#1F5C46',
+            border: '1px solid #E7E5DF', borderBottom: 'none'
+          }}>
+            {effectiveCoverUrl ? (
+              <img src={effectiveCoverUrl} alt={club.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            ) : (
+              <div style={{
+                width: '100%', height: '100%',
+                background: `linear-gradient(135deg, ${club.brand_color || '#1F5C46'} 0%, #003624 100%)`,
+                display: 'flex', alignItems: 'center', justifyContent: 'center'
+              }}>
+                <Trophy size={54} color="rgba(255,255,255,0.15)" />
+              </div>
+            )}
+            {isAdmin && (
+              <button
+                type="button"
+                onClick={() => {
+                  setUploadTarget('cover');
+                  setShowUploadModal(true);
+                }}
+                style={{
+                  position: 'absolute', top: '1rem', right: '1rem',
+                  background: 'rgba(15, 23, 42, 0.75)', backdropFilter: 'blur(4px)',
+                  color: '#FFFFFF', border: '1px solid rgba(255,255,255,0.2)',
+                  borderRadius: '6px', padding: '0.4rem 0.8rem', fontSize: '0.78rem',
+                  fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.4rem',
+                  cursor: 'pointer'
+                }}
+              >
+                <Camera size={14} />
+                <span>Change Cover</span>
+              </button>
+            )}
+          </div>
+
+          <div style={{
+            background: '#FFFFFF', border: '1px solid #E7E5DF', borderRadius: '0 0 12px 12px',
             padding: '1.5rem 2rem', display: 'flex', flexDirection: 'column', gap: '1.25rem',
             marginBottom: '1.5rem'
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
               <div style={{ display: 'flex', gap: '1.25rem', alignItems: 'center' }}>
-                {club.logo_url ? (
-                  <img src={club.logo_url} alt={club.name} style={{
-                    width: '64px', height: '64px', borderRadius: '12px',
-                    objectFit: 'cover', border: '2px solid #FFFFFF',
-                    boxShadow: '0 2px 8px rgba(0,0,0,0.08)'
-                  }} />
-                ) : (
-                  <div style={{
-                    width: '64px', height: '64px', borderRadius: '12px',
-                    background: '#1F5C46', color: '#FFFFFF', display: 'flex',
-                    alignItems: 'center', justifyContent: 'center', fontSize: '1.6rem', fontWeight: 800
-                  }}>
-                    {club.name?.charAt(0) || 'C'}
-                  </div>
-                )}
+                <div style={{ position: 'relative' }}>
+                  {club.logo_url ? (
+                    <img src={club.logo_url} alt={club.name} style={{
+                      width: '64px', height: '64px', borderRadius: '12px',
+                      objectFit: 'cover', border: '2px solid #FFFFFF',
+                      boxShadow: '0 2px 8px rgba(0,0,0,0.08)'
+                    }} />
+                  ) : (
+                    <div style={{
+                      width: '64px', height: '64px', borderRadius: '12px',
+                      background: '#1F5C46', color: '#FFFFFF', display: 'flex',
+                      alignItems: 'center', justifyContent: 'center', fontSize: '1.6rem', fontWeight: 800
+                    }}>
+                      {club.name?.charAt(0) || 'C'}
+                    </div>
+                  )}
+                  {isAdmin && (
+                    <button
+                      type="button"
+                      title="Update Club Logo"
+                      onClick={() => {
+                        setUploadTarget('logo');
+                        setShowUploadModal(true);
+                      }}
+                      style={{
+                        position: 'absolute', bottom: -4, right: -4,
+                        background: '#1F5C46', color: '#FFFFFF', border: '1.5px solid #FFFFFF',
+                        borderRadius: '50%', width: '22px', height: '22px',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        cursor: 'pointer', boxShadow: '0 2px 4px rgba(0,0,0,0.15)'
+                      }}
+                    >
+                      <Camera size={11} />
+                    </button>
+                  )}
+                </div>
 
                 <div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
@@ -1023,6 +1844,7 @@ export default function ClubDetailsPage() {
                 {[
                   { id: 'courts', title: 'Courts & Availability', desc: `${club.courts?.length || 0} courts ready for play`, icon: Trophy, btn: 'Book Slot' },
                   { id: 'bookings', title: 'My Bookings', desc: 'View and manage your reservations', icon: Calendar, btn: 'View Schedule' },
+                  { id: 'gallery', title: 'Club Photos', desc: `${displayGallery.length} official facility photos`, icon: Camera, btn: 'View Gallery' },
                   { id: 'pos', title: 'POS', desc: 'Club counter & bar point-of-sale', icon: Coffee, btn: 'Open POS' },
                   { id: 'shop', title: 'Shop', desc: 'Merchandise & athletic equipment', icon: ShoppingBag, btn: 'Open Shop' },
                   { id: 'orders', title: 'Orders', desc: 'My receipts and order history', icon: Warehouse, btn: 'View Orders' },
@@ -1110,6 +1932,9 @@ export default function ClubDetailsPage() {
                   ))}
                 </div>
               </div>
+
+              {/* Club Images & Facility Gallery */}
+              {renderClubGallery(true)}
             </div>
           )}
 
@@ -1495,7 +2320,18 @@ export default function ClubDetailsPage() {
               </div>
             </div>
           )}
+
+          {/* ─── TAB 7: GALLERY ─── */}
+          {activeTab === 'gallery' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+              {renderClubGallery(true)}
+            </div>
+          )}
         </div>
+
+        {/* Fullscreen Lightbox & Admin Photo Upload Modals */}
+        {renderLightboxModal()}
+        {renderUploadModal()}
       </div>
     );
   }
@@ -1534,8 +2370,8 @@ export default function ClubDetailsPage() {
           overflow: 'hidden', background: club.brand_color || '#1F5C46',
           border: '1px solid #E7E5DF', borderBottom: 'none'
         }}>
-          {club.cover_url ? (
-            <img src={club.cover_url} alt={club.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          {effectiveCoverUrl ? (
+            <img src={effectiveCoverUrl} alt={club.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
           ) : (
             <div style={{
               width: '100%', height: '100%',
@@ -1544,6 +2380,26 @@ export default function ClubDetailsPage() {
             }}>
               <Trophy size={64} color="rgba(255,255,255,0.15)" />
             </div>
+          )}
+          {isAdmin && (
+            <button
+              type="button"
+              onClick={() => {
+                setUploadTarget('cover');
+                setShowUploadModal(true);
+              }}
+              style={{
+                position: 'absolute', top: '1rem', right: '1rem',
+                background: 'rgba(15, 23, 42, 0.75)', backdropFilter: 'blur(4px)',
+                color: '#FFFFFF', border: '1px solid rgba(255,255,255,0.2)',
+                borderRadius: '6px', padding: '0.4rem 0.8rem', fontSize: '0.78rem',
+                fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.4rem',
+                cursor: 'pointer'
+              }}
+            >
+              <Camera size={14} />
+              <span>Change Cover</span>
+            </button>
           )}
         </div>
 
@@ -1555,21 +2411,42 @@ export default function ClubDetailsPage() {
         }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem' }}>
             <div style={{ display: 'flex', gap: '1.25rem', alignItems: 'center' }}>
-              {club.logo_url ? (
-                <img src={club.logo_url} alt={club.name} style={{
-                  width: '76px', height: '76px', borderRadius: '12px',
-                  objectFit: 'cover', border: '2px solid #FFFFFF',
-                  boxShadow: '0 2px 8px rgba(0,0,0,0.08)'
-                }} />
-              ) : (
-                <div style={{
-                  width: '76px', height: '76px', borderRadius: '12px',
-                  background: '#1F5C46', color: '#FFFFFF', display: 'flex',
-                  alignItems: 'center', justifyContent: 'center', fontSize: '1.75rem', fontWeight: 800
-                }}>
-                  {club.name?.charAt(0) || 'C'}
-                </div>
-              )}
+              <div style={{ position: 'relative' }}>
+                {club.logo_url ? (
+                  <img src={club.logo_url} alt={club.name} style={{
+                    width: '76px', height: '76px', borderRadius: '12px',
+                    objectFit: 'cover', border: '2px solid #FFFFFF',
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.08)'
+                  }} />
+                ) : (
+                  <div style={{
+                    width: '76px', height: '76px', borderRadius: '12px',
+                    background: '#1F5C46', color: '#FFFFFF', display: 'flex',
+                    alignItems: 'center', justifyContent: 'center', fontSize: '1.75rem', fontWeight: 800
+                  }}>
+                    {club.name?.charAt(0) || 'C'}
+                  </div>
+                )}
+                {isAdmin && (
+                  <button
+                    type="button"
+                    title="Update Club Logo"
+                    onClick={() => {
+                      setUploadTarget('logo');
+                      setShowUploadModal(true);
+                    }}
+                    style={{
+                      position: 'absolute', bottom: -4, right: -4,
+                      background: '#1F5C46', color: '#FFFFFF', border: '1.5px solid #FFFFFF',
+                      borderRadius: '50%', width: '24px', height: '24px',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      cursor: 'pointer', boxShadow: '0 2px 4px rgba(0,0,0,0.15)'
+                    }}
+                  >
+                    <Camera size={12} />
+                  </button>
+                )}
+              </div>
 
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
@@ -1643,93 +2520,62 @@ export default function ClubDetailsPage() {
           </div>
         )}
 
-        {/* Facilities + Gallery Grid */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1.5rem', marginBottom: '1.5rem' }}>
-          <div style={{ background: '#FFFFFF', border: '1px solid #E7E5DF', borderRadius: '10px', padding: '1.5rem' }}>
-            <h2 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#1A1A18', margin: '0 0 1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <Trophy size={18} color="#1F5C46" />
-              <span>Available Sports & Facilities</span>
-            </h2>
+        {/* Facilities & Sports Strip */}
+        <div style={{
+          background: '#FFFFFF', border: '1px solid #E7E5DF', borderRadius: '12px',
+          padding: '1.5rem', marginBottom: '1.5rem'
+        }}>
+          <h2 style={{ fontSize: '1.15rem', fontWeight: 800, color: '#1A1A18', margin: '0 0 1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <Trophy size={18} color="#1F5C46" />
+            <span>Available Sports & Facilities</span>
+          </h2>
 
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1rem' }}>
             {club.sports?.length > 0 ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                {club.sports.map(s => (
-                  <div key={s.id} style={{
-                    display: 'flex', alignItems: 'center', gap: '0.75rem',
-                    padding: '0.75rem', background: '#FAF9F6', borderRadius: '6px',
-                    border: '1px solid #E7E5DF'
+              club.sports.map(s => (
+                <div key={s.id} style={{
+                  display: 'flex', alignItems: 'center', gap: '0.75rem',
+                  padding: '0.75rem 1rem', background: '#FAF9F6', borderRadius: '8px',
+                  border: '1px solid #E7E5DF'
+                }}>
+                  <div style={{
+                    width: '36px', height: '36px', borderRadius: '8px',
+                    background: '#EBF3F0', display: 'flex', alignItems: 'center', justifyContent: 'center'
                   }}>
-                    <div style={{
-                      width: '32px', height: '32px', borderRadius: '6px',
-                      background: '#EBF3F0', display: 'flex', alignItems: 'center', justifyContent: 'center'
-                    }}>
-                      <Trophy size={16} color="#1F5C46" />
-                    </div>
-                    <div>
-                      <div style={{ fontWeight: 600, fontSize: '0.9rem', color: '#1A1A18' }}>{s.name}</div>
-                      {s.description && <div style={{ fontSize: '0.75rem', color: '#6B6B66' }}>{s.description}</div>}
-                    </div>
+                    <Trophy size={18} color="#1F5C46" />
                   </div>
-                ))}
-              </div>
+                  <div>
+                    <div style={{ fontWeight: 700, fontSize: '0.9rem', color: '#1A1A18' }}>{s.name}</div>
+                    {s.description && <div style={{ fontSize: '0.75rem', color: '#6B6B66' }}>{s.description}</div>}
+                  </div>
+                </div>
+              ))
             ) : (
               <p style={{ color: '#6B6B66', fontSize: '0.85rem' }}>Multiple racquet and court sports supported.</p>
             )}
+          </div>
 
-            {club.courts?.length > 0 && (
-              <div style={{ marginTop: '1.25rem', paddingTop: '1rem', borderTop: '1px solid #E7E5DF' }}>
-                <div style={{ fontSize: '0.8rem', fontWeight: 600, color: '#6B6B66', textTransform: 'uppercase', marginBottom: '0.5rem' }}>
-                  Registered Courts ({club.courts.length})
-                </div>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
-                  {club.courts.map(c => (
-                    <span key={c.id} style={{
-                      fontSize: '0.75rem', background: '#FFFFFF', border: '1px solid #E7E5DF',
-                      padding: '0.25rem 0.6rem', borderRadius: '4px', color: '#1A1A18'
-                    }}>
-                      {c.name} {c.surface ? `(${c.surface})` : ''}
-                    </span>
-                  ))}
-                </div>
+          {club.courts?.length > 0 && (
+            <div style={{ marginTop: '1.25rem', paddingTop: '1rem', borderTop: '1px solid #E7E5DF' }}>
+              <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#6B6B66', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.5rem' }}>
+                Active Match Arenas & Courts ({club.courts.length})
               </div>
-            )}
-          </div>
-
-          <div style={{ background: '#FFFFFF', border: '1px solid #E7E5DF', borderRadius: '10px', padding: '1.5rem' }}>
-            <h2 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#1A1A18', margin: '0 0 1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <Sparkles size={18} color="#1F5C46" />
-              <span>Facility Showcase</span>
-            </h2>
-
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.6rem' }}>
-              {displayGallery.slice(0, 6).map((img, idx) => (
-                <div
-                  key={img.id || idx}
-                  style={{
-                    height: '110px', borderRadius: '6px', overflow: 'hidden',
-                    position: 'relative', border: '1px solid #E7E5DF', background: '#FAF9F6'
-                  }}
-                >
-                  <img
-                    src={img.image_url}
-                    alt={img.caption || `Facility ${idx + 1}`}
-                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                  />
-                  {img.caption && (
-                    <div style={{
-                      position: 'absolute', bottom: 0, insetInline: 0,
-                      background: 'linear-gradient(transparent, rgba(0,0,0,0.75))',
-                      color: '#FFFFFF', fontSize: '0.65rem', padding: '0.2rem 0.4rem',
-                      whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'
-                    }}>
-                      {img.caption}
-                    </div>
-                  )}
-                </div>
-              ))}
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+                {club.courts.map(c => (
+                  <span key={c.id} style={{
+                    fontSize: '0.78rem', background: '#FAF9F6', border: '1px solid #E7E5DF',
+                    padding: '0.3rem 0.7rem', borderRadius: '6px', color: '#1A1A18', fontWeight: 500
+                  }}>
+                    {c.name} {c.surface ? `(${c.surface})` : ''}
+                  </span>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
         </div>
+
+        {/* Club Gallery & Admin Photography Showcase */}
+        {renderClubGallery(false)}
 
         {/* Public Plans Pricing Table */}
         <div style={{
@@ -1819,6 +2665,10 @@ export default function ClubDetailsPage() {
           )}
         </div>
       </div>
+
+      {/* Fullscreen Lightbox & Admin Photo Upload Modals */}
+      {renderLightboxModal()}
+      {renderUploadModal()}
     </div>
   );
 }
