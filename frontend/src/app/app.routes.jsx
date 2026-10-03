@@ -24,10 +24,8 @@ const BarPOS = lazy(() => import('../features/bar/pages/BarPOS.jsx'));
 const InventoryList = lazy(() => import('../features/inventory/pages/InventoryList.jsx'));
 const OrdersList = lazy(() => import('../features/orders/pages/OrdersList.jsx'));
 const LeadsList = lazy(() => import('../features/leads/pages/LeadsList.jsx'));
-const FinanceDashboard = lazy(() => import('../features/finance/pages/FinanceDashboard.jsx'));
 const StaffManagement = lazy(() => import('../features/hr/pages/StaffManagement.jsx'));
 const ReportsDashboard = lazy(() => import('../features/reports/pages/ReportsDashboard.jsx'));
-const ClubsList = lazy(() => import('../features/clubs/pages/ClubsList.jsx'));
 const ClubDetailsPage = lazy(() => import('../features/clubs/pages/ClubDetailsPage.jsx'));
 
 import RouteLoader from '../shared/components/RouteLoader.jsx';
@@ -132,21 +130,13 @@ export const router = createBrowserRouter([
         element: <UserDashboardRoute />,
       },
 
-      // User Profile & Store Services (Accessible to all members and staff)
-      {
-        path: '/inventory',
-        element: withSuspense(InventoryList),
-      },
-      {
-        path: '/orders',
-        element: withSuspense(OrdersList),
-      },
+      // User Profile (Accessible to all authenticated users)
       {
         path: '/profile',
         element: withSuspense(Profile),
       },
 
-      // Front Desk & Staff Management Operations (Hidden and blocked from normal users)
+      // Front Desk & Court Operations (Owner, Manager, Admin, Front Desk)
       {
         element: <RoleGuard allowedRoles={['owner', 'manager', 'admin', 'front_desk']} />,
         children: [
@@ -163,10 +153,6 @@ export const router = createBrowserRouter([
             element: withSuspense(CourtsManagement),
           },
           {
-            path: '/plans',
-            element: withSuspense(MembershipPlans),
-          },
-          {
             path: '/social-sessions',
             element: withSuspense(SocialSessionsList),
           },
@@ -181,9 +167,31 @@ export const router = createBrowserRouter([
         ],
       },
 
-      // Shop & Bar Staff Protected Operations (Bar POS restricted to staff)
+      // Pro Shop Inventory Operations (Owner, Manager, Admin, Shop Staff)
       {
-        element: <RoleGuard allowedRoles={['owner', 'manager', 'admin', 'shop_staff', 'bar_staff']} />,
+        element: <RoleGuard allowedRoles={['owner', 'manager', 'admin', 'shop_staff']} />,
+        children: [
+          {
+            path: '/inventory',
+            element: withSuspense(InventoryList),
+          },
+        ],
+      },
+
+      // Pro Shop Orders (Owner, Manager, Admin, Shop Staff, Front Desk)
+      {
+        element: <RoleGuard allowedRoles={['owner', 'manager', 'admin', 'shop_staff', 'front_desk']} />,
+        children: [
+          {
+            path: '/orders',
+            element: withSuspense(OrdersList),
+          },
+        ],
+      },
+
+      // Bar & Cafe Operations (Owner, Manager, Admin, Bar Staff, Kitchen, Front Desk)
+      {
+        element: <RoleGuard allowedRoles={['owner', 'manager', 'admin', 'bar_staff', 'kitchen', 'front_desk']} />,
         children: [
           {
             path: '/bar',
@@ -193,24 +201,16 @@ export const router = createBrowserRouter([
             path: '/pos',
             element: withSuspense(BarPOS),
           },
-          {
-            path: '/orders',
-            element: withSuspense(OrdersList),
-          },
         ],
       },
 
-      // Executive Manager & Owner Protected Operations (Hidden from staff & members)
+      // Executive Management: Plans, Staff HR & Reports (Owner, Manager, Admin)
       {
         element: <RoleGuard allowedRoles={['owner', 'manager', 'admin']} />,
         children: [
           {
-            path: '/clubs',
-            element: withSuspense(ClubsList),
-          },
-          {
-            path: '/finance',
-            element: withSuspense(FinanceDashboard),
+            path: '/plans',
+            element: withSuspense(MembershipPlans),
           },
           {
             path: '/hr',
