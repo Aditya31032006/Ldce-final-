@@ -229,6 +229,17 @@ export async function payAndSettleOrderController(req, res, next) {
   }
 }
 
+export async function cancelOrderController(req, res, next) {
+  try {
+    const { id } = req.params;
+    const { reason } = req.body || {};
+    const order = await barRepo.cancelOrder(req.user.id, req.clubId, id, reason);
+    return res.status(200).json({ success: true, message: 'Order cancelled successfully', data: order });
+  } catch (error) {
+    next(error);
+  }
+}
+
 export async function createRazorpayOrderController(req, res, next) {
   try {
     const { order_id, amount } = req.body;

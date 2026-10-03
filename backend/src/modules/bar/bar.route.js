@@ -18,6 +18,7 @@ import {
   updateKdsItemStatusController,
   billOrderController,
   payAndSettleOrderController,
+  cancelOrderController,
   createRazorpayOrderController,
   verifyRazorpayPaymentController,
   getTabsController,
@@ -46,6 +47,7 @@ router.get("/orders", getOrdersController);
 router.get("/orders/:id", getOrderByIdController);
 router.post("/orders", createBarOrderController);
 router.post("/orders/:id/items", addItemsToOrderController);
+router.post("/orders/:id/cancel", cancelOrderController);
 router.post("/orders/:id/bill", requireRole('owner', 'manager', 'front_desk', 'bar_staff'), billOrderController);
 router.post("/orders/:id/pay", payAndSettleOrderController);
 

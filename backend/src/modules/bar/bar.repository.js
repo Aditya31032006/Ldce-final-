@@ -258,6 +258,30 @@ export async function payAndSettleOrder(userId, clubId, orderId, paymentData) {
   });
 }
 
+export async function cancelOrder(userId, clubId, orderId, reason = null) {
+  return withTenantTransaction(userId, clubId, async (client) => {
+    // 1. Mark all order items as cancelled
+    await client.query(
+      "UPDATE app.bar_order_items SET kds_status = 'cancelled', updated_at = now() WHERE club_id = $1 AND order_id = $2",
+      [clubId, orderId]
+    );
+
+    // 2. Mark order as void (trigger trg_table automatically resets dining table status to available)
+    const res = await client.query(
+      `UPDATE app.bar_orders
+       SET status = 'void',
+           closed_at = now(),
+           notes = coalesce(notes || ' | ', '') || coalesce($3, 'Payment cancelled or failed'),
+           updated_at = now()
+       WHERE club_id = $1 AND id = $2
+       RETURNING *`,
+      [clubId, orderId, reason]
+    );
+
+    return res.rows[0];
+  });
+}
+
 export async function getMemberTabs(userId, clubId, status = 'open') {
   return withTenantTransaction(userId, clubId, async (client) => {
     const res = await client.query(queries.GET_MEMBER_TABS, [clubId, status]);

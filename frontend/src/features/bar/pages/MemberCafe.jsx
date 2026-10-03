@@ -231,6 +231,7 @@ export default function MemberCafe({ club, membership }) {
   const handlePayWithRazorpay = async () => {
     if (cart.length === 0) return;
     setSubmitting(true);
+    let createdOrder = null;
     try {
       const selectedTable = tables.find((t) => t.id === selectedTableId);
       const orderPayload = {
@@ -245,7 +246,7 @@ export default function MemberCafe({ club, membership }) {
         })),
       };
 
-      const createdOrder = await barApi.createOrder(orderPayload, clubId);
+      createdOrder = await barApi.createOrder(orderPayload, clubId);
 
       // Create Razorpay order
       const rzpOrder = await barApi.createRazorpayOrder(
@@ -286,12 +287,34 @@ export default function MemberCafe({ club, membership }) {
           setCart([]);
           setIsCartOpen(false);
           loadMyOrders();
+          loadData();
           showToast('Payment successful! Your order has been sent to the kitchen.', 'success');
+        },
+        onDismiss: async () => {
+          if (createdOrder?.id) {
+            try {
+              await barApi.cancelOrder(createdOrder.id, 'Payment cancelled by user', clubId);
+            } catch (e) {
+              console.error('Failed to cancel unpaid order:', e);
+            }
+          }
+          showToast('Payment cancelled. Order was not sent to kitchen.', 'error');
+          loadData();
+          loadMyOrders();
         },
       });
     } catch (err) {
       console.error('Member cafe checkout error:', err);
-      showToast(err.customMessage || 'Order failed. Please try again.', 'error');
+      if (createdOrder?.id) {
+        try {
+          await barApi.cancelOrder(createdOrder.id, err.message || 'Payment failed', clubId);
+        } catch (e) {
+          console.error('Failed to cancel order on error:', e);
+        }
+      }
+      showToast(err.customMessage || err.message || 'Payment failed. Order not placed.', 'error');
+      loadData();
+      loadMyOrders();
     } finally {
       setSubmitting(false);
     }
@@ -1195,10 +1218,11 @@ export default function MemberCafe({ club, membership }) {
               {myOrders.map((ord) => {
                 // Compute aggregate order stage from items
                 const items = ord.items || [];
+                const isVoid = ord.status === 'void';
+                const isUnpaid = ord.status === 'open' && !ord.tab_id;
                 const anyReady = items.some((i) => i.kds_status === 'ready');
                 const anyPrep = items.some((i) => i.kds_status === 'preparing');
                 const allServed = items.length > 0 && items.every((i) => i.kds_status === 'served');
-                const isPaidOrClosed = ord.status === 'billed' || ord.status === 'closed' || ord.status === 'settled';
 
                 let currentStage = 1; // 1: Placed, 2: Preparing, 3: Ready, 4: Served
                 if (allServed || ord.status === 'served') {
@@ -1218,6 +1242,7 @@ export default function MemberCafe({ club, membership }) {
                       border: '1px solid #E7E5DF',
                       padding: '1.5rem',
                       boxShadow: '0 4px 16px rgba(0,0,0,0.03)',
+                      opacity: isVoid ? 0.75 : 1,
                     }}
                   >
                     {/* Order Header */}
@@ -1234,7 +1259,7 @@ export default function MemberCafe({ club, membership }) {
                     >
                       <div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-                          <span style={{ fontSize: '1.15rem', fontWeight: 900, color: '#1F5C46' }}>
+                          <span style={{ fontSize: '1.15rem', fontWeight: 900, color: isVoid ? '#6B6B66' : '#1F5C46' }}>
                             Order #{ord.order_no}
                           </span>
                           <span
@@ -1243,12 +1268,22 @@ export default function MemberCafe({ club, membership }) {
                               fontWeight: 700,
                               padding: '0.2rem 0.55rem',
                               borderRadius: '4px',
-                              background: currentStage === 4 ? '#EBFDF5' : '#FEF3C7',
-                              color: currentStage === 4 ? '#047857' : '#D97706',
+                              background: isVoid ? '#FEF2F2' : isUnpaid ? '#FFFBEB' : currentStage === 4 ? '#EBFDF5' : '#FEF3C7',
+                              color: isVoid ? '#DC2626' : isUnpaid ? '#D97706' : currentStage === 4 ? '#047857' : '#D97706',
                               textTransform: 'uppercase',
                             }}
                           >
-                            {currentStage === 4 ? 'Served' : currentStage === 3 ? 'Ready for Pickup' : currentStage === 2 ? 'Cooking in Kitchen' : 'Order Placed'}
+                            {isVoid
+                              ? 'Payment Cancelled'
+                              : isUnpaid
+                              ? 'Payment Pending'
+                              : currentStage === 4
+                              ? 'Served'
+                              : currentStage === 3
+                              ? 'Ready for Pickup'
+                              : currentStage === 2
+                              ? 'Cooking in Kitchen'
+                              : 'Order Placed'}
                           </span>
                         </div>
 
@@ -1265,70 +1300,122 @@ export default function MemberCafe({ club, membership }) {
                         <div style={{ fontSize: '1.35rem', fontWeight: 900, color: '#1A1A18' }}>
                           ₹{Number(ord.total || 0).toFixed(2)}
                         </div>
-                        <div style={{ fontSize: '0.72rem', color: '#047857', fontWeight: 700 }}>
-                          {ord.tab_id ? 'Charged to Member Tab' : 'Paid Online'}
+                        <div style={{ fontSize: '0.72rem', color: isVoid ? '#DC2626' : '#047857', fontWeight: 700 }}>
+                          {isVoid
+                            ? 'Not Charged'
+                            : ord.tab_id
+                            ? 'Charged to Member Tab'
+                            : ord.status === 'paid'
+                            ? 'Paid Online'
+                            : 'Payment Pending'}
                         </div>
                       </div>
                     </div>
 
-                    {/* Visual Live Status Progress Tracker */}
-                    <div style={{ padding: '1.5rem 0', borderBottom: '1px solid #F4F2EC' }}>
-                      <div
-                        style={{
-                          display: 'grid',
-                          gridTemplateColumns: 'repeat(4, 1fr)',
-                          gap: '0.5rem',
-                          position: 'relative',
-                        }}
-                      >
-                        {[
-                          { step: 1, label: 'Order Placed', desc: 'Sent to cafe', icon: Clock },
-                          { step: 2, label: 'Kitchen Preparing', desc: 'Chefs cooking', icon: ChefHat },
-                          { step: 3, label: 'Ready', desc: ord.table_name ? 'Ready to serve' : 'Pickup at counter', icon: Sparkles },
-                          { step: 4, label: 'Served', desc: 'Enjoy your meal', icon: Utensils },
-                        ].map((st) => {
-                          const Icon = st.icon;
-                          const isDone = currentStage >= st.step;
-                          const isCurrent = currentStage === st.step;
+                    {/* Progress Tracker or Cancellation Banner */}
+                    <div style={{ padding: '1.25rem 0', borderBottom: '1px solid #F4F2EC' }}>
+                      {isVoid ? (
+                        <div
+                          style={{
+                            padding: '1rem',
+                            background: '#FEF2F2',
+                            borderRadius: '8px',
+                            border: '1px solid #FECACA',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.75rem',
+                            color: '#991B1B',
+                            fontSize: '0.82rem',
+                          }}
+                        >
+                          <AlertCircle size={20} color="#DC2626" />
+                          <div>
+                            <div style={{ fontWeight: 700 }}>Order Cancelled (Payment Not Completed)</div>
+                            <div style={{ fontSize: '0.75rem', color: '#B91C1C', marginTop: '0.15rem' }}>
+                              Payment was not completed or was cancelled. This order was NOT sent to the kitchen.
+                            </div>
+                          </div>
+                        </div>
+                      ) : isUnpaid ? (
+                        <div
+                          style={{
+                            padding: '1rem',
+                            background: '#FFFBEB',
+                            borderRadius: '8px',
+                            border: '1px solid #FDE68A',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.75rem',
+                            color: '#92400E',
+                            fontSize: '0.82rem',
+                          }}
+                        >
+                          <Clock size={20} color="#D97706" />
+                          <div>
+                            <div style={{ fontWeight: 700 }}>Awaiting Payment Confirmation</div>
+                            <div style={{ fontSize: '0.75rem', color: '#B45309', marginTop: '0.15rem' }}>
+                              Order will only be sent to the kitchen after payment is verified.
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <div
+                          style={{
+                            display: 'grid',
+                            gridTemplateColumns: 'repeat(4, 1fr)',
+                            gap: '0.5rem',
+                            position: 'relative',
+                          }}
+                        >
+                          {[
+                            { step: 1, label: 'Order Placed', desc: 'Sent to cafe', icon: Clock },
+                            { step: 2, label: 'Kitchen Preparing', desc: 'Chefs cooking', icon: ChefHat },
+                            { step: 3, label: 'Ready', desc: ord.table_name ? 'Ready to serve' : 'Pickup at counter', icon: Sparkles },
+                            { step: 4, label: 'Served', desc: 'Enjoy your meal', icon: Utensils },
+                          ].map((st) => {
+                            const Icon = st.icon;
+                            const isDone = currentStage >= st.step;
+                            const isCurrent = currentStage === st.step;
 
-                          return (
-                            <div
-                              key={st.step}
-                              style={{
-                                display: 'flex',
-                                flexDirection: 'column',
-                                alignItems: 'center',
-                                textAlign: 'center',
-                              }}
-                            >
+                            return (
                               <div
+                                key={st.step}
                                 style={{
-                                  width: '38px',
-                                  height: '38px',
-                                  borderRadius: '50%',
-                                  background: isDone ? '#1F5C46' : '#F4F2EC',
-                                  color: isDone ? '#FFFFFF' : '#A8A29E',
                                   display: 'flex',
+                                  flexDirection: 'column',
                                   alignItems: 'center',
-                                  justifyContent: 'center',
-                                  marginBottom: '0.5rem',
-                                  border: isCurrent ? '3px solid #A7F3D0' : 'none',
-                                  boxShadow: isCurrent ? '0 0 0 4px rgba(31,92,70,0.15)' : 'none',
-                                  transition: 'all 0.2s ease',
+                                  textAlign: 'center',
                                 }}
                               >
-                                {isDone && !isCurrent ? <Check size={18} /> : <Icon size={18} />}
+                                <div
+                                  style={{
+                                    width: '38px',
+                                    height: '38px',
+                                    borderRadius: '50%',
+                                    background: isDone ? '#1F5C46' : '#F4F2EC',
+                                    color: isDone ? '#FFFFFF' : '#A8A29E',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    marginBottom: '0.5rem',
+                                    border: isCurrent ? '3px solid #A7F3D0' : 'none',
+                                    boxShadow: isCurrent ? '0 0 0 4px rgba(31,92,70,0.15)' : 'none',
+                                    transition: 'all 0.2s ease',
+                                  }}
+                                >
+                                  {isDone && !isCurrent ? <Check size={18} /> : <Icon size={18} />}
+                                </div>
+                                <div style={{ fontSize: '0.8rem', fontWeight: isDone ? 700 : 500, color: isDone ? '#1A1A18' : '#6B6B66' }}>
+                                  {st.label}
+                                </div>
+                                <div style={{ fontSize: '0.7rem', color: '#6B6B66', marginTop: '0.15rem' }}>
+                                  {st.desc}
+                                </div>
                               </div>
-                              <div style={{ fontSize: '0.8rem', fontWeight: isDone ? 700 : 500, color: isDone ? '#1A1A18' : '#6B6B66' }}>
-                                {st.label}
-                              </div>
-                              <div style={{ fontSize: '0.7rem', color: '#6B6B66', marginTop: '0.15rem' }}>
-                                {st.desc}
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
 
                     {/* Ordered Items Breakdown */}

@@ -100,6 +100,12 @@ export const barApi = {
     return res.data.data;
   },
 
+  cancelOrder: async (orderId, reason = null, clubId) => {
+    const config = clubId ? { headers: { 'x-club-id': clubId } } : {};
+    const res = await apiClient.post(`/bar/orders/${orderId}/cancel`, { reason }, config);
+    return res.data.data;
+  },
+
   // Razorpay
   createRazorpayOrder: async (data, clubId) => {
     const config = clubId ? { headers: { 'x-club-id': clubId } } : {};

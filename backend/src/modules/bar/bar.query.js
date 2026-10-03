@@ -215,6 +215,14 @@ export const GET_KDS_ITEMS = `
     AND ($2::text IS NULL OR oi.station = $2::app.station_type)
     AND oi.kds_status IN ('new', 'preparing', 'ready')
     AND o.status <> 'void'
+    AND (
+      o.status = 'paid'
+      OR o.tab_id IS NOT NULL
+      OR EXISTS (
+        SELECT 1 FROM app.payments p
+        WHERE p.bar_order_id = o.id AND p.status = 'completed'
+      )
+    )
   ORDER BY oi.created_at ASC;
 `;
 
