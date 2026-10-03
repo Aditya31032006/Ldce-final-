@@ -18,8 +18,8 @@ import {
   Settings,
   LogOut,
   X,
-  ChevronDown,
 } from 'lucide-react';
+
 import useAuth from '../../../features/auth/hook/useAuth.js';
 
 /**
@@ -148,6 +148,7 @@ export default function Sidebar({ isOpen, onClose }) {
   const navigate = useNavigate();
 
   const userRole = (role || 'public').toLowerCase();
+  const isNormalUser = userRole === 'member' || userRole === 'public';
 
   // Find active club metadata
   const currentClub = clubs?.find((c) => c.id === clubId) || {
@@ -164,8 +165,16 @@ export default function Sidebar({ isOpen, onClose }) {
   // Filter sections and items based on current authenticated role
   const filteredSections = NAVIGATION_SECTIONS.map((section) => ({
     ...section,
-    items: section.items.filter((item) => item.roles.includes(userRole)),
+    items: section.items
+      .filter((item) => item.roles.includes(userRole))
+      .map((item) => {
+        if (item.label === 'Dashboard' && isNormalUser) {
+          return { ...item, path: '/user/dashboard' };
+        }
+        return item;
+      }),
   })).filter((section) => section.items.length > 0);
+
 
   return (
     <aside className={`cl-app-layout__sidebar ${isOpen ? 'cl-app-layout__sidebar--mobile-open' : ''}`}>

@@ -19,10 +19,12 @@ export default function Login() {
     loginWithGoogle,
     loading,
     error,
+    role,
     isAuthenticated,
     isProfileComplete,
     resetError,
   } = useAuth();
+
 
   const [showPassword, setShowPassword] = useState(false);
   const [clubs, setClubs] = useState([]);
@@ -70,11 +72,13 @@ export default function Login() {
       if (!isProfileComplete) {
         navigate('/setup-profile', { replace: true });
       } else {
-        const dest = location.state?.from?.pathname || '/dashboard';
+        const userRole = (role || 'public').toLowerCase();
+        const defaultDest = (userRole === 'member' || userRole === 'public') ? '/user/dashboard' : '/dashboard';
+        const dest = location.state?.from?.pathname || defaultDest;
         navigate(dest, { replace: true });
       }
     }
-  }, [isAuthenticated, isProfileComplete, navigate, location]);
+  }, [isAuthenticated, isProfileComplete, role, navigate, location]);
 
   useEffect(() => {
     return () => {
@@ -102,11 +106,14 @@ export default function Login() {
       if (result.requiresSetup) {
         navigate('/setup-profile', { replace: true });
       } else {
-        const dest = location.state?.from?.pathname || '/dashboard';
+        const userRole = (result.role || 'public').toLowerCase();
+        const defaultDest = (userRole === 'member' || userRole === 'public') ? '/user/dashboard' : '/dashboard';
+        const dest = location.state?.from?.pathname || defaultDest;
         navigate(dest, { replace: true });
       }
     }
   };
+
 
   return (
     <div className="cl-auth-page cl-auth-page--no-page-scroll">

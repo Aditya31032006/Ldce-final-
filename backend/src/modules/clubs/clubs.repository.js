@@ -1,5 +1,6 @@
 import * as queries from './clubs.query.js';
 import { withTenantTransaction } from '../../shared/utils/transaction.util.js';
+import { pool } from '../../config/database.js';
 
 export async function registerClub(userId, { name, slug, city, phone, email, timezone }) {
   // We use the owner role (superuser) or a public role to register since the club_app 
@@ -61,3 +62,59 @@ export async function updateClubSettings(userId, clubId, updates) {
     return res.rows[0];
   });
 }
+
+export async function getMyClubs(userId) {
+  const res = await pool.query(queries.GET_MY_CLUBS, [userId]);
+  return res.rows;
+}
+
+export async function getPublicClubs({ search = '', page = 1, limit = 9 }) {
+  const offset = (Math.max(1, parseInt(page, 10)) - 1) * parseInt(limit, 10);
+  const trimmedSearch = (search || '').trim();
+
+  const [clubsRes, countRes, sportsRes] = await Promise.all([
+    pool.query(queries.GET_PUBLIC_CLUBS, [trimmedSearch, limit, offset]),
+    pool.query(queries.COUNT_PUBLIC_CLUBS, [trimmedSearch]),
+    pool.query(queries.GET_DISTINCT_PUBLIC_SPORTS),
+  ]);
+
+  const total = parseInt(countRes.rows[0]?.total || 0, 10);
+  const totalPages = Math.ceil(total / limit);
+
+  return {
+    clubs: clubsRes.rows,
+    availableSports: sportsRes.rows.map((r) => r.name),
+    pagination: {
+      page: parseInt(page, 10),
+      limit: parseInt(limit, 10),
+      total,
+      totalPages,
+      hasMore: parseInt(page, 10) < totalPages,
+    },
+  };
+}
+
+export async function joinClub(userId, clubId) {
+  // Fetch user info for name, email, phone
+  const userRes = await pool.query('SELECT full_name, email, phone FROM app.users WHERE id = $1', [userId]);
+  if (!userRes.rows.length) {
+    throw new Error('User not found');
+  }
+
+  const u = userRes.rows[0];
+  const nameParts = (u.full_name || 'Member').trim().split(' ');
+  const firstName = nameParts[0] || 'Member';
+  const lastName = nameParts.slice(1).join(' ') || '';
+
+  const res = await pool.query(queries.JOIN_CLUB_AS_MEMBER, [
+    clubId,
+    userId,
+    firstName,
+    lastName,
+    u.email,
+    u.phone || null,
+  ]);
+
+  return res.rows[0];
+}
+

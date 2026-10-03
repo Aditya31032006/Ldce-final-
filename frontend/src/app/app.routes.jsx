@@ -11,7 +11,9 @@ const SetupProfile = lazy(() => import('../features/auth/pages/SetupProfile.jsx'
 const Profile = lazy(() => import('../features/auth/pages/Profile.jsx'));
 
 const Dashboard = lazy(() => import('../features/dashboard/pages/Dashboard.jsx'));
+const UserDashboard = lazy(() => import('../features/dashboard/pages/UserDashboard.jsx'));
 const BookingsList = lazy(() => import('../features/bookings/pages/BookingsList.jsx'));
+
 const BookingCalendar = lazy(() => import('../features/bookings/pages/BookingCalendar.jsx'));
 const CourtsManagement = lazy(() => import('../features/courts/pages/CourtsManagement.jsx'));
 const MembersList = lazy(() => import('../features/members/pages/MembersList.jsx'));
@@ -56,6 +58,45 @@ const withSuspense = (Component, props = {}) => (
   </Suspense>
 );
 
+import useAuth from '../features/auth/hook/useAuth.js';
+
+
+// Role-aware root and dashboard redirector
+function StaffDashboardRoute() {
+  const { role } = useAuth();
+  const userRole = (role || 'public').toLowerCase();
+  if (userRole === 'member' || userRole === 'public') {
+    return <Navigate to="/user/dashboard" replace />;
+  }
+  return (
+    <Suspense fallback={<RouteLoader />}>
+      <Dashboard />
+    </Suspense>
+  );
+}
+
+function UserDashboardRoute() {
+  const { role } = useAuth();
+  const userRole = (role || 'public').toLowerCase();
+  if (userRole !== 'member' && userRole !== 'public') {
+    return <Navigate to="/dashboard" replace />;
+  }
+  return (
+    <Suspense fallback={<RouteLoader />}>
+      <UserDashboard />
+    </Suspense>
+  );
+}
+
+function RoleBasedRoot() {
+  const { role } = useAuth();
+  const userRole = (role || 'public').toLowerCase();
+  if (userRole === 'member' || userRole === 'public') {
+    return <Navigate to="/user/dashboard" replace />;
+  }
+  return <Navigate to="/dashboard" replace />;
+}
+
 export const router = createBrowserRouter([
   // Protected Routes (Require active authentication session)
   {
@@ -63,12 +104,20 @@ export const router = createBrowserRouter([
     children: [
       {
         path: '/',
-        element: <Navigate to="/dashboard" replace />,
+        element: <RoleBasedRoot />,
       },
+      // Admin / Staff Operational Dashboard (Protected against normal members)
       {
         path: '/dashboard',
-        element: withSuspense(Dashboard),
+        element: <StaffDashboardRoute />,
       },
+      // Normal Member / Public Dashboard (Protected against admin/staff)
+      {
+        path: '/user/dashboard',
+        element: <UserDashboardRoute />,
+      },
+
+      // Shared Member & Front-Desk Play Operations
       {
         path: '/bookings',
         element: withSuspense(BookingsList),
@@ -80,10 +129,6 @@ export const router = createBrowserRouter([
       {
         path: '/courts',
         element: withSuspense(CourtsManagement),
-      },
-      {
-        path: '/members',
-        element: withSuspense(MembersList),
       },
       {
         path: '/plans',
@@ -98,23 +143,41 @@ export const router = createBrowserRouter([
         element: withSuspense(BarPOS),
       },
       {
-        path: '/inventory',
-        element: withSuspense(InventoryList),
-      },
-      {
         path: '/orders',
         element: withSuspense(OrdersList),
-      },
-      {
-        path: '/leads',
-        element: withSuspense(LeadsList),
       },
       {
         path: '/profile',
         element: withSuspense(Profile),
       },
 
-      // Manager & Owner Protected Operations
+      // Front Desk & Management Protected Operations (Hidden from normal members)
+      {
+        element: <RoleGuard allowedRoles={['owner', 'manager', 'admin', 'front_desk']} />,
+        children: [
+          {
+            path: '/members',
+            element: withSuspense(MembersList),
+          },
+          {
+            path: '/leads',
+            element: withSuspense(LeadsList),
+          },
+        ],
+      },
+
+      // Shop Staff & Management Inventory Operations (Hidden from normal members)
+      {
+        element: <RoleGuard allowedRoles={['owner', 'manager', 'admin', 'shop_staff']} />,
+        children: [
+          {
+            path: '/inventory',
+            element: withSuspense(InventoryList),
+          },
+        ],
+      },
+
+      // Executive Manager & Owner Protected Operations (Hidden from staff & members)
       {
         element: <RoleGuard allowedRoles={['owner', 'manager', 'admin']} />,
         children: [
@@ -138,6 +201,7 @@ export const router = createBrowserRouter([
       },
     ],
   },
+
 
   // Public Guest Routes (Accessible when logged out)
   {

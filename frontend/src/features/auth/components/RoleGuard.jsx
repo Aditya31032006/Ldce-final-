@@ -1,69 +1,89 @@
 import React from 'react';
-import { Navigate, Outlet, Link } from 'react-router';
+import { Navigate, Outlet, Link, useLocation } from 'react-router';
 import useAuth from '../hook/useAuth.js';
 
 /**
  * RoleGuard Component:
  * Restricts access to nested routes based on allowed user roles.
- * Allowed roles in the platform: 'admin', 'owner', 'manager', 'front_desk', 'coach', 'member', 'shop_staff', 'bar_staff'
+ * Prevents URL tampering between Admin/Staff and Normal Member users.
  */
-export default function RoleGuard({ allowedRoles = [], fallback = null }) {
+export default function RoleGuard({ allowedRoles = [], fallback = null, redirectTo = null }) {
   const { user, role, isAuthenticated, loading } = useAuth();
+  const location = useLocation();
 
   if (loading) {
     return (
-      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '60vh', color: '#94a3b8' }}>
+      <div style={{
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        minHeight: '60vh',
+        color: '#6b6b66',
+        fontFamily: 'Inter, sans-serif'
+      }}>
         Verifying permissions...
       </div>
     );
   }
 
   if (!isAuthenticated || !user) {
-    return <Navigate to="/login" replace />;
+    return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  // Admin and Owner have universal access across the platform
-  if (role === 'admin' || role === 'owner') {
-    return <Outlet />;
-  }
+  const userRole = (role || 'public').toLowerCase();
+  const normalizedAllowed = allowedRoles.map((r) => r.toLowerCase());
 
-  // Check if current role matches allowed roles
-  const isAllowed = allowedRoles.length === 0 || allowedRoles.includes(role);
+  // Check if current role is explicitly in allowedRoles
+  const isAllowed = normalizedAllowed.length === 0 || normalizedAllowed.includes(userRole);
 
   if (!isAllowed) {
+    // If an explicit redirection route is provided, redirect immediately
+    if (redirectTo) {
+      return <Navigate to={redirectTo} replace />;
+    }
+
+    // Role-aware default destination
+    const defaultDashboard = (userRole === 'member' || userRole === 'public')
+      ? '/user/dashboard'
+      : '/dashboard';
+
     if (fallback) return fallback;
 
     return (
       <div style={{
         padding: '3rem 2rem',
-        maxWidth: '560px',
+        maxWidth: '520px',
         margin: '4rem auto',
         textAlign: 'center',
         background: '#ffffff',
-        borderRadius: '1rem',
-        border: '1px solid #e2e8f0',
-        boxShadow: '0 4px 20px -2px rgba(0, 0, 0, 0.05)',
+        borderRadius: '12px',
+        border: '1px solid #e7e5df',
+        boxShadow: '0 4px 20px rgba(0, 0, 0, 0.04)',
         fontFamily: 'Inter, sans-serif'
       }}>
-        <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>🔒</div>
-        <h2 style={{ color: '#0f172a', marginBottom: '0.75rem', fontSize: '1.5rem', fontWeight: 700 }}>Access Restricted</h2>
-        <p style={{ color: '#64748b', fontSize: '0.95rem', lineHeight: '1.6', marginBottom: '1.5rem' }}>
-          Your current role (<strong style={{ color: '#2563eb' }}>{role || 'Public User'}</strong>) does not have permission to view or manage this module.
+        <div style={{ fontSize: '2.5rem', marginBottom: '0.75rem' }}>🔒</div>
+        <h2 style={{ color: '#1c1c1a', marginBottom: '0.5rem', fontSize: '1.25rem', fontWeight: 600 }}>
+          Access Restricted
+        </h2>
+        <p style={{ color: '#6b6b66', fontSize: '0.875rem', lineHeight: '1.5', marginBottom: '1.5rem' }}>
+          Your account role (<strong style={{ color: '#1f5c46' }}>{userRole.replace('_', ' ')}</strong>) does not have permission to view or manage this module.
         </p>
         <Link
-          to="/dashboard"
+          to={defaultDashboard}
           style={{
-            display: 'inline-block',
-            padding: '0.625rem 1.25rem',
-            background: '#2563eb',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+            padding: '0.5rem 1.25rem',
+            background: '#1f5c46',
             color: '#ffffff',
-            borderRadius: '0.5rem',
+            borderRadius: '6px',
             textDecoration: 'none',
             fontWeight: 600,
-            fontSize: '0.875rem',
+            fontSize: '0.8125rem',
           }}
         >
-          Return to Dashboard
+          Return to Your Dashboard
         </Link>
       </div>
     );
@@ -71,3 +91,4 @@ export default function RoleGuard({ allowedRoles = [], fallback = null }) {
 
   return <Outlet />;
 }
+

@@ -20,14 +20,14 @@ $court-navbar-height: 56px;
 $court-mobile-dock-height: 64px;
 
 .cl-app-layout {
-  min-height: 100vh;
+  height: 100vh;
   width: 100%;
   background-color: $court-bg;
   display: flex;
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
   color: $court-text-primary;
   position: relative;
-  overflow-x: hidden;
+  overflow: hidden;
 
   // ----------------------------------------------------------
   // Desktop Sidebar
@@ -139,6 +139,7 @@ $court-mobile-dock-height: 64px;
     /* Hidden scrollbar */
     -ms-overflow-style: none;
     scrollbar-width: none;
+
     &::-webkit-scrollbar {
       display: none;
     }
@@ -299,14 +300,14 @@ $court-mobile-dock-height: 64px;
     margin-left: $court-sidebar-width;
     display: flex;
     flex-direction: column;
-    min-height: 100vh;
+    height: 100vh;
+    overflow: hidden;
     width: calc(100% - #{$court-sidebar-width});
     box-sizing: border-box;
 
     @media (max-width: 900px) {
       margin-left: 0;
       width: 100%;
-      padding-bottom: $court-mobile-dock-height + 16px;
     }
   }
 
@@ -486,11 +487,28 @@ $court-mobile-dock-height: 64px;
 
   &__content {
     flex: 1;
-    padding: 1.5rem 2rem;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 0 2rem 1.5rem;
     box-sizing: border-box;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(31, 92, 70, 0.2) transparent;
+
+    &::-webkit-scrollbar {
+      width: 5px;
+    }
+
+    &::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    &::-webkit-scrollbar-thumb {
+      background: rgba(31, 92, 70, 0.25);
+      border-radius: 10px;
+    }
 
     @media (max-width: 900px) {
-      padding: 1rem;
+      padding: 0 1rem calc(#{$court-mobile-dock-height} + 24px);
     }
   }
 
@@ -576,9 +594,11 @@ $court-mobile-dock-height: 64px;
   0% {
     opacity: 1;
   }
+
   50% {
     opacity: 0.4;
   }
+
   100% {
     opacity: 1;
   }

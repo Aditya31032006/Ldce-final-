@@ -18,6 +18,7 @@ export default function SetupProfile() {
     completeProfile,
     loading,
     error,
+    role,
     isAuthenticated,
     isProfileComplete,
     resetError,
@@ -58,12 +59,17 @@ export default function SetupProfile() {
     if (avatarParam) setValue('avatarUrl', avatarParam);
   }, [nameParam, emailParam, avatarParam, setValue]);
 
+  const requiresSetup = queryParams.get('requiresSetup');
+
   // If already authenticated and profile is fully complete, proceed to dashboard
   useEffect(() => {
-    if (isAuthenticated && isProfileComplete && !queryParams.get('requiresSetup')) {
-      navigate('/dashboard', { replace: true });
+    if (isAuthenticated && isProfileComplete && !requiresSetup) {
+      const userRole = (role || 'public').toLowerCase();
+      const dest = (userRole === 'member' || userRole === 'public') ? '/user/dashboard' : '/dashboard';
+      navigate(dest, { replace: true });
     }
-  }, [isAuthenticated, isProfileComplete, navigate, queryParams]);
+  }, [isAuthenticated, isProfileComplete, role, navigate, requiresSetup]);
+
 
   useEffect(() => {
     return () => {
@@ -82,9 +88,12 @@ export default function SetupProfile() {
     });
 
     if (result.success) {
-      navigate('/dashboard', { replace: true });
+      const userRole = (role || 'public').toLowerCase();
+      const dest = (userRole === 'member' || userRole === 'public') ? '/user/dashboard' : '/dashboard';
+      navigate(dest, { replace: true });
     }
   };
+
 
   return (
     <div className="cl-auth-page cl-auth-page--no-page-scroll">
