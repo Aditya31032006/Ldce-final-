@@ -1144,12 +1144,43 @@ BEGIN NEW.updated_at := now(); RETURN NEW; END $$;
 
 CREATE FUNCTION next_doc_no(p_club uuid, p_type text, p_prefix text DEFAULT '')
 RETURNS text LANGUAGE plpgsql SECURITY DEFINER SET search_path = app, public AS $$
-DECLARE v_out text;
+DECLARE
+  v_out text;
+  v_exists boolean;
 BEGIN
   INSERT INTO document_sequences AS d (club_id, doc_type, prefix, last_number)
   VALUES (p_club, p_type, p_prefix, 1)
   ON CONFLICT (club_id, doc_type) DO UPDATE SET last_number = d.last_number + 1
   RETURNING d.prefix || lpad(d.last_number::text, d.padding, '0') INTO v_out;
+
+  LOOP
+    v_exists := false;
+    IF p_type = 'payment' THEN
+      SELECT EXISTS(SELECT 1 FROM app.payments WHERE club_id = p_club AND payment_no = v_out) INTO v_exists;
+    ELSIF p_type = 'bar_order' THEN
+      SELECT EXISTS(SELECT 1 FROM app.bar_orders WHERE club_id = p_club AND order_no = v_out) INTO v_exists;
+    ELSIF p_type = 'shop_order' THEN
+      SELECT EXISTS(SELECT 1 FROM app.shop_orders WHERE club_id = p_club AND order_no = v_out) INTO v_exists;
+    ELSIF p_type = 'invoice' THEN
+      SELECT EXISTS(SELECT 1 FROM app.invoices WHERE club_id = p_club AND invoice_no = v_out) INTO v_exists;
+    ELSIF p_type = 'quote' THEN
+      SELECT EXISTS(SELECT 1 FROM app.quotes WHERE club_id = p_club AND quote_no = v_out) INTO v_exists;
+    ELSIF p_type = 'purchase_order' THEN
+      SELECT EXISTS(SELECT 1 FROM app.purchase_orders WHERE club_id = p_club AND po_no = v_out) INTO v_exists;
+    ELSIF p_type = 'member' THEN
+      SELECT EXISTS(SELECT 1 FROM app.members WHERE club_id = p_club AND member_code = v_out) INTO v_exists;
+    ELSIF p_type = 'employee' THEN
+      SELECT EXISTS(SELECT 1 FROM app.employees WHERE club_id = p_club AND employee_code = v_out) INTO v_exists;
+    END IF;
+
+    EXIT WHEN NOT v_exists;
+
+    UPDATE document_sequences
+    SET last_number = last_number + 1
+    WHERE club_id = p_club AND doc_type = p_type
+    RETURNING prefix || lpad(last_number::text, padding, '0') INTO v_out;
+  END LOOP;
+
   RETURN v_out;
 END $$;
 
