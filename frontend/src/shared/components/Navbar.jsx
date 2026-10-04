@@ -9,8 +9,8 @@ export default function Navbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const handleLogout = async () => {
+    navigate('/', { replace: true });
     await logout();
-    navigate('/login');
   };
 
   const navItems = [
@@ -22,7 +22,6 @@ export default function Navbar() {
     { label: 'Bar POS', path: '/bar' },
     { label: 'Inventory', path: '/inventory' },
     { label: 'Orders', path: '/orders' },
-    { label: 'Leads', path: '/leads' },
     { label: 'Staff', path: '/hr' },
     { label: 'Reports', path: '/reports' },
   ];

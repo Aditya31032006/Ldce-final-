@@ -51,6 +51,24 @@ async function setupBarPolicies() {
         );
     `);
 
+    // 4. Member tabs policies
+    await client.query(`
+      DROP POLICY IF EXISTS p_member_insert ON app.tabs;
+      DROP POLICY IF EXISTS p_member_read ON app.tabs;
+      CREATE POLICY p_member_insert ON app.tabs FOR INSERT
+        WITH CHECK (club_id = (SELECT app.ctx_club()));
+      CREATE POLICY p_member_read ON app.tabs FOR SELECT
+        USING (
+          club_id = (SELECT app.ctx_club()) AND (
+            app.ctx_role() = ANY ('{owner,manager,front_desk,bar_staff,kitchen}'::text[])
+            OR member_id = (SELECT app.ctx_member())
+            OR opened_by = (SELECT app.ctx_user())
+            OR member_id IN (SELECT id FROM app.members WHERE user_id = (SELECT app.ctx_user()))
+            OR (SELECT app.ctx_role()) IN ('member', 'public')
+          )
+        );
+    `);
+
     // 5. Update plans bar_discount_percent if 0 so Gold Pro gets 15% bar discount
     await client.query(`
       UPDATE app.plans

@@ -1,39 +1,43 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
 import useAuth from '../../auth/hook/useAuth.js';
 import inventoryApi from '../services/inventory.api.js';
 import ordersApi from '../../orders/services/orders.api.js';
 import { useToast } from '../../../shared/context/ToastContext.jsx';
+import useDebounce from '../../../shared/hooks/useDebounce.js';
 import { fileToBase64 } from '../../../shared/utils/image.util.js';
-import { 
-  Package, 
-  Plus, 
-  Search, 
-  AlertTriangle, 
-  CheckCircle, 
-  XCircle, 
-  Edit3, 
-  Trash2, 
-  Filter, 
+import { openRazorpayCheckout } from '../../../shared/utils/razorpay.util.js';
+import {
+  Package,
+  Plus,
+  Search,
+  AlertTriangle,
+  CheckCircle,
+  XCircle,
+  Edit3,
+  Trash2,
+  Filter,
   Image as ImageIcon,
-  DollarSign, 
-  Layers, 
-  ArrowUpDown, 
-  RefreshCw, 
-  ShoppingBag, 
-  ShoppingCart, 
-  Truck, 
-  User, 
-  Phone, 
-  MapPin, 
-  CheckCircle2, 
-  X, 
-  Eye, 
-  LayoutGrid, 
-  List, 
-  Sparkles, 
+  DollarSign,
+  Layers,
+  ArrowUpDown,
+  RefreshCw,
+  ShoppingBag,
+  ShoppingCart,
+  Truck,
+  User,
+  Phone,
+  MapPin,
+  CheckCircle2,
+  X,
+  Eye,
+  LayoutGrid,
+  List,
+  Sparkles,
   ShieldCheck,
-  ArrowLeft
+  ArrowLeft,
+  CreditCard,
+  Lock
 } from 'lucide-react';
 
 export default function InventoryList() {
@@ -55,6 +59,7 @@ export default function InventoryList() {
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const debouncedSearch = useDebounce(searchQuery, 300);
   const [selectedCategory, setSelectedCategory] = useState('ALL');
   const [stockFilter, setStockFilter] = useState('ALL'); // 'ALL' | 'IN_STOCK' | 'LOW_STOCK' | 'OUT_OF_STOCK'
   const [viewMode, setViewMode] = useState(isStaff ? 'table' : 'grid'); // 'grid' | 'table'
@@ -73,6 +78,7 @@ export default function InventoryList() {
   const [buyAddress, setBuyAddress] = useState('');
   const [buyPhone, setBuyPhone] = useState(user?.phone || '');
   const [buyName, setBuyName] = useState(user?.full_name || '');
+  const [buyPaymentMethod, setBuyPaymentMethod] = useState('razorpay'); // 'razorpay' | 'counter'
   const [orderSubmitting, setOrderSubmitting] = useState(false);
   const [orderSuccess, setOrderSuccess] = useState(null);
 
@@ -97,7 +103,7 @@ export default function InventoryList() {
   const fileInputRef = useRef(null);
   const editFileInputRef = useRef(null);
 
-  const loadInventory = async () => {
+  const loadInventory = useCallback(async () => {
     if (!effectiveClubId) {
       setLoading(false);
       return;
@@ -105,8 +111,11 @@ export default function InventoryList() {
     setLoading(true);
     try {
       const [prodRes, catRes] = await Promise.all([
-        inventoryApi.getProducts(),
-        inventoryApi.getCategories().catch(() => ({ categories: [] }))
+        inventoryApi.getProducts({
+          clubId: effectiveClubId,
+          search: debouncedSearch.trim() || undefined
+        }),
+        inventoryApi.getCategories({ clubId: effectiveClubId }).catch(() => ({ categories: [] }))
       ]);
       setProducts(prodRes.products || []);
       setCategories(catRes.categories || []);
@@ -116,14 +125,14 @@ export default function InventoryList() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [effectiveClubId, debouncedSearch]);
 
   useEffect(() => {
     if (queryClubId && queryClubId !== clubId && changeClub) {
       changeClub(queryClubId);
     }
     loadInventory();
-  }, [effectiveClubId, queryClubId]);
+  }, [loadInventory, effectiveClubId, queryClubId]);
 
   // Image Upload Handler
   const handleImageFileChange = async (e) => {
@@ -263,6 +272,7 @@ export default function InventoryList() {
     setBuyAddress('');
     setBuyPhone(user?.phone || '');
     setBuyName(user?.full_name || '');
+    setBuyPaymentMethod('razorpay');
     setOrderSuccess(null);
     setShowBuyModal(true);
   };
@@ -290,6 +300,109 @@ export default function InventoryList() {
       return;
     }
 
+    const unitPrice = Number(buyingProduct.price || 0);
+    const orderTotal = Math.round(unitPrice * requestedQty * 100) / 100;
+
+    // Razorpay Online Payment Flow
+    if (buyPaymentMethod === 'razorpay' && orderTotal > 0) {
+      setOrderSubmitting(true);
+      try {
+        // 1. Create secure Razorpay Order from backend
+        const rzpRes = await ordersApi.createRazorpayOrder(
+          {
+            amount: orderTotal,
+            product_name: buyingProduct.name,
+            items: [{ variant_id: variant.id, quantity: requestedQty }]
+          },
+          { clubId: effectiveClubId }
+        );
+
+        const rzpData = rzpRes?.data;
+        if (!rzpData?.orderId) {
+          throw new Error('Failed to create Razorpay checkout session');
+        }
+
+        // 2. Open Razorpay Gateway Popup
+        await openRazorpayCheckout({
+          orderId: rzpData.orderId,
+          amount: rzpData.amount,
+          currency: rzpData.currency || 'INR',
+          name: activeClub?.name ? `${activeClub.name} - Pro Shop` : 'Club Pro Shop',
+          description: `${buyingProduct.name} x ${requestedQty}`,
+          prefill: {
+            name: buyName.trim() || user?.full_name || '',
+            email: user?.email || '',
+            phone: buyPhone.trim() || user?.phone || '',
+          },
+          onSuccess: async (rzpResponse) => {
+            setOrderSubmitting(true);
+            try {
+              const orderPayload = {
+                guest_name: buyName.trim() || user?.full_name || 'Customer',
+                guest_phone: buyPhone.trim() || null,
+                fulfillment: buyFulfillment,
+                delivery_address: buyFulfillment === 'delivery' ? buyAddress.trim() : null,
+                payment_method: 'online',
+                amount: orderTotal,
+                razorpay_payment_id: rzpResponse.razorpay_payment_id,
+                razorpay_order_id: rzpResponse.razorpay_order_id,
+                razorpay_signature: rzpResponse.razorpay_signature,
+                paymentDetails: {
+                  method: 'online',
+                  reference: rzpResponse.razorpay_payment_id,
+                },
+                items: [
+                  {
+                    variant_id: variant.id,
+                    quantity: requestedQty,
+                  }
+                ]
+              };
+
+              const res = await ordersApi.createOrder(orderPayload, { clubId: effectiveClubId });
+              toast.success('Payment verified & order confirmed successfully!');
+              setOrderSuccess({
+                ...(res.order || { order_no: 'Confirmed' }),
+                payment_reference: rzpResponse.razorpay_payment_id,
+                paid_online: true,
+                total_paid: orderTotal,
+                fulfillment: buyFulfillment,
+                delivery_address: buyAddress.trim()
+              });
+
+              // Optimistically update products stock in UI immediately
+              setProducts(prev => prev.map(p => {
+                if (p.id === buyingProduct.id) {
+                  const newQty = Math.max(0, (Number(p.stock_qty) || 0) - requestedQty);
+                  return {
+                    ...p,
+                    stock_qty: newQty,
+                    variants: p.variants?.map(v => v.id === variant.id ? { ...v, stock_qty: Math.max(0, (Number(v.stock_qty) || 0) - requestedQty) } : v)
+                  };
+                }
+                return p;
+              }));
+              loadInventory();
+              window.dispatchEvent(new CustomEvent('order-placed'));
+            } catch (err) {
+              toast.error(err.response?.data?.message || err.message || 'Payment received, but error recording order. Please contact club staff.');
+            } finally {
+              setOrderSubmitting(false);
+            }
+          },
+          onDismiss: () => {
+            setOrderSubmitting(false);
+            toast.info('Payment was cancelled. You can complete your order anytime.');
+          }
+        });
+      } catch (err) {
+        toast.error(err.response?.data?.message || err.message || 'Failed to start payment gateway');
+        setOrderSubmitting(false);
+      }
+      return;
+    }
+
+    // Counter / Pay-on-Delivery flow
     setOrderSubmitting(true);
     try {
       const orderPayload = {
@@ -297,6 +410,8 @@ export default function InventoryList() {
         guest_phone: buyPhone.trim() || null,
         fulfillment: buyFulfillment,
         delivery_address: buyFulfillment === 'delivery' ? buyAddress.trim() : null,
+        payment_method: 'counter',
+        amount: orderTotal,
         items: [
           {
             variant_id: variant.id,
@@ -305,9 +420,15 @@ export default function InventoryList() {
         ]
       };
 
-      const res = await ordersApi.createOrder(orderPayload);
-      toast.success('Order placed successfully!');
-      setOrderSuccess(res.order || { order_no: 'Confirmed' });
+      const res = await ordersApi.createOrder(orderPayload, { clubId: effectiveClubId });
+      toast.success('Order placed successfully! Pay upon delivery/pickup.');
+      setOrderSuccess({
+        ...(res.order || { order_no: 'Confirmed' }),
+        paid_online: false,
+        total_paid: orderTotal,
+        fulfillment: buyFulfillment,
+        delivery_address: buyAddress.trim()
+      });
       // Optimistically update products stock in UI immediately
       setProducts(prev => prev.map(p => {
         if (p.id === buyingProduct.id) {
@@ -320,7 +441,8 @@ export default function InventoryList() {
         }
         return p;
       }));
-      loadInventory(); // Refresh full inventory from server
+      loadInventory();
+      window.dispatchEvent(new CustomEvent('order-placed'));
     } catch (err) {
       toast.error(err.response?.data?.message || err.message || 'Failed to place order');
     } finally {
@@ -338,15 +460,10 @@ export default function InventoryList() {
   }).length;
   const outOfStockCount = products.filter(p => (Number(p.stock_qty) || 0) === 0).length;
 
-  // Filter Products
+  // Filter Products (Search executed by backend fuzzy search)
   const filteredProducts = products.filter(p => {
-    const matchesSearch = 
-      p.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.sku?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.variants?.some(v => v.sku?.toLowerCase().includes(searchQuery.toLowerCase()));
-
-    const matchesCategory = 
-      selectedCategory === 'ALL' || 
+    const matchesCategory =
+      selectedCategory === 'ALL' ||
       (p.category_name && p.category_name.toLowerCase() === selectedCategory.toLowerCase());
 
     const qty = Number(p.stock_qty) || 0;
@@ -356,7 +473,7 @@ export default function InventoryList() {
     if (stockFilter === 'LOW_STOCK') matchesStock = qty > 0 && qty <= reorder;
     if (stockFilter === 'OUT_OF_STOCK') matchesStock = qty === 0;
 
-    return matchesSearch && matchesCategory && matchesStock;
+    return matchesCategory && matchesStock;
   });
 
   return (
@@ -367,7 +484,7 @@ export default function InventoryList() {
       fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif"
     }}>
       <div style={{ maxWidth: '1280px', margin: '0 auto' }}>
-        
+
         {/* --- Header Card --- */}
         <div style={{
           background: '#ffffff',
@@ -400,7 +517,7 @@ export default function InventoryList() {
                   {isStaff ? 'Pro Shop Inventory Management' : 'Pro Shop & Equipment Store'}
                 </h1>
                 <p style={{ margin: '0.2rem 0 0', fontSize: '0.875rem', color: '#64748b' }}>
-                  {isStaff 
+                  {isStaff
                     ? `Live stock tracking, variant control, and catalog management for ${clubName}`
                     : `Browse and purchase genuine sports equipment, rackets, and gear available at ${clubName}`}
                 </p>
@@ -675,7 +792,7 @@ export default function InventoryList() {
               onChange={(e) => setSearchQuery(e.target.value)}
               style={{
                 width: '100%',
-                padding: '0.6rem 0.75rem 0.6rem 2.25rem',
+                padding: '0.6rem 2.2rem 0.6rem 2.25rem',
                 border: '1px solid #cbd5e1',
                 borderRadius: '0.5rem',
                 fontSize: '0.875rem',
@@ -683,6 +800,19 @@ export default function InventoryList() {
                 background: '#f8fafc'
               }}
             />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery('')}
+                style={{
+                  position: 'absolute', right: '0.75rem', top: '50%', transform: 'translateY(-50%)',
+                  border: 'none', background: 'transparent', cursor: 'pointer', padding: 0, color: '#94a3b8'
+                }}
+                aria-label="Clear search"
+              >
+                <X size={15} />
+              </button>
+            )}
           </div>
 
           {/* Filter Dropdowns */}
@@ -748,7 +878,7 @@ export default function InventoryList() {
               No products found
             </h3>
             <p style={{ fontSize: '0.875rem', color: '#64748b', maxWidth: '420px', margin: '0 auto 1.5rem' }}>
-              {isStaff 
+              {isStaff
                 ? 'No inventory items match your current search or filters. Click "+ Add New Product" above to create one.'
                 : 'There are currently no products available in the club store. Please check back later or contact the front desk.'}
             </p>
@@ -932,11 +1062,11 @@ export default function InventoryList() {
                     }}>
                       <div>
                         <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#0f172a' }}>
-                          ${price.toFixed(2)}
+                          ₹{price.toFixed(2)}
                         </div>
                         {mrp > price && (
                           <div style={{ fontSize: '0.75rem', color: '#94a3b8', textDecoration: 'line-through' }}>
-                            ${mrp.toFixed(2)}
+                            ₹{mrp.toFixed(2)}
                           </div>
                         )}
                       </div>
@@ -1092,7 +1222,7 @@ export default function InventoryList() {
 
                         {/* Price */}
                         <td style={{ padding: '1rem 1.25rem', textAlign: 'right', fontWeight: 800, color: '#0f172a' }}>
-                          ${Number(p.price || p.min_price || 0).toFixed(2)}
+                          ₹{Number(p.price || p.min_price || 0).toFixed(2)}
                         </td>
 
                         {/* Stock Qty */}
@@ -1223,24 +1353,66 @@ export default function InventoryList() {
             {orderSuccess ? (
               <div style={{ padding: '2.5rem 1.5rem', textAlign: 'center' }}>
                 <div style={{
-                  width: '60px',
-                  height: '60px',
+                  width: '64px',
+                  height: '64px',
                   borderRadius: '50%',
                   background: '#ecfdf5',
                   color: '#059669',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  margin: '0 auto 1.25rem'
+                  margin: '0 auto 1.25rem',
+                  boxShadow: '0 4px 14px rgba(16, 185, 129, 0.25)'
                 }}>
-                  <CheckCircle2 size={32} />
+                  <CheckCircle2 size={36} />
                 </div>
-                <h3 style={{ fontSize: '1.3rem', fontWeight: 800, color: '#0f172a', marginBottom: '0.5rem' }}>
-                  Order Placed Successfully!
+                <h3 style={{ fontSize: '1.35rem', fontWeight: 800, color: '#0f172a', marginBottom: '0.4rem' }}>
+                  {orderSuccess.paid_online ? 'Payment Verified & Order Confirmed!' : 'Order Placed Successfully!'}
                 </h3>
-                <p style={{ color: '#64748b', fontSize: '0.9rem', marginBottom: '1.5rem', lineHeight: '1.5' }}>
+                <p style={{ color: '#64748b', fontSize: '0.9rem', marginBottom: '1.25rem', lineHeight: '1.5' }}>
                   Your order <strong>{orderSuccess.order_no}</strong> for <strong>{buyingProduct.name}</strong> has been received by {clubName}.
                 </p>
+
+                {/* Summary Card */}
+                <div style={{
+                  background: '#f8fafc',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: '0.65rem',
+                  padding: '1rem',
+                  textAlign: 'left',
+                  marginBottom: '1.5rem',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '0.5rem',
+                  fontSize: '0.85rem'
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', color: '#475569' }}>
+                    <span>Payment Method:</span>
+                    <span style={{ fontWeight: 700, color: orderSuccess.paid_online ? '#059669' : '#0f172a' }}>
+                      {orderSuccess.paid_online ? 'Razorpay Online (Paid)' : 'Pay on Delivery / Counter'}
+                    </span>
+                  </div>
+                  {orderSuccess.payment_reference && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', color: '#475569' }}>
+                      <span>Payment Reference:</span>
+                      <span style={{ fontFamily: 'monospace', fontWeight: 700, color: '#2563eb' }}>
+                        {orderSuccess.payment_reference}
+                      </span>
+                    </div>
+                  )}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', color: '#475569' }}>
+                    <span>Amount:</span>
+                    <span style={{ fontWeight: 800, color: '#0f172a' }}>
+                      ₹{Number(orderSuccess.total_paid || orderSuccess.total || 0).toLocaleString('en-IN')}
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', color: '#475569' }}>
+                    <span>Fulfillment:</span>
+                    <span style={{ fontWeight: 600, color: '#0f172a', textTransform: 'capitalize' }}>
+                      {orderSuccess.fulfillment || buyFulfillment}
+                    </span>
+                  </div>
+                </div>
 
                 <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'center' }}>
                   <button
@@ -1250,7 +1422,7 @@ export default function InventoryList() {
                       navigate('/orders');
                     }}
                     style={{
-                      padding: '0.65rem 1.25rem',
+                      padding: '0.7rem 1.35rem',
                       background: '#0f172a',
                       color: '#ffffff',
                       borderRadius: '0.5rem',
@@ -1266,7 +1438,7 @@ export default function InventoryList() {
                     type="button"
                     onClick={() => setShowBuyModal(false)}
                     style={{
-                      padding: '0.65rem 1.25rem',
+                      padding: '0.7rem 1.35rem',
                       background: '#ffffff',
                       color: '#334155',
                       borderRadius: '0.5rem',
@@ -1316,7 +1488,7 @@ export default function InventoryList() {
                       {buyingProduct.name}
                     </div>
                     <div style={{ fontSize: '0.8rem', color: '#64748b', marginTop: '0.15rem' }}>
-                      Unit Price: <span style={{ fontWeight: 700, color: '#0f172a' }}>${Number(buyingProduct.price || 0).toFixed(2)}</span>
+                      Unit Price: <span style={{ fontWeight: 700, color: '#0f172a' }}>₹{Number(buyingProduct.price || 0).toLocaleString('en-IN')}</span>
                     </div>
                   </div>
                 </div>
@@ -1454,13 +1626,93 @@ export default function InventoryList() {
                   </div>
                 </div>
 
+                {/* Payment Method Selector */}
+                <div style={{ marginBottom: '1.25rem' }}>
+                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: '#334155', marginBottom: '0.4rem' }}>
+                    Payment Method
+                  </label>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                    <button
+                      type="button"
+                      onClick={() => setBuyPaymentMethod('razorpay')}
+                      style={{
+                        padding: '0.75rem 0.5rem',
+                        borderRadius: '0.5rem',
+                        border: buyPaymentMethod === 'razorpay' ? '2px solid #0984e3' : '1px solid #cbd5e1',
+                        background: buyPaymentMethod === 'razorpay' ? '#f0f9ff' : '#ffffff',
+                        color: buyPaymentMethod === 'razorpay' ? '#0369a1' : '#475569',
+                        fontWeight: 600,
+                        fontSize: '0.85rem',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        gap: '0.3rem',
+                        cursor: 'pointer',
+                        textAlign: 'center',
+                        position: 'relative',
+                        transition: 'all 0.15s ease'
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: 700 }}>
+                        <CreditCard size={16} style={{ color: '#0984e3' }} /> Pay via Razorpay
+                      </div>
+                      <span style={{ fontSize: '0.72rem', color: buyPaymentMethod === 'razorpay' ? '#0284c7' : '#64748b' }}>
+                        UPI, Cards, NetBanking
+                      </span>
+                      {buyPaymentMethod === 'razorpay' && (
+                        <span style={{
+                          position: 'absolute',
+                          top: '-8px',
+                          right: '8px',
+                          background: '#0984e3',
+                          color: '#ffffff',
+                          fontSize: '0.62rem',
+                          fontWeight: 700,
+                          padding: '0.1rem 0.4rem',
+                          borderRadius: '999px',
+                          letterSpacing: '0.02em'
+                        }}>
+                          RECOMMENDED
+                        </span>
+                      )}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setBuyPaymentMethod('counter')}
+                      style={{
+                        padding: '0.75rem 0.5rem',
+                        borderRadius: '0.5rem',
+                        border: buyPaymentMethod === 'counter' ? '2px solid #2563eb' : '1px solid #cbd5e1',
+                        background: buyPaymentMethod === 'counter' ? '#eff6ff' : '#ffffff',
+                        color: buyPaymentMethod === 'counter' ? '#1e40af' : '#475569',
+                        fontWeight: 600,
+                        fontSize: '0.85rem',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        gap: '0.3rem',
+                        cursor: 'pointer',
+                        textAlign: 'center',
+                        transition: 'all 0.15s ease'
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: 700 }}>
+                        <Package size={16} /> Pay on Delivery
+                      </div>
+                      <span style={{ fontSize: '0.72rem', color: '#64748b' }}>
+                        Cash / Counter payment
+                      </span>
+                    </button>
+                  </div>
+                </div>
+
                 {/* Total Cost Breakdown */}
                 <div style={{
                   background: '#f8fafc',
                   padding: '0.85rem 1rem',
                   borderRadius: '0.5rem',
                   border: '1px solid #e2e8f0',
-                  marginBottom: '1.5rem',
+                  marginBottom: '1.25rem',
                   display: 'flex',
                   justifyContent: 'space-between',
                   alignItems: 'center'
@@ -1469,45 +1721,83 @@ export default function InventoryList() {
                     Order Total ({buyQuantity} item{buyQuantity > 1 ? 's' : ''}):
                   </span>
                   <span style={{ fontSize: '1.35rem', fontWeight: 800, color: '#0f172a' }}>
-                    ${(Number(buyingProduct.price || 0) * buyQuantity).toFixed(2)}
+                    ₹{(Number(buyingProduct.price || 0) * buyQuantity).toLocaleString('en-IN')}
                   </span>
                 </div>
 
                 {/* Actions */}
-                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
-                  <button
-                    type="button"
-                    onClick={() => setShowBuyModal(false)}
-                    style={{
-                      padding: '0.65rem 1.25rem',
-                      background: '#ffffff',
-                      border: '1px solid #cbd5e1',
-                      borderRadius: '0.5rem',
-                      fontWeight: 600,
-                      fontSize: '0.85rem',
-                      color: '#475569',
-                      cursor: 'pointer'
-                    }}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={orderSubmitting}
-                    style={{
-                      padding: '0.65rem 1.5rem',
-                      background: 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)',
-                      border: 'none',
-                      borderRadius: '0.5rem',
-                      fontWeight: 700,
-                      fontSize: '0.875rem',
-                      color: '#ffffff',
-                      cursor: orderSubmitting ? 'not-allowed' : 'pointer',
-                      boxShadow: '0 4px 12px rgba(37, 99, 235, 0.25)'
-                    }}
-                  >
-                    {orderSubmitting ? 'Placing Order...' : 'Confirm & Place Order'}
-                  </button>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
+                    <button
+                      type="button"
+                      onClick={() => setShowBuyModal(false)}
+                      disabled={orderSubmitting}
+                      style={{
+                        padding: '0.65rem 1.25rem',
+                        background: '#ffffff',
+                        border: '1px solid #cbd5e1',
+                        borderRadius: '0.5rem',
+                        fontWeight: 600,
+                        fontSize: '0.85rem',
+                        color: '#475569',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={orderSubmitting}
+                      style={{
+                        padding: '0.75rem 1.6rem',
+                        background: buyPaymentMethod === 'razorpay'
+                          ? 'linear-gradient(135deg, #0984e3 0%, #0056b3 100%)'
+                          : 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)',
+                        border: 'none',
+                        borderRadius: '0.5rem',
+                        fontWeight: 700,
+                        fontSize: '0.875rem',
+                        color: '#ffffff',
+                        cursor: orderSubmitting ? 'not-allowed' : 'pointer',
+                        boxShadow: buyPaymentMethod === 'razorpay'
+                          ? '0 4px 14px rgba(9, 132, 227, 0.35)'
+                          : '0 4px 12px rgba(37, 99, 235, 0.25)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.5rem',
+                        transition: 'all 0.15s ease'
+                      }}
+                    >
+                      {orderSubmitting ? (
+                        <>
+                          <RefreshCw size={16} className="animate-spin" />
+                          {buyPaymentMethod === 'razorpay' ? 'Opening Razorpay Gateway...' : 'Placing Order...'}
+                        </>
+                      ) : buyPaymentMethod === 'razorpay' ? (
+                        <>
+                          <CreditCard size={17} />
+                          Pay ₹{(Number(buyingProduct.price || 0) * buyQuantity).toLocaleString('en-IN')} via Razorpay
+                        </>
+                      ) : (
+                        <>
+                          Confirm & Place Order (Pay on Delivery)
+                        </>
+                      )}
+                    </button>
+                  </div>
+                  {buyPaymentMethod === 'razorpay' && (
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '0.35rem',
+                      fontSize: '0.75rem',
+                      color: '#64748b'
+                    }}>
+                      <Lock size={12} style={{ color: '#10b981' }} />
+                      <span>Powered by Razorpay Secure • 256-bit SSL encrypted</span>
+                    </div>
+                  )}
                 </div>
               </form>
             )}
@@ -1611,7 +1901,7 @@ export default function InventoryList() {
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
                   <div>
                     <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: '#334155', marginBottom: '0.35rem' }}>
-                      Selling Price ($) *
+                      Selling Price (₹) *
                     </label>
                     <input
                       type="number"
@@ -1626,7 +1916,7 @@ export default function InventoryList() {
                   </div>
                   <div>
                     <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: '#334155', marginBottom: '0.35rem' }}>
-                      MRP / List Price ($)
+                      MRP / List Price (₹)
                     </label>
                     <input
                       type="number"
@@ -1887,7 +2177,7 @@ export default function InventoryList() {
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
                   <div>
                     <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: '#334155', marginBottom: '0.35rem' }}>
-                      Selling Price ($) *
+                      Selling Price (₹) *
                     </label>
                     <input
                       type="number"
@@ -1914,10 +2204,10 @@ export default function InventoryList() {
                       style={{ width: '100%', padding: '0.6rem', border: '1px solid #cbd5e1', borderRadius: '0.375rem', fontSize: '0.85rem' }}
                     />
                   </div>
-                </div>
+                </div >
 
-                {/* Stock Quantity & Reorder Level */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+  {/* Stock Quantity & Reorder Level */ }
+  < div style = {{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
                   <div>
                     <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: '#334155', marginBottom: '0.35rem' }}>
                       Stock Quantity
@@ -1942,10 +2232,10 @@ export default function InventoryList() {
                       style={{ width: '100%', padding: '0.6rem', border: '1px solid #cbd5e1', borderRadius: '0.375rem', fontSize: '0.85rem' }}
                     />
                   </div>
-                </div>
+                </div >
 
-                {/* Product Image (Stored in Base64) */}
-                <div>
+  {/* Product Image (Stored in Base64) */ }
+  < div >
                   <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: '#334155', marginBottom: '0.35rem' }}>
                     Product Image (Stored in Base64)
                   </label>
@@ -2016,10 +2306,10 @@ export default function InventoryList() {
                       </div>
                     </div>
                   </div>
-                </div>
+                </div >
 
-                {/* Product Description */}
-                <div>
+  {/* Product Description */ }
+  < div >
                   <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: '#334155', marginBottom: '0.35rem' }}>
                     Product Description
                   </label>
@@ -2030,10 +2320,10 @@ export default function InventoryList() {
                     onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                     style={{ width: '100%', padding: '0.6rem', border: '1px solid #cbd5e1', borderRadius: '0.375rem', fontSize: '0.85rem', fontFamily: 'inherit' }}
                   />
-                </div>
+                </div >
 
-                {/* Sell Online Toggle */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+  {/* Sell Online Toggle */ }
+  < div style = {{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                   <input
                     type="checkbox"
                     id="edit_is_online"
@@ -2044,48 +2334,48 @@ export default function InventoryList() {
                   <label htmlFor="edit_is_online" style={{ fontSize: '0.85rem', fontWeight: 600, color: '#334155', cursor: 'pointer' }}>
                     Make visible in Customer Online Store
                   </label>
-                </div>
-              </div>
+                </div >
+              </div >
 
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1.5rem', borderTop: '1px solid #e2e8f0', paddingTop: '1rem' }}>
-                <button
-                  type="button"
-                  onClick={() => setShowEditModal(false)}
-                  style={{
-                    padding: '0.6rem 1.25rem',
-                    background: '#ffffff',
-                    border: '1px solid #cbd5e1',
-                    borderRadius: '0.5rem',
-                    fontWeight: 600,
-                    fontSize: '0.85rem',
-                    color: '#475569',
-                    cursor: 'pointer'
-                  }}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={submitting}
-                  style={{
-                    padding: '0.6rem 1.5rem',
-                    background: '#2563eb',
-                    border: 'none',
-                    borderRadius: '0.5rem',
-                    fontWeight: 700,
-                    fontSize: '0.875rem',
-                    color: '#ffffff',
-                    cursor: submitting ? 'not-allowed' : 'pointer'
-                  }}
-                >
-                  {submitting ? 'Saving...' : 'Save Changes'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
+  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1.5rem', borderTop: '1px solid #e2e8f0', paddingTop: '1rem' }}>
+    <button
+      type="button"
+      onClick={() => setShowEditModal(false)}
+      style={{
+        padding: '0.6rem 1.25rem',
+        background: '#ffffff',
+        border: '1px solid #cbd5e1',
+        borderRadius: '0.5rem',
+        fontWeight: 600,
+        fontSize: '0.85rem',
+        color: '#475569',
+        cursor: 'pointer'
+      }}
+    >
+      Cancel
+    </button>
+    <button
+      type="submit"
+      disabled={submitting}
+      style={{
+        padding: '0.6rem 1.5rem',
+        background: '#2563eb',
+        border: 'none',
+        borderRadius: '0.5rem',
+        fontWeight: 700,
+        fontSize: '0.875rem',
+        color: '#ffffff',
+        cursor: submitting ? 'not-allowed' : 'pointer'
+      }}
+    >
+      {submitting ? 'Saving...' : 'Save Changes'}
+    </button>
+  </div>
+            </form >
+          </div >
+        </div >
       )}
 
-    </div>
+    </div >
   );
 }

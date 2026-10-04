@@ -57,12 +57,13 @@ export async function updateTableController(req, res, next) {
 
 export async function getMenuController(req, res, next) {
   try {
-    const { categoryId, active_only, available_only } = req.query;
+    const { categoryId, active_only, available_only, search, q } = req.query;
+    const searchQuery = search || q || null;
     const isMemberOrPublic = req.user?.role === 'member' || !req.user;
     const activeOnly = isMemberOrPublic ? true : (active_only !== 'false');
     const availableOnly = isMemberOrPublic ? true : (available_only === 'true' ? true : null);
 
-    const menu = await barRepo.getMenu(req.user?.id, req.clubId, categoryId || null, activeOnly, availableOnly);
+    const menu = await barRepo.getMenu(req.user?.id, req.clubId, categoryId || null, activeOnly, availableOnly, searchQuery);
     return res.status(200).json({ success: true, data: menu });
   } catch (error) {
     next(error);
@@ -338,7 +339,8 @@ export async function verifyRazorpayPaymentController(req, res, next) {
 export async function getTabsController(req, res, next) {
   try {
     const status = req.query.status || 'open';
-    const tabs = await barRepo.getMemberTabs(req.user.id, req.clubId, status);
+    const filterStatus = status === 'all' ? null : status;
+    const tabs = await barRepo.getMemberTabs(req.user.id, req.clubId, filterStatus);
     return res.status(200).json({ success: true, data: tabs });
   } catch (error) {
     next(error);

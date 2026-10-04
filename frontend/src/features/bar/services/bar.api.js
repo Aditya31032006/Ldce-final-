@@ -36,13 +36,14 @@ export const barApi = {
     return res.data.data;
   },
 
-  getMenu: async (clubId, categoryId = null, availableOnly = null) => {
+  getMenu: async (clubId, categoryId = null, availableOnly = null, search = null) => {
     const config = clubId ? { headers: { 'x-club-id': clubId } } : {};
     const res = await apiClient.get('/bar/menu', {
       ...config,
       params: {
         ...(categoryId ? { categoryId } : {}),
         ...(availableOnly !== null ? { available_only: availableOnly } : {}),
+        ...(search ? { search: search.trim() } : {}),
       },
     });
     return res.data.data;

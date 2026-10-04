@@ -22,7 +22,6 @@ const MembershipPlans = lazy(() => import('../features/plans/pages/MembershipPla
 const BarPOS = lazy(() => import('../features/bar/pages/BarPOS.jsx'));
 const InventoryList = lazy(() => import('../features/inventory/pages/InventoryList.jsx'));
 const OrdersList = lazy(() => import('../features/orders/pages/OrdersList.jsx'));
-const LeadsList = lazy(() => import('../features/leads/pages/LeadsList.jsx'));
 const StaffManagement = lazy(() => import('../features/hr/pages/StaffManagement.jsx'));
 const ReportsDashboard = lazy(() => import('../features/reports/pages/ReportsDashboard.jsx'));
 const ClubDetailsPage = lazy(() => import('../features/clubs/pages/ClubDetailsPage.jsx'));
@@ -155,33 +154,19 @@ export const router = createBrowserRouter([
             path: '/members',
             element: withSuspense(MembersList),
           },
-          {
-            path: '/leads',
-            element: withSuspense(LeadsList),
-          },
         ],
       },
 
-      // Pro Shop Inventory Operations (Owner, Manager, Admin, Shop Staff)
+      // Pro Shop Store & Inventory (Accessible to all authenticated users: staff manages inventory, members purchase gear)
       {
-        element: <RoleGuard allowedRoles={['owner', 'manager', 'admin', 'shop_staff']} />,
-        children: [
-          {
-            path: '/inventory',
-            element: withSuspense(InventoryList),
-          },
-        ],
+        path: '/inventory',
+        element: withSuspense(InventoryList),
       },
 
-      // Pro Shop Orders (Owner, Manager, Admin, Shop Staff, Front Desk)
+      // Pro Shop Orders (Accessible to all authenticated users: staff manages fulfillment, members view order history)
       {
-        element: <RoleGuard allowedRoles={['owner', 'manager', 'admin', 'shop_staff', 'front_desk']} />,
-        children: [
-          {
-            path: '/orders',
-            element: withSuspense(OrdersList),
-          },
-        ],
+        path: '/orders',
+        element: withSuspense(OrdersList),
       },
 
       // Bar & Cafe Operations (Owner, Manager, Admin, Bar Staff, Kitchen, Front Desk)

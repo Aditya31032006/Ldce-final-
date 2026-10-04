@@ -9,7 +9,6 @@ import plansReducer from '../features/plans/plans.slice.js';
 import ordersReducer from '../features/orders/orders.slice.js';
 import barReducer from '../features/bar/bar.slice.js';
 import inventoryReducer from '../features/inventory/inventory.slice.js';
-import leadsReducer from '../features/leads/leads.slice.js';
 import hrReducer from '../features/hr/hr.slice.js';
 import reportsReducer from '../features/reports/reports.slice.js';
 
@@ -25,7 +24,6 @@ export const store = configureStore({
     orders: ordersReducer,
     bar: barReducer,
     inventory: inventoryReducer,
-    leads: leadsReducer,
     hr: hrReducer,
     reports: reportsReducer,
   },

@@ -2,7 +2,7 @@ import React from 'react';
 import { useToast } from '../context/ToastContext.jsx';
 import '../styles/toast.scss';
 
-export const ToastContainer = () => {
+export const ToastContainer = React.memo(() => {
   const { toasts, removeToast } = useToast();
 
   if (!toasts.length) return null;
@@ -59,6 +59,6 @@ export const ToastContainer = () => {
       ))}
     </div>
   );
-};
+});
 
 export default ToastContainer;

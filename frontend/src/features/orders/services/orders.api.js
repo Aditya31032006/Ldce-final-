@@ -1,16 +1,20 @@
 import apiClient from '../../../shared/services/api.js';
 
 export const ordersApi = {
-  async getOrders() {
-    const res = await apiClient.get('/orders');
+  async getOrders(params = {}) {
+    const res = await apiClient.get('/orders', { params });
     return res.data;
   },
-  async createOrder(orderData) {
-    const res = await apiClient.post('/orders', orderData);
+  async createOrder(orderData, params = {}) {
+    const res = await apiClient.post('/orders', orderData, { params });
     return res.data;
   },
   async updateOrderStatus(orderId, status) {
     const res = await apiClient.patch(`/orders/${orderId}/status`, { status });
+    return res.data;
+  },
+  async createRazorpayOrder(orderData, params = {}) {
+    const res = await apiClient.post('/orders/payments/razorpay/create-order', orderData, { params });
     return res.data;
   },
 };

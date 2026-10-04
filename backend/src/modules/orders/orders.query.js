@@ -65,8 +65,28 @@ export const GET_SHOP_ORDERS = `
   LEFT JOIN app.users u_member ON m.user_id = u_member.id
   LEFT JOIN app.shop_order_items i ON i.order_id = o.id AND i.club_id = o.club_id
   WHERE o.club_id = $1 AND ($2::uuid IS NULL OR (o.created_by = $2 OR m.user_id = $2))
+    AND (
+      $3::text IS NULL OR $3::text = '' OR
+      o.order_no ILIKE '%' || $3 || '%' OR
+      o.guest_name ILIKE '%' || $3 || '%' OR
+      u_creator.full_name ILIKE '%' || $3 || '%' OR
+      u_member.full_name ILIKE '%' || $3 || '%' OR
+      u_creator.email ILIKE '%' || $3 || '%' OR
+      u_member.email ILIKE '%' || $3 || '%' OR
+      EXISTS (
+        SELECT 1 FROM app.shop_order_items sub_i
+        WHERE sub_i.order_id = o.id AND sub_i.item_name ILIKE '%' || $3 || '%'
+      ) OR
+      similarity(COALESCE(u_creator.full_name, u_member.full_name, o.guest_name, ''), $3) > 0.15 OR
+      similarity(COALESCE(o.order_no, ''), $3) > 0.15
+    )
   GROUP BY o.id, u_creator.full_name, u_creator.email, u_creator.phone, u_member.full_name, u_member.email, u_member.phone
-  ORDER BY o.placed_at DESC
+  ORDER BY 
+    CASE WHEN $3::text IS NOT NULL AND $3::text != '' 
+      THEN similarity(COALESCE(u_creator.full_name, u_member.full_name, o.guest_name, ''), $3)
+      ELSE 0
+    END DESC,
+    o.placed_at DESC
   LIMIT 100;
 `;
 

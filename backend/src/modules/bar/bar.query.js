@@ -59,7 +59,21 @@ export const GET_MENU_ITEMS = `
     AND ($2::uuid IS NULL OR mi.category_id = $2)
     AND ($3::boolean IS NULL OR mi.is_active = $3)
     AND ($4::boolean IS NULL OR mi.is_available = $4)
-  ORDER BY mi.sort_order ASC, mi.name ASC;
+    AND (
+      $5::text IS NULL OR $5::text = '' OR
+      mi.name ILIKE '%' || $5 || '%' OR
+      mi.description ILIKE '%' || $5 || '%' OR
+      c.name ILIKE '%' || $5 || '%' OR
+      similarity(mi.name, $5) > 0.15 OR
+      similarity(COALESCE(mi.description, ''), $5) > 0.15 OR
+      similarity(COALESCE(c.name, ''), $5) > 0.15
+    )
+  ORDER BY 
+    CASE WHEN $5::text IS NOT NULL AND $5::text != '' 
+      THEN similarity(mi.name, $5)
+      ELSE 0
+    END DESC,
+    mi.sort_order ASC, mi.name ASC;
 `;
 
 export const INSERT_MENU_CATEGORY = `
@@ -249,7 +263,12 @@ export const GET_MEMBER_TABS = `
   SELECT t.id, t.member_id, t.guest_name, t.status, t.opened_at, t.settled_at,
          coalesce(m.full_name, t.guest_name, 'Club Member') AS member_name,
          m.member_code, m.phone AS member_phone,
-         coalesce(sum(o.total), 0) AS balance,
+         CASE 
+           WHEN t.status = 'settled' THEN 0.00
+           ELSE greatest(0, coalesce(sum(o.total), 0) - coalesce((SELECT sum(p.amount) FROM app.payments p WHERE p.tab_id = t.id AND p.status = 'completed'), 0))
+         END AS balance,
+         coalesce(sum(o.total), 0) AS total_orders_amount,
+         coalesce((SELECT sum(p.amount) FROM app.payments p WHERE p.tab_id = t.id AND p.status = 'completed'), 0) AS total_paid,
          count(o.id)::int AS orders_count,
          coalesce(
            (SELECT json_agg(
@@ -273,7 +292,9 @@ export const GET_MEMBER_TABS = `
   LEFT JOIN app.bar_orders o ON o.tab_id = t.id AND o.status <> 'void'
   WHERE t.club_id = $1 AND ($2::text IS NULL OR t.status = $2::app.tab_status)
   GROUP BY t.id, m.full_name, m.member_code, m.phone
-  ORDER BY t.opened_at DESC;
+  ORDER BY 
+    CASE WHEN t.status = 'open' THEN 0 ELSE 1 END,
+    t.opened_at DESC;
 `;
 
 export const SETTLE_TAB = `

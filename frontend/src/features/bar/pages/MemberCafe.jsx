@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 import barApi from '../services/bar.api.js';
 import { openRazorpayCheckout } from '../../../shared/utils/razorpay.util.js';
+import useDebounce from '../../../shared/hooks/useDebounce.js';
 
 export default function MemberCafe({ club, membership }) {
   const { user } = useSelector((state) => state.auth);
@@ -46,6 +47,7 @@ export default function MemberCafe({ club, membership }) {
   // Filters for Menu
   const [activeCategory, setActiveCategory] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const debouncedSearch = useDebounce(searchQuery, 300);
   const [vegOnly, setVegOnly] = useState(false);
 
   // Filter for Occupancy
@@ -81,13 +83,13 @@ export default function MemberCafe({ club, membership }) {
     return 0;
   }, [membership]);
 
-  // Load Menu and Tables
+  // Load Menu and Tables (Search handled via backend fuzzy similarity)
   const loadData = useCallback(async () => {
     if (!clubId) return;
     try {
       setLoading(true);
       const [menuData, tablesData] = await Promise.all([
-        barApi.getMenu(clubId, null, true), // available items only
+        barApi.getMenu(clubId, null, true, debouncedSearch.trim() || null), // available items only
         barApi.getTables(clubId, true), // all active tables
       ]);
       setCategories(menuData.categories || []);
@@ -98,7 +100,7 @@ export default function MemberCafe({ club, membership }) {
     } finally {
       setLoading(false);
     }
-  }, [clubId]);
+  }, [clubId, debouncedSearch]);
 
   // Load User's Past and Active Orders
   const loadMyOrders = useCallback(async () => {
@@ -167,18 +169,14 @@ export default function MemberCafe({ club, membership }) {
     }
   }, [activeView, loadMyOrders, clubId]);
 
-  // Filtered Menu Items
+  // Filtered Menu Items (Search handled by backend fuzzy similarity)
   const filteredItems = useMemo(() => {
     return menuItems.filter((item) => {
       const matchCat = activeCategory === 'all' || item.category_id === activeCategory;
-      const matchSearch =
-        !searchQuery.trim() ||
-        item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (item.description && item.description.toLowerCase().includes(searchQuery.toLowerCase()));
       const matchVeg = !vegOnly || item.is_veg === true;
-      return matchCat && matchSearch && matchVeg;
+      return matchCat && matchVeg;
     });
-  }, [menuItems, activeCategory, searchQuery, vegOnly]);
+  }, [menuItems, activeCategory, vegOnly]);
 
   // Occupancy Zones & Filtered Tables
   const zones = useMemo(() => {
@@ -358,10 +356,11 @@ export default function MemberCafe({ club, membership }) {
     setSubmitting(true);
     try {
       const selectedTable = tables.find((t) => t.id === selectedTableId);
+      const resolvedMemberId = membership?.member_id || membership?.id || user?.member_id || null;
       const orderPayload = {
         table_id: servingLocation === 'table' ? selectedTableId || null : null,
-        member_id: membership?.member_id || null,
-        guest_name: user?.full_name || 'Member',
+        member_id: resolvedMemberId,
+        guest_name: user?.full_name || 'Club Member',
         charge_to_tab: true,
         notes: `Member tab order (${servingLocation === 'table' ? 'Table ' + (selectedTable?.name || '') : 'Takeaway'})${deliveryNote ? ' - ' + deliveryNote : ''}`,
         items: cart.map((i) => ({
@@ -390,7 +389,7 @@ export default function MemberCafe({ club, membership }) {
       localStorage.setItem('ldce_tabs_updated', Date.now().toString());
       localStorage.setItem('ldce_kds_updated', Date.now().toString());
       localStorage.setItem('ldce_orders_updated', Date.now().toString());
-      showToast('Order placed & charged to your club account tab! Table is now occupied.', 'success');
+      showToast('Order placed & charged to your member tab! Outstanding due updated.', 'success');
     } catch (err) {
       console.error('Tab checkout error:', err);
       showToast(err.customMessage || 'Could not charge to tab.', 'error');
@@ -652,6 +651,18 @@ export default function MemberCafe({ club, membership }) {
                 onChange={(e) => setSearchQuery(e.target.value)}
                 style={{ border: 'none', outline: 'none', width: '100%', fontSize: '0.85rem' }}
               />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery('')}
+                  style={{
+                    border: 'none', background: 'transparent', cursor: 'pointer', padding: 0, color: '#6B6B66', display: 'flex'
+                  }}
+                  aria-label="Clear search"
+                >
+                  <X size={15} />
+                </button>
+              )}
             </div>
 
             <button

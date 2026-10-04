@@ -1,9 +1,10 @@
-import React, { useState, useEffect, Suspense } from 'react';
+import React, { useState, useEffect, useCallback, Suspense } from 'react';
 import { Outlet, useLocation } from 'react-router';
 import Sidebar from './Sidebar.jsx';
 import Navbar from './Navbar.jsx';
 import MobileDock from './MobileDock.jsx';
 import RouteLoader from '../RouteLoader.jsx';
+import AssistantWidget from '../../../features/assistant/components/AssistantWidget.jsx';
 import '../../styles/layout.scss';
 
 /**
@@ -14,6 +15,7 @@ import '../../styles/layout.scss';
  * - Sticky top navbar with live facility status, search, and profile
  * - Responsive mobile drawer toggle & backdrop blur
  * - Floating iOS/Android bottom dock with RBAC-filtered quick actions
+ * - Floating Executive AI Assistant Enclave
  */
 export default function AppLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -24,26 +26,37 @@ export default function AppLayout() {
     setSidebarOpen(false);
   }, [location.pathname]);
 
+  const handleCloseSidebar = useCallback(() => {
+    setSidebarOpen(false);
+  }, []);
+
+  const handleToggleSidebar = useCallback(() => {
+    setSidebarOpen((prev) => !prev);
+  }, []);
+
+  const handleOpenSidebar = useCallback(() => {
+    setSidebarOpen(true);
+  }, []);
 
   return (
     <div className="cl-app-layout">
       {/* Mobile Backdrop */}
       <div
         className={`cl-app-layout__backdrop ${sidebarOpen ? 'cl-app-layout__backdrop--open' : ''}`}
-        onClick={() => setSidebarOpen(false)}
+        onClick={handleCloseSidebar}
         aria-hidden="true"
       />
 
       {/* RBAC-Filtered Desktop & Drawer Sidebar */}
       <Sidebar
         isOpen={sidebarOpen}
-        onClose={() => setSidebarOpen(false)}
+        onClose={handleCloseSidebar}
       />
 
       {/* Main Canvas Area */}
       <div className="cl-app-layout__canvas">
         <Navbar
-          onToggleSidebar={() => setSidebarOpen((prev) => !prev)}
+          onToggleSidebar={handleToggleSidebar}
         />
 
         <main className="cl-app-layout__content">
@@ -55,8 +68,11 @@ export default function AppLayout() {
 
       {/* RBAC-Filtered Mobile Floating Bottom Dock */}
       <MobileDock
-        onOpenSidebar={() => setSidebarOpen(true)}
+        onOpenSidebar={handleOpenSidebar}
       />
+
+      {/* Floating Executive AI Advisor Widget */}
+      <AssistantWidget />
     </div>
   );
 }

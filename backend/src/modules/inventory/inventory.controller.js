@@ -3,7 +3,9 @@ import * as inventoryRepo from './inventory.repository.js';
 export async function getProductsController(req, res, next) {
   try {
     const activeOnly = (req.user.role === 'member' || req.user.role === 'public') ? true : null;
-    const products = await inventoryRepo.getProducts(req.user.id, req.clubId, activeOnly);
+    const { search, q } = req.query;
+    const searchQuery = search || q || null;
+    const products = await inventoryRepo.getProducts(req.user.id, req.clubId, activeOnly, searchQuery);
     return res.status(200).json({ products, clubId: req.clubId });
   } catch (error) {
     next(error);

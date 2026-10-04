@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import useAuth from '../../auth/hook/useAuth.js';
 import { useToast } from '../../../shared/context/ToastContext.jsx';
 import { plansApi } from '../../clubs/services/admin.api.js';
@@ -21,7 +21,7 @@ const EMPTY_PLAN = {
 };
 
 // ─── Plan Form Modal ──────────────────────────────────────────────────────────
-function PlanForm({ plan, onSave, onCancel }) {
+const PlanForm = React.memo(function PlanForm({ plan, onSave, onCancel }) {
   const { toast } = useToast();
   const [form, setForm] = useState(plan ? {
     ...EMPTY_PLAN, ...plan,
@@ -255,10 +255,10 @@ function PlanForm({ plan, onSave, onCancel }) {
       </div>
     </div>
   );
-}
+});
 
 // ─── Plan Card ────────────────────────────────────────────────────────────────
-function PlanCard({ plan, canEdit, onEdit, onToggle }) {
+const PlanCard = React.memo(function PlanCard({ plan, canEdit, onEdit, onToggle }) {
   return (
     <div style={{ background: '#fff', border: `2px solid ${plan.color || '#3b82f6'}20`, borderRadius: '1rem', padding: '1.5rem', position: 'relative', display: 'flex', flexDirection: 'column', opacity: plan.is_active ? 1 : 0.6, transition: 'box-shadow 0.15s', boxShadow: '0 1px 4px rgba(0,0,0,0.05)' }}>
       {!plan.is_active && (
@@ -301,16 +301,16 @@ function PlanCard({ plan, canEdit, onEdit, onToggle }) {
 
       {canEdit && (
         <div style={{ display: 'flex', gap: '0.5rem', marginTop: 'auto', paddingTop: '0.75rem', borderTop: '1px solid #f1f5f9' }}>
-          <button style={{ ...btnSecondary, flex: 1, fontSize: '0.8rem', padding: '0.4rem 0' }} onClick={onEdit}>✏️ Edit</button>
-          <button style={{ ...btnDanger, flex: 1, fontSize: '0.8rem', padding: '0.4rem 0' }} onClick={onToggle}>{plan.is_active ? 'Deactivate' : 'Activate'}</button>
+          <button style={{ ...btnSecondary, flex: 1, fontSize: '0.8rem', padding: '0.4rem 0' }} onClick={() => onEdit(plan)}>✏️ Edit</button>
+          <button style={{ ...btnDanger, flex: 1, fontSize: '0.8rem', padding: '0.4rem 0' }} onClick={() => onToggle(plan)}>{plan.is_active ? 'Deactivate' : 'Activate'}</button>
         </div>
       )}
     </div>
   );
-}
+});
 
 // ─── Main Membership Plans Page ───────────────────────────────────────────────
-export default function MembershipPlans() {
+function MembershipPlans() {
   const { role } = useAuth();
   const { toast } = useToast();
   const userRole = (role || 'public').toLowerCase();
@@ -327,27 +327,28 @@ export default function MembershipPlans() {
     try { setPlans(await plansApi.list(null)); }
     catch { toast.error('Failed to load plans'); }
     finally { setLoading(false); }
-  }, []);
+  }, [toast]);
 
   useEffect(() => { load(); }, [load]);
 
-  const handleEdit = (plan) => { setEditingPlan(plan); setShowForm(true); };
-  const handleToggle = async (plan) => {
+  const handleEdit = useCallback((plan) => { setEditingPlan(plan); setShowForm(true); }, []);
+  const handleToggle = useCallback(async (plan) => {
     try {
       await plansApi.update(plan.id, { is_active: !plan.is_active });
       toast.success(plan.is_active ? 'Plan deactivated' : 'Plan activated');
       load();
     } catch { toast.error('Failed'); }
-  };
-  const handleSaved = () => { setShowForm(false); setEditingPlan(null); load(); };
+  }, [load, toast]);
+  const handleSaved = useCallback(() => { setShowForm(false); setEditingPlan(null); load(); }, [load]);
+  const handleCancelForm = useCallback(() => { setShowForm(false); setEditingPlan(null); }, []);
 
-  const filtered = showInactive ? plans : plans.filter(p => p.is_active);
+  const filtered = useMemo(() => showInactive ? plans : plans.filter(p => p.is_active), [showInactive, plans]);
 
   if (loading) return <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '50vh', color: '#94a3b8' }}>Loading plans...</div>;
 
   return (
     <div style={{ padding: '1.5rem', maxWidth: '1200px', margin: '0 auto', background: '#FAF9F6', minHeight: 'calc(100vh - 70px)' }}>
-      {showForm && <PlanForm plan={editingPlan} onSave={handleSaved} onCancel={() => { setShowForm(false); setEditingPlan(null); }} />}
+      {showForm && <PlanForm plan={editingPlan} onSave={handleSaved} onCancel={handleCancelForm} />}
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
         <div>
@@ -411,3 +412,5 @@ export default function MembershipPlans() {
     </div>
   );
 }
+
+export default React.memo(MembershipPlans);

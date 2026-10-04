@@ -1,9 +1,9 @@
 import * as queries from './inventory.query.js';
 import { withTenantTransaction } from '../../shared/utils/transaction.util.js';
 
-export async function getProducts(userId, clubId, activeOnly = null) {
+export async function getProducts(userId, clubId, activeOnly = null, search = null) {
   return withTenantTransaction(userId, clubId, async (client) => {
-    const res = await client.query(queries.GET_PRODUCTS, [clubId, activeOnly]);
+    const res = await client.query(queries.GET_PRODUCTS, [clubId, activeOnly, search ? search.trim() : null]);
     return res.rows;
   });
 }

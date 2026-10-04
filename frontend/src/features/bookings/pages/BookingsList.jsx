@@ -1,29 +1,34 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { Link } from 'react-router';
 import { useDispatch, useSelector } from 'react-redux';
 import { fetchBookings } from '../bookings.slice.js';
 
-
-export default function BookingsList() {
+function BookingsList() {
   const dispatch = useDispatch();
-  const { bookingsList, loading } = useSelector((state) => state.bookings);
-  const [filter, setFilter] = React.useState('ALL');
+  const { bookingsList = [], loading } = useSelector((state) => state.bookings);
+  const [filter, setFilter] = useState('ALL');
+
+  const handleRefresh = useCallback(() => {
+    dispatch(fetchBookings());
+  }, [dispatch]);
 
   useEffect(() => {
-    dispatch(fetchBookings());
-    const handleUpdate = () => dispatch(fetchBookings());
+    handleRefresh();
+    const handleUpdate = () => handleRefresh();
     window.addEventListener('booking-updated', handleUpdate);
     window.addEventListener('court-booked', handleUpdate);
     return () => {
       window.removeEventListener('booking-updated', handleUpdate);
       window.removeEventListener('court-booked', handleUpdate);
     };
-  }, [dispatch]);
+  }, [handleRefresh]);
 
-  const filteredBookings = (bookingsList || []).filter((b) => {
-    if (filter === 'ALL') return true;
-    return (b.status || '').toLowerCase() === filter.toLowerCase();
-  });
+  const filteredBookings = useMemo(() => {
+    return (bookingsList || []).filter((b) => {
+      if (filter === 'ALL') return true;
+      return (b.status || '').toLowerCase() === filter.toLowerCase();
+    });
+  }, [bookingsList, filter]);
 
   return (
     <div className="df-page-wrapper">
@@ -36,7 +41,7 @@ export default function BookingsList() {
           <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
             <button
               type="button"
-              onClick={() => dispatch(fetchBookings())}
+              onClick={handleRefresh}
               style={{
                 padding: '0.5rem 0.85rem',
                 border: '1px solid #cbd5e1',
@@ -179,3 +184,5 @@ export default function BookingsList() {
     </div>
   );
 }
+
+export default React.memo(BookingsList);
