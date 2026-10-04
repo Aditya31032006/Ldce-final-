@@ -4,6 +4,7 @@ import Sidebar from './Sidebar.jsx';
 import Navbar from './Navbar.jsx';
 import MobileDock from './MobileDock.jsx';
 import RouteLoader from '../RouteLoader.jsx';
+import AssistantWidget from '../../../features/assistant/components/AssistantWidget.jsx';
 import '../../styles/layout.scss';
 
 /**
@@ -14,6 +15,7 @@ import '../../styles/layout.scss';
  * - Sticky top navbar with live facility status, search, and profile
  * - Responsive mobile drawer toggle & backdrop blur
  * - Floating iOS/Android bottom dock with RBAC-filtered quick actions
+ * - Floating Executive AI Assistant Enclave
  */
 export default function AppLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -57,6 +59,9 @@ export default function AppLayout() {
       <MobileDock
         onOpenSidebar={() => setSidebarOpen(true)}
       />
+
+      {/* Floating Executive AI Advisor Widget */}
+      <AssistantWidget />
     </div>
   );
 }

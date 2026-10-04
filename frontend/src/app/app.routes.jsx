@@ -25,6 +25,7 @@ const OrdersList = lazy(() => import('../features/orders/pages/OrdersList.jsx'))
 const LeadsList = lazy(() => import('../features/leads/pages/LeadsList.jsx'));
 const StaffManagement = lazy(() => import('../features/hr/pages/StaffManagement.jsx'));
 const ReportsDashboard = lazy(() => import('../features/reports/pages/ReportsDashboard.jsx'));
+const ExecutiveAssistantPage = lazy(() => import('../features/assistant/pages/ExecutiveAssistantPage.jsx'));
 const ClubDetailsPage = lazy(() => import('../features/clubs/pages/ClubDetailsPage.jsx'));
 
 import RouteLoader from '../shared/components/RouteLoader.jsx';
@@ -204,6 +205,10 @@ export const router = createBrowserRouter([
           {
             path: '/reports',
             element: withSuspense(ReportsDashboard),
+          },
+          {
+            path: '/assistant',
+            element: withSuspense(ExecutiveAssistantPage),
           },
         ],
       },

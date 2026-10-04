@@ -1,0 +1,314 @@
+// Executive AI Strategic Assistant Minimalist Design System
+// Harmonized with the Sports Club Aesthetic: #FAF9F6, #1F5C46, #E7E5DF
+
+// Ultra-thin scrollbar styling
+.thin-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(156, 163, 175, 0.4) transparent;
+
+  &::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+  }
+
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background-color: rgba(156, 163, 175, 0.4);
+    border-radius: 9999px;
+    transition: background-color 0.2s ease;
+  }
+
+  &::-webkit-scrollbar-thumb:hover {
+    background-color: rgba(107, 114, 128, 0.7);
+  }
+}
+
+// No scrollbar styling
+.no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+// Attractive streaming cursor animation
+@keyframes aiCursorPulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scaleY(1);
+  }
+  50% {
+    opacity: 0.2;
+    transform: scaleY(0.75);
+  }
+}
+
+.ai-streaming-cursor-wrapper {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 4px;
+  vertical-align: middle;
+}
+
+.ai-streaming-cursor {
+  display: inline-block;
+  width: 6px;
+  height: 15px;
+  background: #1F5C46;
+  border-radius: 2px;
+  box-shadow: 0 0 8px rgba(31, 92, 70, 0.4);
+  animation: aiCursorPulse 0.75s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+// Shimmering tool activity pill
+@keyframes toolGlowPulse {
+  0%, 100% {
+    border-color: rgba(31, 92, 70, 0.25);
+    background-color: #EBF3F0;
+    box-shadow: 0 0 0 0 rgba(31, 92, 70, 0.1);
+  }
+  50% {
+    border-color: rgba(31, 92, 70, 0.55);
+    background-color: #DEF0E8;
+    box-shadow: 0 0 10px 2px rgba(31, 92, 70, 0.12);
+  }
+}
+
+.ai-tool-pill-active {
+  animation: toolGlowPulse 1.8s ease-in-out infinite;
+}
+
+// Rich Markdown Flow Typography
+.assistant-markdown-flow {
+  font-family: var(--df-font-family, 'Inter', -apple-system, sans-serif);
+  font-size: 0.885rem;
+  line-height: 1.62;
+  color: #1A1A18;
+  word-break: break-word;
+
+  .ai-paragraph {
+    margin: 0.45rem 0;
+    line-height: 1.62;
+    &:first-child {
+      margin-top: 0;
+    }
+    &:last-child {
+      margin-bottom: 0;
+    }
+  }
+
+  // Asterisks formatting
+  .ai-bold-text, strong {
+    color: #111827;
+    font-weight: 700;
+  }
+
+  .ai-italic-text, em {
+    color: #374151;
+    font-style: italic;
+  }
+
+  .ai-bold-italic {
+    color: #111827;
+    font-weight: 700;
+    font-style: italic;
+  }
+
+  // Headers
+  h2, h3, h4 {
+    color: #111827;
+    font-weight: 800;
+    letter-spacing: -0.015em;
+    margin: 1rem 0 0.4rem;
+    &:first-child {
+      margin-top: 0;
+    }
+  }
+
+  h2 {
+    font-size: 1.125rem;
+    border-bottom: 1px solid #E7E5DF;
+    padding-bottom: 0.35rem;
+    color: #1F5C46;
+  }
+
+  h3 {
+    font-size: 1rem;
+    color: #1F5C46;
+  }
+
+  h4 {
+    font-size: 0.9rem;
+    color: #374151;
+  }
+
+  // Lists: dashes & asterisks converted to clean custom list markers
+  .ai-styled-list {
+    margin: 0.5rem 0;
+    padding-left: 1.25rem;
+    list-style-type: none;
+
+    li {
+      position: relative;
+      margin-bottom: 0.35rem;
+      line-height: 1.55;
+      padding-left: 0.35rem;
+
+      &::before {
+        content: "•";
+        position: absolute;
+        left: -1rem;
+        top: 0;
+        color: #1F5C46;
+        font-size: 1.1rem;
+        font-weight: 800;
+        line-height: 1.35;
+      }
+    }
+  }
+
+  .ai-styled-numbered-list {
+    margin: 0.5rem 0;
+    padding-left: 1.4rem;
+    color: #1F2937;
+
+    li {
+      margin-bottom: 0.35rem;
+      line-height: 1.55;
+      padding-left: 0.25rem;
+
+      &::marker {
+        color: #1F5C46;
+        font-weight: 700;
+        font-size: 0.85rem;
+      }
+    }
+  }
+
+  // Blockquotes / Callout notes
+  .ai-callout-quote {
+    margin: 0.75rem 0;
+    padding: 0.65rem 0.9rem;
+    border-left: 3.5px solid #1F5C46;
+    background: #F0FDF4;
+    border-radius: 0 8px 8px 0;
+    color: #166534;
+    font-size: 0.84rem;
+    line-height: 1.55;
+
+    p {
+      margin: 0;
+    }
+  }
+
+  // Dividers
+  .ai-divider {
+    border: none;
+    border-top: 1px solid #E7E5DF;
+    margin: 0.85rem 0;
+  }
+
+  // Inline Code
+  .ai-inline-code {
+    background: #F3F4F6;
+    color: #1F5C46;
+    padding: 0.12rem 0.4rem;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    border: 1px solid #E5E7EB;
+  }
+
+  // Multiline Code Fences
+  .ai-code-block-container {
+    margin: 0.75rem 0;
+    border-radius: 8px;
+    border: 1px solid #E5E7DF;
+    background: #FAF9F6;
+    overflow: hidden;
+
+    .ai-code-header {
+      background: #F1F0EC;
+      color: #5D6370;
+      font-size: 0.68rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      padding: 0.35rem 0.85rem;
+      border-bottom: 1px solid #E5E7DF;
+    }
+
+    pre {
+      margin: 0;
+      padding: 0.75rem 1rem;
+      background: transparent;
+      overflow-x: auto;
+
+      code {
+        background: transparent;
+        border: none;
+        padding: 0;
+        color: #121316;
+        font-size: 0.8rem;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        line-height: 1.5;
+      }
+    }
+  }
+
+  // Data Tables
+  .ai-table-wrapper {
+    overflow-x: auto;
+    margin: 0.85rem 0;
+    border-radius: 8px;
+    border: 1px solid #E5E7DF;
+    background: #FFFFFF;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.815rem;
+      text-align: left;
+
+      thead {
+        background: #F8F7F4;
+        border-bottom: 1px solid #E5E7DF;
+
+        th {
+          padding: 0.65rem 0.85rem;
+          font-weight: 700;
+          color: #1F5C46;
+          font-size: 0.72rem;
+          text-transform: uppercase;
+          letter-spacing: 0.04em;
+          white-space: nowrap;
+        }
+      }
+
+      tbody {
+        tr {
+          border-bottom: 1px solid #F1F0EC;
+          transition: background 0.12s ease;
+
+          &:last-child {
+            border-bottom: none;
+          }
+
+          &:hover {
+            background: #FDFCF9;
+          }
+
+          td {
+            padding: 0.6rem 0.85rem;
+            color: #1A1A18;
+          }
+        }
+      }
+    }
+  }
+}

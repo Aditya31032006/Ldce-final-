@@ -20,6 +20,7 @@ import {
   LogOut,
   X,
   ArrowLeft,
+  Sparkles,
 } from 'lucide-react';
 
 import useAuth from '../../../features/auth/hook/useAuth.js';
@@ -116,6 +117,12 @@ const NAVIGATION_SECTIONS = [
         label: 'Staff Management',
         path: '/hr',
         icon: UserCheck,
+        roles: ['owner', 'manager', 'admin'],
+      },
+      {
+        label: 'AI Executive Advisor',
+        path: '/assistant',
+        icon: Sparkles,
         roles: ['owner', 'manager', 'admin'],
       },
     ],
