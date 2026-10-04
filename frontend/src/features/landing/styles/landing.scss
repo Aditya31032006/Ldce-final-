@@ -42,10 +42,10 @@ $brand-bg-cream: #F2F0EB;
     left: 0;
     width: 100%;
     z-index: 1000;
-    background: rgba(248, 247, 244, 0.96);
+    background: rgba(12, 18, 28, 0.88);
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
-    border-bottom: 1px solid $brand-border;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
     transition: all 0.2s ease;
 
     .nav-inner {
@@ -65,12 +65,11 @@ $brand-bg-cream: #F2F0EB;
       text-decoration: none;
 
       .brand-dot {
-        width: 9px;
-        height: 9px;
+        width: 8px;
+        height: 8px;
         border-radius: 50%;
-        background-color: #10b981;
-        box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.2);
-        animation: pulse-dot 2.5s infinite ease-in-out;
+        background-color: #FFFFFF;
+        box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.15);
       }
 
       .brand-name {
@@ -78,7 +77,7 @@ $brand-bg-cream: #F2F0EB;
         font-weight: 800;
         font-size: 1.35rem;
         letter-spacing: -0.02em;
-        color: $brand-charcoal;
+        color: #FFFFFF;
       }
 
       .brand-badge {
@@ -86,9 +85,9 @@ $brand-bg-cream: #F2F0EB;
         font-size: 0.6875rem;
         font-weight: 600;
         padding: 0.2rem 0.5rem;
-        background: #f1f5f9;
-        border: 1px solid #e2e8f0;
-        color: #64748b;
+        background: rgba(255, 255, 255, 0.08);
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        color: #CBD5E1;
         border-radius: 4px;
         letter-spacing: 0.04em;
         text-transform: uppercase;
@@ -102,13 +101,13 @@ $brand-bg-cream: #F2F0EB;
 
       a {
         text-decoration: none;
-        color: #4B5162;
+        color: #CBD5E1;
         font-size: 0.875rem;
         font-weight: 500;
         transition: color 0.18s ease;
 
         &:hover {
-          color: $brand-primary;
+          color: #FFFFFF;
         }
       }
     }
@@ -120,22 +119,22 @@ $brand-bg-cream: #F2F0EB;
 
       .btn-login {
         text-decoration: none;
-        color: #121316;
+        color: #FFFFFF;
         font-weight: 600;
         font-size: 0.875rem;
-        padding: 0.5rem 0.75rem;
+        padding: 0.5rem 0.85rem;
         border-radius: 6px;
         transition: background-color 0.18s ease;
 
         &:hover {
-          background-color: #eae7df;
+          background-color: rgba(255, 255, 255, 0.1);
         }
       }
 
       .btn-register {
         text-decoration: none;
-        background-color: $brand-primary;
-        color: #ffffff;
+        background: #FFFFFF;
+        color: #0F172A;
         font-weight: 600;
         font-size: 0.875rem;
         padding: 0.6rem 1.15rem;
@@ -144,12 +143,12 @@ $brand-bg-cream: #F2F0EB;
         display: inline-flex;
         align-items: center;
         gap: 0.4rem;
-        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
 
         &:hover {
-          background-color: $brand-primary-hover;
+          background: #F1F5F9;
           transform: translateY(-1px);
-          box-shadow: 0 4px 12px rgba(26, 56, 43, 0.2);
+          box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
         }
       }
 
@@ -159,7 +158,7 @@ $brand-bg-cream: #F2F0EB;
         border: none;
         padding: 0.4rem;
         cursor: pointer;
-        color: #4B5162;
+        color: #FFFFFF;
       }
     }
   }
@@ -220,32 +219,40 @@ $brand-bg-cream: #F2F0EB;
      HERO SECTION
   ───────────────────────────────────────────────────────────── */
   .hero-section {
-    padding: 3.5rem 1.5rem 5rem 1.5rem;
-    border-bottom: 1px solid $brand-border;
+    height: calc(100vh - 68px);
+    min-height: calc(100vh - 68px);
+    box-sizing: border-box;
+    padding: 0 1.5rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
     position: relative;
     overflow: hidden;
+    background: 
+      linear-gradient(90deg, rgba(12, 18, 28, 0.72) 0%, rgba(12, 18, 28, 0.52) 42%, rgba(12, 18, 28, 0.25) 75%, rgba(12, 18, 28, 0.10) 100%),
+      url('/images/hero-athlete-desktop.jpg') center right / cover no-repeat;
+    background-color: #0c121c;
+    display: flex;
+    align-items: center;
 
     .hero-container {
       max-width: 1320px;
       margin: 0 auto;
-      display: grid;
-      grid-template-columns: 1.05fr 1fr;
-      gap: 3.5rem;
-      align-items: center;
+      width: 100%;
+      position: relative;
+      z-index: 2;
     }
 
     .hero-left {
+      max-width: 680px;
+
       .hero-eyebrow {
         font-family: 'JetBrains Mono', monospace;
-        font-size: 0.75rem;
+        font-size: 0.8rem;
         font-weight: 700;
-        letter-spacing: 0.08em;
+        letter-spacing: 0.14em;
         text-transform: uppercase;
-        color: #717887;
+        color: #94A3B8;
         margin-bottom: 1.25rem;
-        display: inline-flex;
-        align-items: center;
-        gap: 0.5rem;
+        display: inline-block;
       }
 
       .hero-headline {
@@ -253,21 +260,19 @@ $brand-bg-cream: #F2F0EB;
         font-weight: 800;
         font-size: 3.75rem;
         line-height: 1.08;
-        letter-spacing: -0.035em;
-        color: #121316;
-        margin-bottom: 1.5rem;
-
-        .headline-highlight {
-          color: $brand-primary;
-        }
+        letter-spacing: -0.03em;
+        color: #FFFFFF;
+        margin-bottom: 1.35rem;
+        text-shadow: 0 2px 14px rgba(0, 0, 0, 0.4);
       }
 
       .hero-description {
         font-size: 1.15rem;
-        line-height: 1.6;
-        color: #4B5162;
-        max-width: 540px;
-        margin-bottom: 2rem;
+        line-height: 1.65;
+        color: #CBD5E1;
+        max-width: 560px;
+        margin-bottom: 2.25rem;
+        text-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
       }
 
       .hero-actions {
@@ -275,342 +280,64 @@ $brand-bg-cream: #F2F0EB;
         flex-wrap: wrap;
         align-items: center;
         gap: 1rem;
-        margin-bottom: 1.75rem;
 
         .btn-hero-primary {
-          background-color: $brand-primary;
-          color: #ffffff;
+          background-color: #FFFFFF;
+          color: #0F172A;
           font-weight: 700;
-          font-size: 0.9375rem;
-          padding: 0.85rem 1.75rem;
-          border-radius: 6px;
+          font-size: 0.95rem;
+          padding: 0.95rem 1.85rem;
+          border-radius: 8px;
           text-decoration: none;
           display: inline-flex;
           align-items: center;
           gap: 0.5rem;
-          box-shadow: 0 4px 14px rgba(26, 56, 43, 0.25);
-          transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+          box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+          transition: all 0.2s ease;
 
           &:hover {
-            background-color: $brand-primary-hover;
-            transform: translateY(-1px);
-            box-shadow: 0 6px 18px rgba(26, 56, 43, 0.35);
+            background-color: #F1F5F9;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
           }
         }
 
         .btn-hero-secondary {
-          background-color: #ffffff;
-          color: #141517;
+          background-color: rgba(255, 255, 255, 0.1);
+          color: #FFFFFF;
           font-weight: 600;
-          font-size: 0.9375rem;
-          padding: 0.85rem 1.5rem;
-          border-radius: 6px;
+          font-size: 0.95rem;
+          padding: 0.95rem 1.65rem;
+          border-radius: 8px;
           text-decoration: none;
-          border: 1px solid $brand-border-dark;
-          box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
-          transition: all 0.18s ease;
+          border: 1px solid rgba(255, 255, 255, 0.3);
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+          transition: all 0.2s ease;
           cursor: pointer;
+          backdrop-filter: blur(8px);
 
           &:hover {
-            background-color: #F2F0EB;
-            border-color: #c4beb3;
-          }
-        }
-      }
-
-      .hero-trust-text {
-        font-size: 0.8125rem;
-        color: #717887;
-        margin-bottom: 2.5rem;
-        font-weight: 500;
-      }
-
-      .hero-metrics {
-        display: grid;
-        grid-template-columns: repeat(3, 1fr);
-        gap: 1.5rem;
-        padding-top: 1.5rem;
-        border-top: 1px solid $brand-border;
-
-        .metric-item {
-          .metric-val {
-            font-family: 'Plus Jakarta Sans', sans-serif;
-            font-weight: 800;
-            font-size: 1.85rem;
-            color: #121316;
-            letter-spacing: -0.02em;
-            margin-bottom: 0.2rem;
-          }
-
-          .metric-lbl {
-            font-size: 0.8125rem;
-            color: #5D6370;
-            line-height: 1.35;
+            background-color: rgba(255, 255, 255, 0.2);
+            border-color: rgba(255, 255, 255, 0.5);
+            transform: translateY(-1px);
           }
         }
       }
     }
 
-    /* ─── LIVE FLOOR GRID CARD (RIGHT SIDE) ─── */
-    .hero-right {
-      position: relative;
+    @media (max-width: 900px) {
+      height: auto;
+      min-height: calc(100vh - 68px);
+      padding: 4rem 1.25rem 4.5rem 1.25rem;
+      background: 
+        linear-gradient(180deg, rgba(12, 18, 28, 0.85) 0%, rgba(12, 18, 28, 0.75) 100%),
+        url('/images/hero-athlete-desktop.jpg') center center / cover no-repeat;
 
-      .grid-card-window {
-        background: #ffffff;
-        border: 1px solid $brand-border-dark;
-        border-radius: 12px;
-        box-shadow: 0 20px 45px -10px rgba(0, 0, 0, 0.1), 0 2px 8px -2px rgba(0, 0, 0, 0.04);
-        overflow: hidden;
-      }
+      .hero-left {
+        max-width: 100%;
 
-      .window-chrome {
-        background: #FAF9F6;
-        border-bottom: 1px solid $brand-border;
-        padding: 0.75rem 1rem;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-
-        .window-dots {
-          display: flex;
-          align-items: center;
-          gap: 6px;
-
-          .dot {
-            width: 10px;
-            height: 10px;
-            border-radius: 50%;
-
-            &.dot-red { background-color: #ff5f56; }
-            &.dot-yellow { background-color: #ffbd2e; }
-            &.dot-green { background-color: #27c93f; }
-          }
-        }
-
-        .window-title {
-          font-family: 'JetBrains Mono', monospace;
-          font-size: 0.75rem;
-          font-weight: 600;
-          color: #4B5162;
-          letter-spacing: 0.02em;
-        }
-
-        .window-status {
-          font-family: 'JetBrains Mono', monospace;
-          font-size: 0.7rem;
-          font-weight: 600;
-          color: #166534;
-          background: #dcfce7;
-          border: 1px solid #bbf7d0;
-          padding: 0.2rem 0.6rem;
-          border-radius: 20px;
-          display: flex;
-          align-items: center;
-          gap: 0.35rem;
-
-          .live-ping {
-            width: 6px;
-            height: 6px;
-            border-radius: 50%;
-            background-color: #16a34a;
-          }
-        }
-      }
-
-      .window-metrics-bar {
-        display: grid;
-        grid-template-columns: repeat(3, 1fr);
-        padding: 1.25rem 1.25rem;
-        border-bottom: 1px solid #ece8df;
-        background: #ffffff;
-
-        .wm-item {
-          text-align: center;
-          padding: 0 0.5rem;
-
-          &:not(:last-child) {
-            border-right: 1px solid #ece8df;
-          }
-
-          .wm-label {
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 0.65rem;
-            font-weight: 700;
-            color: #8A909D;
-            letter-spacing: 0.06em;
-            text-transform: uppercase;
-            margin-bottom: 0.35rem;
-          }
-
-          .wm-value {
-            font-family: 'Plus Jakarta Sans', sans-serif;
-            font-weight: 800;
-            font-size: 1.2rem;
-            color: #141517;
-          }
-        }
-      }
-
-      .window-table-wrap {
-        overflow-x: auto;
-
-        .grid-table {
-          width: 100%;
-          border-collapse: collapse;
-          font-size: 0.78125rem;
-          text-align: left;
-
-          th {
-            background: #Fbfaf8;
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 0.6875rem;
-            font-weight: 600;
-            color: #717887;
-            text-transform: uppercase;
-            letter-spacing: 0.04em;
-            padding: 0.75rem 1rem;
-            border-bottom: 1px solid #ece8df;
-            white-space: nowrap;
-          }
-
-          td {
-            padding: 0.75rem 1rem;
-            border-bottom: 1px solid #f4f2ec;
-            vertical-align: middle;
-            color: #334155;
-            white-space: nowrap;
-          }
-
-          tr:last-child td {
-            border-bottom: none;
-          }
-
-          tr:hover td {
-            background-color: #FAF9F6;
-          }
-
-          .court-name {
-            font-weight: 700;
-            color: #121316;
-          }
-
-          .surface-tag {
-            color: #64748b;
-            font-size: 0.75rem;
-          }
-
-          .slot-time {
-            font-family: 'JetBrains Mono', monospace;
-            font-weight: 600;
-            color: #475569;
-            font-size: 0.72rem;
-          }
-
-          .member-cell {
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-
-            .avatar-badge {
-              width: 22px;
-              height: 22px;
-              border-radius: 50%;
-              background: #e2e8f0;
-              color: #475569;
-              font-size: 0.625rem;
-              font-weight: 700;
-              display: flex;
-              align-items: center;
-              justify-content: center;
-              text-transform: uppercase;
-            }
-
-            .member-name {
-              font-weight: 600;
-              color: #1e293b;
-            }
-
-            .member-type {
-              color: #94a3b8;
-              font-size: 0.72rem;
-            }
-          }
-
-          .status-pill {
-            display: inline-flex;
-            align-items: center;
-            gap: 0.35rem;
-            font-size: 0.7rem;
-            font-weight: 600;
-            padding: 0.2rem 0.55rem;
-            border-radius: 12px;
-
-            &--active {
-              background: #dcfce7;
-              color: #15803d;
-
-              &::before {
-                content: '';
-                width: 5px;
-                height: 5px;
-                border-radius: 50%;
-                background-color: #15803d;
-              }
-            }
-
-            &--maintenance {
-              background: #fef3c7;
-              color: #b45309;
-
-              &::before {
-                content: '';
-                width: 5px;
-                height: 5px;
-                border-radius: 50%;
-                background-color: #b45309;
-              }
-            }
-
-            &--upnext {
-              background: #f1f5f9;
-              color: #475569;
-
-              &::before {
-                content: '';
-                width: 5px;
-                height: 5px;
-                border-radius: 50%;
-                background-color: #64748b;
-              }
-            }
-          }
-        }
-      }
-
-      .window-footer {
-        padding: 0.85rem 1.25rem;
-        background: #FAF9F6;
-        border-top: 1px solid #ece8df;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        font-size: 0.75rem;
-
-        .wf-count {
-          color: #8A909D;
-        }
-
-        .wf-link {
-          font-weight: 600;
-          color: $brand-primary;
-          text-decoration: none;
-          display: flex;
-          align-items: center;
-          gap: 0.3rem;
-
-          &:hover {
-            text-decoration: underline;
-          }
+        .hero-headline {
+          font-size: 2.6rem;
         }
       }
     }
