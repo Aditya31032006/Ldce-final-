@@ -2,6 +2,7 @@ import { app } from './src/app.js';
 import { config } from './src/config/config.js';
 import { pool } from './src/config/database.js';
 import { initEmailWorker } from './jobs/emailQueue.js';
+import { initMembershipRenewalCron } from './src/jobs/membershipRenewalCron.js';
 
 async function startServer() {
   try {
@@ -12,6 +13,9 @@ async function startServer() {
 
     // Initialize background queue worker (BullMQ + Redis)
     initEmailWorker();
+
+    // Initialize daily midnight membership renewal cron job
+    initMembershipRenewalCron();
 
     const desiredPort = Number(config.port) || 3000;
     const server = app.listen(desiredPort, () => {

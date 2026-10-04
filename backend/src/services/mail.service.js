@@ -641,6 +641,97 @@ export function generateQuotationApprovedEmail({ customerName, quotationNumber, 
   `;
 }
 
+/**
+ * Generates an HTML email for membership renewal reminder.
+ * @param {Object} params
+ * @param {string} params.memberName - Name of the member
+ * @param {string} params.clubName - Name of the sports club
+ * @param {string} params.planName - Name of the membership plan
+ * @param {number} params.daysLeft - Days remaining until expiration
+ * @param {string} params.endDate - Membership expiry date
+ * @param {string} params.renewalUrl - Direct web link to renewal portal
+ */
+export function generateMembershipRenewalEmail({ memberName, clubName, planName, daysLeft, endDate, renewalUrl }) {
+  const urgencyTitle = daysLeft === 0
+    ? 'Expires Today!'
+    : daysLeft === 1
+      ? 'Expires Tomorrow!'
+      : `Expires in ${daysLeft} Days`;
+
+  const urgencyColor = daysLeft <= 1 ? '#dc2626' : '#d97706';
+  const formattedDate = new Date(endDate).toLocaleDateString('en-IN', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
+  });
+
+  return `
+  <!DOCTYPE html>
+  <html>
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>${clubName} - Membership Renewal Reminder</title>
+    <style>
+      body { margin: 0; padding: 0; background-color: #0b1120; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #e2e8f0; }
+      .container { max-width: 540px; margin: 30px auto; background-color: #1e293b; border: 1px solid #334155; border-radius: 14px; overflow: hidden; box-shadow: 0 12px 30px rgba(0,0,0,0.5); }
+      .header { background: linear-gradient(135deg, #1e3a8a 0%, #0f172a 100%); padding: 32px 24px; text-align: center; border-bottom: 2px solid #3b82f6; }
+      .badge { display: inline-block; background-color: ${urgencyColor}; color: #ffffff; font-size: 12px; font-weight: 800; padding: 4px 14px; border-radius: 9999px; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 12px; }
+      .header h1 { margin: 0; font-size: 24px; font-weight: 800; color: #ffffff; }
+      .body { padding: 32px 28px; line-height: 1.6; color: #cbd5e1; font-size: 15px; }
+      .plan-card { background: #0f172a; border: 1px solid #334155; border-radius: 10px; padding: 20px; margin: 24px 0; }
+      .plan-row { display: flex; justify-content: space-between; padding: 6px 0; font-size: 14px; }
+      .plan-label { color: #94a3b8; }
+      .plan-val { font-weight: 700; color: #f8fafc; }
+      .btn { display: block; text-align: center; background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%); color: #ffffff !important; text-decoration: none; padding: 14px 28px; border-radius: 8px; font-weight: 700; font-size: 15px; margin: 26px 0 16px; box-shadow: 0 4px 14px rgba(37, 99, 235, 0.4); }
+      .perks-list { background: rgba(59, 130, 246, 0.08); border: 1px solid rgba(59, 130, 246, 0.2); border-radius: 8px; padding: 16px 20px; margin-top: 20px; font-size: 13px; color: #93c5fd; }
+      .footer { padding: 20px; text-align: center; font-size: 12px; color: #64748b; background-color: #0f172a; border-top: 1px solid #334155; }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="header">
+        <span class="badge">⏰ Membership Renewal</span>
+        <h1>${clubName}</h1>
+      </div>
+      <div class="body">
+        <p style="margin-top: 0;">Dear <strong>${memberName}</strong>,</p>
+        <p>This is a friendly reminder that your active membership at <strong>${clubName}</strong> is approaching its expiration date: <strong>${urgencyTitle}</strong>.</p>
+        
+        <div class="plan-card">
+          <div style="font-size: 16px; font-weight: 800; color: #60a5fa; margin-bottom: 12px;">📋 Membership Details</div>
+          <div class="plan-row"><span class="plan-label">Current Tier:</span><span class="plan-val">${planName}</span></div>
+          <div class="plan-row"><span class="plan-label">Expiry Date:</span><span class="plan-val">${formattedDate}</span></div>
+          <div class="plan-row"><span class="plan-label">Days Remaining:</span><span class="plan-val" style="color: ${urgencyColor};">${daysLeft} day${daysLeft === 1 ? '' : 's'}</span></div>
+        </div>
+
+        <p>Renew now to maintain seamless access to your club facilities without interruption:</p>
+
+        <a href="${renewalUrl}" class="btn">⚡ Renew Membership Online</a>
+
+        <div class="perks-list">
+          <strong>🏆 Why renew on time?</strong>
+          <ul style="margin: 8px 0 0 18px; padding: 0;">
+            <li>Zero interruption to court booking privileges and member discounts</li>
+            <li>Priority access during prime peak hours</li>
+            <li>Retain your active member credits and loyalty perks</li>
+          </ul>
+        </div>
+
+        <p style="margin-top: 26px; font-size: 13px; color: #94a3b8;">
+          If you have already processed your renewal or have questions, please feel free to contact the front desk at ${clubName}.
+        </p>
+      </div>
+      <div class="footer">
+        &copy; ${new Date().getFullYear()} ${clubName} • Powered by Sports Club Platform
+      </div>
+    </div>
+  </body>
+  </html>
+  `;
+}
+
 export default {
   sendMail,
   generateOtpEmail,
@@ -656,4 +747,5 @@ export default {
   generateQuotationIssuedEmail,
   generateCounterOfferEmail,
   generateQuotationApprovedEmail,
+  generateMembershipRenewalEmail,
 };
