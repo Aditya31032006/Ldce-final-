@@ -13,6 +13,10 @@ export const ordersApi = {
     const res = await apiClient.patch(`/orders/${orderId}/status`, { status });
     return res.data;
   },
+  async createRazorpayOrder(orderData, params = {}) {
+    const res = await apiClient.post('/orders/payments/razorpay/create-order', orderData, { params });
+    return res.data;
+  },
 };
 
 export default ordersApi;

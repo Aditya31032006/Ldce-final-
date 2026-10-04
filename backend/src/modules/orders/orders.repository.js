@@ -67,7 +67,11 @@ export async function createShopOrder(userId, clubId, orderData, items) {
       createdItems.push(iResult.rows[0]);
     }
 
-    return { ...order, items: createdItems };
+    // 4. Fetch refreshed order with trigger-calculated total & order_no
+    const freshRes = await client.query('SELECT * FROM app.shop_orders WHERE id = $1', [order.id]);
+    const finalOrder = freshRes.rows[0] || order;
+
+    return { ...finalOrder, items: createdItems };
   });
 }
 
