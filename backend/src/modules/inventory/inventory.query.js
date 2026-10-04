@@ -35,7 +35,8 @@ export const GET_PRODUCTS = `
     COALESCE(MAX(pv.price), 0) AS max_price,
     COALESCE(MIN(pv.mrp), 0) AS mrp,
     COALESCE(SUM(pv.stock_qty), 0)::int AS stock_qty,
-    COALESCE(MIN(pv.sku), '') AS sku
+    COALESCE(MIN(pv.sku), '') AS sku,
+    COALESCE(MIN(pv.reorder_level), 5) AS reorder_level
   FROM app.products p
   LEFT JOIN app.product_categories c ON c.id = p.category_id AND c.club_id = p.club_id
   LEFT JOIN app.product_variants pv ON pv.product_id = p.id AND pv.club_id = p.club_id
@@ -104,9 +105,9 @@ export const INSERT_VARIANT = `
 export const UPDATE_PRODUCT = `
   UPDATE app.products
   SET name = COALESCE($3, name),
-      description = COALESCE($4, description),
+      description = CASE WHEN $4::text IS NOT NULL THEN $4 ELSE description END,
       category_id = COALESCE($5, category_id),
-      image_url = COALESCE($6, image_url),
+      image_url = CASE WHEN $6::text IS NOT NULL THEN $6 ELSE image_url END,
       is_online = COALESCE($7, is_online),
       is_active = COALESCE($8, is_active),
       updated_at = now()
@@ -120,6 +121,8 @@ export const UPDATE_VARIANT_STOCK = `
       price = COALESCE($4, price),
       mrp = COALESCE($5, mrp),
       is_active = COALESCE($6, is_active),
+      sku = COALESCE($7, sku),
+      reorder_level = COALESCE($8, reorder_level),
       updated_at = now()
   WHERE product_id = $1 AND club_id = $2
   RETURNING *;
