@@ -57,12 +57,13 @@ export async function updateTableController(req, res, next) {
 
 export async function getMenuController(req, res, next) {
   try {
-    const { categoryId, active_only, available_only } = req.query;
+    const { categoryId, active_only, available_only, search, q } = req.query;
+    const searchQuery = search || q || null;
     const isMemberOrPublic = req.user?.role === 'member' || !req.user;
     const activeOnly = isMemberOrPublic ? true : (active_only !== 'false');
     const availableOnly = isMemberOrPublic ? true : (available_only === 'true' ? true : null);
 
-    const menu = await barRepo.getMenu(req.user?.id, req.clubId, categoryId || null, activeOnly, availableOnly);
+    const menu = await barRepo.getMenu(req.user?.id, req.clubId, categoryId || null, activeOnly, availableOnly, searchQuery);
     return res.status(200).json({ success: true, data: menu });
   } catch (error) {
     next(error);
@@ -100,6 +101,16 @@ export async function updateMenuItemController(req, res, next) {
     const { id } = req.params;
     const item = await barRepo.updateMenuItem(req.user.id, req.clubId, id, req.body);
     return res.status(200).json({ success: true, message: 'Menu item updated', data: item });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function deleteMenuItemController(req, res, next) {
+  try {
+    const { id } = req.params;
+    const item = await barRepo.deleteMenuItem(req.user.id, req.clubId, id);
+    return res.status(200).json({ success: true, message: 'Menu item removed successfully', data: item });
   } catch (error) {
     next(error);
   }
@@ -328,7 +339,8 @@ export async function verifyRazorpayPaymentController(req, res, next) {
 export async function getTabsController(req, res, next) {
   try {
     const status = req.query.status || 'open';
-    const tabs = await barRepo.getMemberTabs(req.user.id, req.clubId, status);
+    const filterStatus = status === 'all' ? null : status;
+    const tabs = await barRepo.getMemberTabs(req.user.id, req.clubId, filterStatus);
     return res.status(200).json({ success: true, data: tabs });
   } catch (error) {
     next(error);
@@ -353,7 +365,17 @@ export async function getDailyClosingController(req, res, next) {
   try {
     const { date } = req.query;
     const closing = await barRepo.getDailyClosing(req.user.id, req.clubId, date || null);
-    return res.status(200).json({ success: true, data: closing });
+    const summary = closing.summary || {};
+    const payload = {
+      ...closing,
+      orders_count: Number(summary.orders || 0),
+      total_sales: Number(summary.net_total || 0),
+      gross_sales: Number(summary.gross || 0),
+      total_discounts: Number(summary.discounts || 0),
+      total_tax: Number(summary.tax || 0),
+      by_payment_method: closing.payment_breakdown || [],
+    };
+    return res.status(200).json({ success: true, data: payload });
   } catch (error) {
     next(error);
   }

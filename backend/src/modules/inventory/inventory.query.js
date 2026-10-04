@@ -40,8 +40,25 @@ export const GET_PRODUCTS = `
   LEFT JOIN app.product_categories c ON c.id = p.category_id AND c.club_id = p.club_id
   LEFT JOIN app.product_variants pv ON pv.product_id = p.id AND pv.club_id = p.club_id
   WHERE p.club_id = $1 AND ($2::boolean IS NULL OR p.is_active = $2)
+    AND (
+      $3::text IS NULL OR $3::text = '' OR
+      p.name ILIKE '%' || $3 || '%' OR
+      p.description ILIKE '%' || $3 || '%' OR
+      c.name::text ILIKE '%' || $3 || '%' OR
+      EXISTS (
+        SELECT 1 FROM app.product_variants sub_pv
+        WHERE sub_pv.product_id = p.id AND (sub_pv.sku ILIKE '%' || $3 || '%' OR sub_pv.barcode ILIKE '%' || $3 || '%')
+      ) OR
+      similarity(p.name, $3) > 0.15 OR
+      similarity(COALESCE(c.name::text, ''), $3) > 0.15
+    )
   GROUP BY p.id, c.name
-  ORDER BY p.created_at DESC;
+  ORDER BY 
+    CASE WHEN $3::text IS NOT NULL AND $3::text != '' 
+      THEN similarity(p.name, $3)
+      ELSE 0
+    END DESC,
+    p.created_at DESC;
 `;
 
 export const GET_PRODUCT_CATEGORIES = `

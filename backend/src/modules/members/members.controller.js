@@ -20,8 +20,9 @@ export async function createMemberController(req, res, next) {
 
 export async function getMembersController(req, res, next) {
   try {
-    const { status } = req.query;
-    const members = await membersRepo.getMembers(req.user.id, req.clubId, status || null);
+    const { status, search, q } = req.query;
+    const searchQuery = search || q || null;
+    const members = await membersRepo.getMembers(req.user.id, req.clubId, status || null, searchQuery);
     return res.status(200).json({ members });
   } catch (error) {
     next(error);

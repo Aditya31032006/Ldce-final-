@@ -6,6 +6,7 @@ import {
   CheckCircle2,
   Calendar,
   ShoppingBag,
+  Coffee,
   Wine,
   Users,
   CircleDollarSign,
@@ -60,10 +61,10 @@ export default function LandingPage() {
     {
       time: '18:00',
       tag: 'Prime Time Rush',
-      title: 'Peak Evening Bookings & Social Play',
-      desc: 'Synthetic, clay courts and padel enclosures host club leagues and open mixers. Court lights and waitlists synchronize dynamically.',
-      module: 'Social Play & Leagues',
-      metric: '16 players in mixer session',
+      title: 'Peak Evening Bookings & Tournaments',
+      desc: 'Synthetic, clay courts and padel enclosures host club championships and open ladders. Court lights and waitlists synchronize dynamically.',
+      module: 'Court Booking & Tournaments',
+      metric: '16 players in evening slots',
       image: 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?auto=format&fit=crop&w=800&q=80',
     },
     {
@@ -98,7 +99,7 @@ export default function LandingPage() {
       type: 'Padel Club',
       badge: 'Fast Growing',
       courts: 'Panoramic Glass Enclosures',
-      modules: 'Doubles Booking · Social Mixers · Racket Rental · Bar Tabs',
+      modules: 'Doubles Booking · Tournaments · Racket Rental · Bar Tabs',
       image: 'https://images.unsplash.com/photo-1554068865-24cecd4e34b8?auto=format&fit=crop&w=600&q=80',
     },
     {
@@ -135,7 +136,6 @@ export default function LandingPage() {
           <Link to="/" className="nav-brand">
             <span className="brand-dot" />
             <span className="brand-name">Clubhouse</span>
-            <span className="brand-badge">v2.4 LIVE</span>
           </Link>
 
           {/* Center Navigation Links */}
@@ -198,194 +198,37 @@ export default function LandingPage() {
       </div>
 
       {/* ─────────────────────────────────────────────────────────────
-         2. HERO SECTION MATCHING SCREENSHOT EXACTLY
+         2. ATHLETIC HERO SECTION WITH DESKTOP BACKGROUND
       ───────────────────────────────────────────────────────────── */}
       <section className="hero-section">
         <div className="hero-container">
-          {/* Left Column: Headline, Copy, CTAs, and Trust Metrics */}
           <div className="hero-left">
             <div className="hero-eyebrow">
-              <span style={{ display: 'inline-block', width: 6, height: 6, borderRadius: '50%', background: '#1A382B' }} />
-              SOFTWARE FOR SPORTS CLUBS & ACADEMIES
+              ATHLETICS &amp; FITNESS CLUB
             </div>
 
             <h1 className="hero-headline">
-              Run the whole club from <br />
-              <span className="headline-highlight">one screen.</span>
+              Built for athletes.<br />
+              Engineered for performance.
             </h1>
 
             <p className="hero-description">
-              Court reservations, member dues, pro shop inventory, and the bar ledger — united in a single, calm operational system.
+              World-class courts, elite training spaces, and seamless slot booking designed for peak athletic performance.
             </p>
 
             <div className="hero-actions">
               <Link to="/register" className="btn-hero-primary" id="hero-register-btn">
-                <span>Register your club</span>
+                <span>Join Club</span>
                 <ArrowRight size={16} />
               </Link>
               <button
                 type="button"
-                onClick={() => scrollToSection('timeline')}
+                onClick={() => scrollToSection('sports')}
                 className="btn-hero-secondary"
                 id="hero-demo-btn"
               >
-                View interactive demo
+                Explore Facilities
               </button>
-            </div>
-
-            <div className="hero-trust-text">
-              Zero setup fee · 14-day assisted onboarding · Built for Indian multi-sport facilities
-            </div>
-
-            {/* 3 Metric Badges matching screenshot */}
-            <div className="hero-metrics">
-              <div className="metric-item">
-                <div className="metric-val">100%</div>
-                <div className="metric-lbl">Direct member billing</div>
-              </div>
-              <div className="metric-item">
-                <div className="metric-val">&lt; 3 sec</div>
-                <div className="metric-lbl">Court desk check-in</div>
-              </div>
-              <div className="metric-item">
-                <div className="metric-val">Zero</div>
-                <div className="metric-lbl">Booking commission</div>
-              </div>
-            </div>
-          </div>
-
-          {/* Right Column: Live Floor Grid Card (Pixel-perfect recreation of screenshot) */}
-          <div className="hero-right">
-            <div className="grid-card-window">
-              {/* Window Chrome Header */}
-              <div className="window-chrome">
-                <div className="window-dots">
-                  <span className="dot dot-red" />
-                  <span className="dot dot-yellow" />
-                  <span className="dot dot-green" />
-                </div>
-                <div className="window-title">
-                  Champions Sports Club • Floor Live Grid
-                </div>
-                <div className="window-status">
-                  <span className="live-ping" />
-                  <span>10 of 12 courts active</span>
-                </div>
-              </div>
-
-              {/* 3 Summary Metrics Banner */}
-              <div className="window-metrics-bar">
-                <div className="wm-item">
-                  <div className="wm-label">Today's Revenue</div>
-                  <div className="wm-value">₹1,42,850</div>
-                </div>
-                <div className="wm-item">
-                  <div className="wm-label">Active Check-ins</div>
-                  <div className="wm-value">38 Players</div>
-                </div>
-                <div className="wm-item">
-                  <div className="wm-label">Pending Slips</div>
-                  <div className="wm-value">4 Receipts</div>
-                </div>
-              </div>
-
-              {/* Live Court Grid Table */}
-              <div className="window-table-wrap">
-                <table className="grid-table">
-                  <thead>
-                    <tr>
-                      <th>Court / Unit</th>
-                      <th>Surface</th>
-                      <th>Current Slot</th>
-                      <th>Assigned Member / Coach</th>
-                      <th>Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr>
-                      <td className="court-name">Court 01</td>
-                      <td className="surface-tag">Synthetic Pro</td>
-                      <td className="slot-time">16:00 – 17:30</td>
-                      <td>
-                        <div className="member-cell">
-                          <span className="avatar-badge">AK</span>
-                          <span className="member-name">Aman Kapadia</span>
-                          <span className="member-type">(Singles)</span>
-                        </div>
-                      </td>
-                      <td>
-                        <span className="status-pill status-pill--active">Active</span>
-                      </td>
-                    </tr>
-                    <tr>
-                      <td className="court-name">Court 02</td>
-                      <td className="surface-tag">Synthetic Pro</td>
-                      <td className="slot-time">16:30 – 18:00</td>
-                      <td>
-                        <div className="member-cell">
-                          <span className="avatar-badge">VS</span>
-                          <span className="member-name">Vikas Sheth</span>
-                          <span className="member-type">(Drill Session)</span>
-                        </div>
-                      </td>
-                      <td>
-                        <span className="status-pill status-pill--active">Active</span>
-                      </td>
-                    </tr>
-                    <tr>
-                      <td className="court-name">Court 03</td>
-                      <td className="surface-tag">Clay Outdoor</td>
-                      <td className="slot-time">16:00 – 17:00</td>
-                      <td>
-                        <span style={{ color: '#854d0e', fontStyle: 'italic' }}>
-                          Court Grooming &amp; Line Wetting
-                        </span>
-                      </td>
-                      <td>
-                        <span className="status-pill status-pill--maintenance">Maintenance</span>
-                      </td>
-                    </tr>
-                    <tr>
-                      <td className="court-name">Court 04</td>
-                      <td className="surface-tag">Clay Outdoor</td>
-                      <td className="slot-time">17:00 – 18:30</td>
-                      <td>
-                        <div className="member-cell">
-                          <span className="avatar-badge">NP</span>
-                          <span className="member-name">Nandita Patel</span>
-                          <span className="member-type">(Coaching)</span>
-                        </div>
-                      </td>
-                      <td>
-                        <span className="status-pill status-pill--upnext">Up next</span>
-                      </td>
-                    </tr>
-                    <tr>
-                      <td className="court-name">Squash 01</td>
-                      <td className="surface-tag">Glassback Indoor</td>
-                      <td className="slot-time">16:15 – 17:15</td>
-                      <td>
-                        <div className="member-cell">
-                          <span className="avatar-badge">RJ</span>
-                          <span className="member-name">Rohit Joshi</span>
-                          <span className="member-type">(League QF)</span>
-                        </div>
-                      </td>
-                      <td>
-                        <span className="status-pill status-pill--active">Active</span>
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-
-              {/* Window Footer */}
-              <div className="window-footer">
-                <span className="wf-count">Showing 5 of 12 facility courts</span>
-                <Link to="/login" className="wf-link">
-                  <span>Open full multi-court planner →</span>
-                </Link>
-              </div>
             </div>
           </div>
         </div>

@@ -12,14 +12,6 @@ function App() {
 
   useEffect(() => {
     fetchCurrentUser();
-
-    // Auto-resync session when user refocuses tab
-    const handleFocus = () => {
-      fetchCurrentUser();
-    };
-
-    window.addEventListener('focus', handleFocus);
-    return () => window.removeEventListener('focus', handleFocus);
   }, [fetchCurrentUser]);
 
   return (

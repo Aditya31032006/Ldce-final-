@@ -9,8 +9,8 @@ export default function Navbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const handleLogout = async () => {
+    navigate('/', { replace: true });
     await logout();
-    navigate('/login');
   };
 
   const navItems = [
@@ -22,8 +22,6 @@ export default function Navbar() {
     { label: 'Bar POS', path: '/bar' },
     { label: 'Inventory', path: '/inventory' },
     { label: 'Orders', path: '/orders' },
-    { label: 'Leads', path: '/leads' },
-    { label: 'Finance', path: '/finance' },
     { label: 'Staff', path: '/hr' },
     { label: 'Reports', path: '/reports' },
   ];
@@ -125,6 +123,7 @@ export default function Navbar() {
                 <img
                   src={user.avatar_url}
                   alt={user?.fullName || user?.full_name || 'Profile'}
+                  referrerPolicy="no-referrer"
                   style={{
                     width: '24px',
                     height: '24px',
@@ -133,6 +132,9 @@ export default function Navbar() {
                   }}
                   onError={(e) => {
                     e.currentTarget.style.display = 'none';
+                    if (e.currentTarget.nextSibling) {
+                      e.currentTarget.nextSibling.style.display = 'flex';
+                    }
                   }}
                 />
               ) : (

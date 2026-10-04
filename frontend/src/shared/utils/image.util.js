@@ -20,22 +20,45 @@ export function fileToBase64(file, maxWidth = 800, maxHeight = 800, quality = 0.
     reader.onerror = () => reject(new Error('Failed to read image file'));
     reader.onload = () => {
       const rawBase64 = reader.result;
-      
-      // If not a standard raster image or FileReader returned string
+
+      // If not a standard raster image or FileReader returned non-string
       if (typeof rawBase64 !== 'string') {
         return resolve(rawBase64);
       }
 
+      // If SVG or GIF, preserve directly to keep vector sharpness or animation
+      const isSvg = file.type === 'image/svg+xml' || (file.name && file.name.toLowerCase().endsWith('.svg'));
+      const isGif = file.type === 'image/gif' || (file.name && file.name.toLowerCase().endsWith('.gif'));
+      if (isSvg || isGif) {
+        return resolve(rawBase64);
+      }
+
       const img = new Image();
+      let finished = false;
+
+      // Safety timeout: never hang forever
+      const timeoutId = setTimeout(() => {
+        if (!finished) {
+          finished = true;
+          resolve(rawBase64);
+        }
+      }, 4000);
+
       img.onerror = () => {
-        // Fallback directly to raw base64 if image constructor fails
-        resolve(rawBase64);
+        if (!finished) {
+          finished = true;
+          clearTimeout(timeoutId);
+          resolve(rawBase64);
+        }
       };
 
       img.onload = () => {
+        if (finished) return;
+        finished = true;
+        clearTimeout(timeoutId);
         try {
-          let width = img.width;
-          let height = img.height;
+          let width = img.naturalWidth || img.width;
+          let height = img.naturalHeight || img.height;
 
           if (width > maxWidth || height > maxHeight) {
             if (width > height) {
@@ -52,18 +75,16 @@ export function fileToBase64(file, maxWidth = 800, maxHeight = 800, quality = 0.
           canvas.height = Math.max(height, 1);
           const ctx = canvas.getContext('2d');
 
-          const isPng = file.type === 'image/png';
+          const isPng = file.type === 'image/png' || (file.name && file.name.toLowerCase().endsWith('.png'));
 
           if (!isPng) {
-            // Fill background with white to avoid black background on transparent images
             ctx.fillStyle = '#ffffff';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
           }
 
           ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
 
-          // If PNG and under 2MB, preserve PNG; otherwise convert to JPEG
-          const outputType = isPng && file.size < 2 * 1024 * 1024 ? 'image/png' : 'image/jpeg';
+          const outputType = isPng ? 'image/png' : 'image/jpeg';
           const compressedBase64 = canvas.toDataURL(outputType, quality);
           resolve(compressedBase64 || rawBase64);
         } catch {
@@ -80,27 +101,42 @@ export function fileToBase64(file, maxWidth = 800, maxHeight = 800, quality = 0.
 }
 
 /**
- * Converts an external image URL to a Base64 data URL
+ * Converts an external image URL to a Base64 data URL with graceful fallback
  * @param {string} url 
  * @param {number} maxWidth 
  * @param {number} maxHeight 
  * @param {number} quality 
- * @returns {Promise<string>} Base64 data URL string
+ * @returns {Promise<string>} Base64 data URL string or original URL
  */
 export function urlToBase64(url, maxWidth = 800, maxHeight = 800, quality = 0.85) {
-  if (!url) return Promise.resolve('');
+  if (!url || typeof url !== 'string') return Promise.resolve('');
+  const trimmed = url.trim();
+
   // If already a Base64 data URL, return immediately without re-compressing
-  if (typeof url === 'string' && url.trim().startsWith('data:image/')) {
-    return Promise.resolve(url.trim());
+  if (trimmed.startsWith('data:image/')) {
+    return Promise.resolve(trimmed);
   }
 
   return new Promise((resolve) => {
     const img = new Image();
     img.crossOrigin = 'Anonymous';
+    img.referrerPolicy = 'no-referrer';
+
+    let finished = false;
+    const timeoutId = setTimeout(() => {
+      if (!finished) {
+        finished = true;
+        resolve(trimmed);
+      }
+    }, 3000);
+
     img.onload = () => {
+      if (finished) return;
+      finished = true;
+      clearTimeout(timeoutId);
       try {
-        let width = img.width;
-        let height = img.height;
+        let width = img.naturalWidth || img.width;
+        let height = img.naturalHeight || img.height;
 
         if (width > maxWidth || height > maxHeight) {
           if (width > height) {
@@ -119,13 +155,22 @@ export function urlToBase64(url, maxWidth = 800, maxHeight = 800, quality = 0.85
         ctx.fillStyle = '#ffffff';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-        resolve(canvas.toDataURL('image/jpeg', quality));
+        const base64 = canvas.toDataURL('image/jpeg', quality);
+        resolve(base64 || trimmed);
       } catch {
-        resolve(url);
+        resolve(trimmed);
       }
     };
-    img.onerror = () => resolve(url);
-    img.src = url;
+
+    img.onerror = () => {
+      if (!finished) {
+        finished = true;
+        clearTimeout(timeoutId);
+        resolve(trimmed);
+      }
+    };
+
+    img.src = trimmed;
   });
 }
 

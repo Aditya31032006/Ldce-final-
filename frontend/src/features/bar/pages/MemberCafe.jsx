@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 import barApi from '../services/bar.api.js';
 import { openRazorpayCheckout } from '../../../shared/utils/razorpay.util.js';
+import useDebounce from '../../../shared/hooks/useDebounce.js';
 
 export default function MemberCafe({ club, membership }) {
   const { user } = useSelector((state) => state.auth);
@@ -46,6 +47,7 @@ export default function MemberCafe({ club, membership }) {
   // Filters for Menu
   const [activeCategory, setActiveCategory] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const debouncedSearch = useDebounce(searchQuery, 300);
   const [vegOnly, setVegOnly] = useState(false);
 
   // Filter for Occupancy
@@ -68,24 +70,26 @@ export default function MemberCafe({ club, membership }) {
     setTimeout(() => setNotification(null), 3500);
   };
 
-  // Determine member discount rate from membership plan
+  // Determine member discount rate dynamically from membership plan
   const memberDiscountRate = useMemo(() => {
-    if (membership?.plan?.bar_discount_percent) {
+    if (membership?.bar_discount_percent != null) {
+      return Number(membership.bar_discount_percent) / 100;
+    }
+    if (membership?.plan?.bar_discount_percent != null) {
       return Number(membership.plan.bar_discount_percent) / 100;
     }
-    const planName = membership?.plan?.name?.toLowerCase() || '';
-    if (planName.includes('gold')) return 0.15;
-    if (planName.includes('standard')) return 0.10;
+    const planName = (membership?.plan_name || membership?.plan?.name || '').toLowerCase();
+    if (planName.includes('gold')) return 0.03;
     return 0;
   }, [membership]);
 
-  // Load Menu and Tables
+  // Load Menu and Tables (Search handled via backend fuzzy similarity)
   const loadData = useCallback(async () => {
     if (!clubId) return;
     try {
       setLoading(true);
       const [menuData, tablesData] = await Promise.all([
-        barApi.getMenu(clubId, null, true), // available items only
+        barApi.getMenu(clubId, null, true, debouncedSearch.trim() || null), // available items only
         barApi.getTables(clubId, true), // all active tables
       ]);
       setCategories(menuData.categories || []);
@@ -96,7 +100,7 @@ export default function MemberCafe({ club, membership }) {
     } finally {
       setLoading(false);
     }
-  }, [clubId]);
+  }, [clubId, debouncedSearch]);
 
   // Load User's Past and Active Orders
   const loadMyOrders = useCallback(async () => {
@@ -118,13 +122,36 @@ export default function MemberCafe({ club, membership }) {
   useEffect(() => {
     loadData();
     loadMyOrders();
+
+    const handleTablesUpdated = () => {
+      loadData();
+    };
+    const handleKdsUpdated = () => {
+      loadMyOrders();
+    };
+    window.addEventListener('tables-updated', handleTablesUpdated);
+    window.addEventListener('kds-updated', handleKdsUpdated);
+    const handleStorage = (e) => {
+      if (e.key === 'ldce_tables_updated') {
+        loadData();
+      }
+      if (e.key === 'ldce_kds_updated' || e.key === 'ldce_orders_updated') {
+        loadMyOrders();
+      }
+    };
+    window.addEventListener('storage', handleStorage);
+    return () => {
+      window.removeEventListener('tables-updated', handleTablesUpdated);
+      window.removeEventListener('kds-updated', handleKdsUpdated);
+      window.removeEventListener('storage', handleStorage);
+    };
   }, [loadData, loadMyOrders]);
 
   // Poll orders and tables when active view is 'orders' or 'occupancy'
   useEffect(() => {
     if (activeView === 'orders') {
       loadMyOrders();
-      const interval = setInterval(loadMyOrders, 8000);
+      const interval = setInterval(loadMyOrders, 3000);
       return () => clearInterval(interval);
     }
     if (activeView === 'occupancy') {
@@ -142,18 +169,14 @@ export default function MemberCafe({ club, membership }) {
     }
   }, [activeView, loadMyOrders, clubId]);
 
-  // Filtered Menu Items
+  // Filtered Menu Items (Search handled by backend fuzzy similarity)
   const filteredItems = useMemo(() => {
     return menuItems.filter((item) => {
       const matchCat = activeCategory === 'all' || item.category_id === activeCategory;
-      const matchSearch =
-        !searchQuery.trim() ||
-        item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (item.description && item.description.toLowerCase().includes(searchQuery.toLowerCase()));
       const matchVeg = !vegOnly || item.is_veg === true;
-      return matchCat && matchSearch && matchVeg;
+      return matchCat && matchVeg;
     });
-  }, [menuItems, activeCategory, searchQuery, vegOnly]);
+  }, [menuItems, activeCategory, vegOnly]);
 
   // Occupancy Zones & Filtered Tables
   const zones = useMemo(() => {
@@ -168,9 +191,9 @@ export default function MemberCafe({ club, membership }) {
 
   const occupancyStats = useMemo(() => {
     const total = tables.length;
-    const available = tables.filter((t) => t.status === 'available').length;
     const occupied = tables.filter((t) => t.status === 'occupied').length;
     const reserved = tables.filter((t) => t.status === 'reserved' || t.status === 'billed').length;
+    const available = tables.filter((t) => t.status !== 'occupied' && t.status !== 'reserved' && t.status !== 'billed').length;
     const totalSeats = tables.reduce((acc, t) => acc + (Number(t.capacity) || 0), 0);
     return { total, available, occupied, reserved, totalSeats };
   }, [tables]);
@@ -288,7 +311,10 @@ export default function MemberCafe({ club, membership }) {
           setIsCartOpen(false);
           loadMyOrders();
           loadData();
-          showToast('Payment successful! Your order has been sent to the kitchen.', 'success');
+          window.dispatchEvent(new CustomEvent('tables-updated'));
+          window.dispatchEvent(new CustomEvent('order-placed'));
+          localStorage.setItem('ldce_tables_updated', Date.now().toString());
+          showToast('Payment successful! Your order has been placed and table is now occupied.', 'success');
         },
         onDismiss: async () => {
           if (createdOrder?.id) {
@@ -301,6 +327,8 @@ export default function MemberCafe({ club, membership }) {
           showToast('Payment cancelled. Order was not sent to kitchen.', 'error');
           loadData();
           loadMyOrders();
+          window.dispatchEvent(new CustomEvent('tables-updated'));
+          localStorage.setItem('ldce_tables_updated', Date.now().toString());
         },
       });
     } catch (err) {
@@ -315,6 +343,8 @@ export default function MemberCafe({ club, membership }) {
       showToast(err.customMessage || err.message || 'Payment failed. Order not placed.', 'error');
       loadData();
       loadMyOrders();
+      window.dispatchEvent(new CustomEvent('tables-updated'));
+      localStorage.setItem('ldce_tables_updated', Date.now().toString());
     } finally {
       setSubmitting(false);
     }
@@ -326,10 +356,11 @@ export default function MemberCafe({ club, membership }) {
     setSubmitting(true);
     try {
       const selectedTable = tables.find((t) => t.id === selectedTableId);
+      const resolvedMemberId = membership?.member_id || membership?.id || user?.member_id || null;
       const orderPayload = {
         table_id: servingLocation === 'table' ? selectedTableId || null : null,
-        member_id: membership?.member_id || null,
-        guest_name: user?.full_name || 'Member',
+        member_id: resolvedMemberId,
+        guest_name: user?.full_name || 'Club Member',
         charge_to_tab: true,
         notes: `Member tab order (${servingLocation === 'table' ? 'Table ' + (selectedTable?.name || '') : 'Takeaway'})${deliveryNote ? ' - ' + deliveryNote : ''}`,
         items: cart.map((i) => ({
@@ -349,7 +380,16 @@ export default function MemberCafe({ club, membership }) {
       setCart([]);
       setIsCartOpen(false);
       loadMyOrders();
-      showToast('Order placed & charged to your club account tab!', 'success');
+      loadData();
+      window.dispatchEvent(new CustomEvent('tables-updated'));
+      window.dispatchEvent(new CustomEvent('order-placed'));
+      window.dispatchEvent(new CustomEvent('tabs-updated'));
+      window.dispatchEvent(new CustomEvent('kds-updated'));
+      localStorage.setItem('ldce_tables_updated', Date.now().toString());
+      localStorage.setItem('ldce_tabs_updated', Date.now().toString());
+      localStorage.setItem('ldce_kds_updated', Date.now().toString());
+      localStorage.setItem('ldce_orders_updated', Date.now().toString());
+      showToast('Order placed & charged to your member tab! Outstanding due updated.', 'success');
     } catch (err) {
       console.error('Tab checkout error:', err);
       showToast(err.customMessage || 'Could not charge to tab.', 'error');
@@ -611,6 +651,18 @@ export default function MemberCafe({ club, membership }) {
                 onChange={(e) => setSearchQuery(e.target.value)}
                 style={{ border: 'none', outline: 'none', width: '100%', fontSize: '0.85rem' }}
               />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery('')}
+                  style={{
+                    border: 'none', background: 'transparent', cursor: 'pointer', padding: 0, color: '#6B6B66', display: 'flex'
+                  }}
+                  aria-label="Clear search"
+                >
+                  <X size={15} />
+                </button>
+              )}
             </div>
 
             <button
@@ -959,7 +1011,7 @@ export default function MemberCafe({ club, membership }) {
               <div style={{ background: '#EBFDF5', padding: '0.65rem 0.85rem', borderRadius: '6px' }}>
                 <span style={{ fontSize: '0.7rem', color: '#047857' }}>Available Seats</span>
                 <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#059669' }}>
-                  {tables.filter((t) => t.status === 'available').reduce((a, b) => a + (Number(b.capacity) || 0), 0)} Seats
+                  {tables.filter((t) => t.status !== 'occupied' && t.status !== 'reserved' && t.status !== 'billed').reduce((a, b) => a + (Number(b.capacity) || 0), 0)} Seats
                 </div>
               </div>
               <div style={{ background: '#FAF9F6', padding: '0.65rem 0.85rem', borderRadius: '6px' }}>
@@ -1004,10 +1056,10 @@ export default function MemberCafe({ club, membership }) {
             }}
           >
             {filteredTables.map((table) => {
-              const isAvail = table.status === 'available';
               const isOccupied = table.status === 'occupied';
               const isBilled = table.status === 'billed';
               const isReserved = table.status === 'reserved';
+              const isAvail = !isOccupied && !isBilled && !isReserved;
 
               let statusColor = '#10B981';
               let statusBg = '#EBFDF5';

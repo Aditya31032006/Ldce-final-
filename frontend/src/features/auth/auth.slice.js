@@ -11,7 +11,7 @@ export const authSlice = createSlice({
     role: null,
     clubId: typeof window !== 'undefined' ? localStorage.getItem('activeClubId') : null,
     clubs: [],
-    token: null,
+    token: typeof window !== 'undefined' ? localStorage.getItem('token') : null,
     isAuthenticated: false,
     isProfileComplete: true,
     missingFields: [],
@@ -42,6 +42,9 @@ export const authSlice = createSlice({
       if (state.clubId) {
         try { localStorage.setItem('activeClubId', state.clubId); } catch (_) {}
       }
+      if (state.token) {
+        try { localStorage.setItem('token', state.token); } catch (_) {}
+      }
     },
     setUser: (state, action) => {
       const payload = action.payload;
@@ -56,6 +59,10 @@ export const authSlice = createSlice({
       const clubsList = payload.clubs || state.clubs || [];
       state.clubId = payload.clubId || state.user?.clubId || (clubsList[0]?.id || clubsList[0]?.club_id) || state.clubId;
       state.clubs = clubsList;
+      if (payload.token) {
+        state.token = payload.token;
+        try { localStorage.setItem('token', payload.token); } catch (_) {}
+      }
       state.isProfileComplete = payload.isProfileComplete !== undefined ? Boolean(payload.isProfileComplete) : true;
       state.missingFields = payload.missingFields || [];
       state.isAuthenticated = Boolean(state.user);
@@ -103,6 +110,7 @@ export const authSlice = createSlice({
       state.error = null;
       state.successMessage = null;
       try { localStorage.removeItem('activeClubId'); } catch (_) {}
+      try { localStorage.removeItem('token'); } catch (_) {}
     },
   },
 });

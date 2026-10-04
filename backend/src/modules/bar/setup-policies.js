@@ -6,62 +6,67 @@ async function setupBarPolicies() {
     console.log('Setting up Bar / POS RLS policies and seeds...');
     await client.query('BEGIN');
 
-    // 1. Members can view dining tables of the club
+    // 1. Members and users can view dining tables of the club
     await client.query(`
-      DO $$ BEGIN
-        IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'dining_tables' AND policyname = 'p_member_read') THEN
-          CREATE POLICY p_member_read ON app.dining_tables FOR SELECT
-            USING (club_id = (SELECT app.ctx_club()) AND app.ctx_role() IN ('member', 'public') AND is_active);
-        END IF;
-      END $$;
+      DROP POLICY IF EXISTS p_member_read ON app.dining_tables;
+      DROP POLICY IF EXISTS p_all_write ON app.dining_tables;
+      CREATE POLICY p_all_write ON app.dining_tables FOR ALL
+        USING (club_id = (SELECT app.ctx_club()))
+        WITH CHECK (club_id = (SELECT app.ctx_club()));
     `);
 
-    // 2. Members can read items of their own bar orders
+    // 2. Bar order items policies
     await client.query(`
-      DO $$ BEGIN
-        IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'bar_order_items' AND policyname = 'p_member_read') THEN
-          CREATE POLICY p_member_read ON app.bar_order_items FOR SELECT
-            USING (
-              club_id = (SELECT app.ctx_club()) AND app.ctx_role() = 'member'
-              AND EXISTS (
-                SELECT 1 FROM app.bar_orders o 
-                WHERE o.id = bar_order_items.order_id 
-                AND o.member_id = (SELECT app.ctx_member())
-              )
-            );
-        END IF;
-      END $$;
+      DROP POLICY IF EXISTS p_member_read ON app.bar_order_items;
+      DROP POLICY IF EXISTS p_member_insert ON app.bar_order_items;
+      CREATE POLICY p_member_insert ON app.bar_order_items FOR INSERT
+        WITH CHECK (club_id = (SELECT app.ctx_club()));
+      CREATE POLICY p_member_read ON app.bar_order_items FOR SELECT
+        USING (club_id = (SELECT app.ctx_club()));
     `);
 
-    // 3. Members can create bar orders for themselves
+    // 3. Members can create and read bar orders
     await client.query(`
-      DO $$ BEGIN
-        IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'bar_orders' AND policyname = 'p_member_insert') THEN
-          CREATE POLICY p_member_insert ON app.bar_orders FOR INSERT
-            WITH CHECK (
-              club_id = (SELECT app.ctx_club()) AND app.ctx_role() = 'member'
-              AND member_id = (SELECT app.ctx_member())
-            );
-        END IF;
-      END $$;
+      DROP POLICY IF EXISTS p_member_insert ON app.bar_orders;
+      DROP POLICY IF EXISTS p_member_read ON app.bar_orders;
+      DROP POLICY IF EXISTS p_member_update ON app.bar_orders;
+      CREATE POLICY p_member_insert ON app.bar_orders FOR INSERT
+        WITH CHECK (club_id = (SELECT app.ctx_club()));
+      CREATE POLICY p_member_read ON app.bar_orders FOR SELECT
+        USING (
+          club_id = (SELECT app.ctx_club()) AND (
+            app.ctx_role() = ANY ('{owner,manager,front_desk,bar_staff,kitchen}'::text[])
+            OR member_id = (SELECT app.ctx_member())
+            OR opened_by = (SELECT app.ctx_user())
+            OR (SELECT app.ctx_role()) IN ('member', 'public')
+          )
+        );
+      CREATE POLICY p_member_update ON app.bar_orders FOR UPDATE
+        USING (
+          club_id = (SELECT app.ctx_club()) AND (
+            app.ctx_role() = ANY ('{owner,manager,front_desk,bar_staff,kitchen}'::text[])
+            OR member_id = (SELECT app.ctx_member())
+            OR opened_by = (SELECT app.ctx_user())
+          )
+        );
     `);
 
-    // 4. Members can create order items for their own open orders
+    // 4. Member tabs policies
     await client.query(`
-      DO $$ BEGIN
-        IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'bar_order_items' AND policyname = 'p_member_insert') THEN
-          CREATE POLICY p_member_insert ON app.bar_order_items FOR INSERT
-            WITH CHECK (
-              club_id = (SELECT app.ctx_club()) AND app.ctx_role() = 'member'
-              AND EXISTS (
-                SELECT 1 FROM app.bar_orders o 
-                WHERE o.id = bar_order_items.order_id 
-                AND o.member_id = (SELECT app.ctx_member())
-                AND o.status = 'open'
-              )
-            );
-        END IF;
-      END $$;
+      DROP POLICY IF EXISTS p_member_insert ON app.tabs;
+      DROP POLICY IF EXISTS p_member_read ON app.tabs;
+      CREATE POLICY p_member_insert ON app.tabs FOR INSERT
+        WITH CHECK (club_id = (SELECT app.ctx_club()));
+      CREATE POLICY p_member_read ON app.tabs FOR SELECT
+        USING (
+          club_id = (SELECT app.ctx_club()) AND (
+            app.ctx_role() = ANY ('{owner,manager,front_desk,bar_staff,kitchen}'::text[])
+            OR member_id = (SELECT app.ctx_member())
+            OR opened_by = (SELECT app.ctx_user())
+            OR member_id IN (SELECT id FROM app.members WHERE user_id = (SELECT app.ctx_user()))
+            OR (SELECT app.ctx_role()) IN ('member', 'public')
+          )
+        );
     `);
 
     // 5. Update plans bar_discount_percent if 0 so Gold Pro gets 15% bar discount

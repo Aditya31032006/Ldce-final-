@@ -1,9 +1,9 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import { hrApi } from './services/hr.api.js';
 
-export const fetchStaff = createAsyncThunk('hr/fetchStaff', async (_, { rejectWithValue }) => {
+export const fetchStaff = createAsyncThunk('hr/fetchStaff', async (params, { rejectWithValue }) => {
   try {
-    return await hrApi.getStaff();
+    return await hrApi.getStaff(params);
   } catch (err) {
     return rejectWithValue(err.customMessage || 'Failed to fetch staff');
   }

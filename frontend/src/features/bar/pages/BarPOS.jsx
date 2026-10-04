@@ -27,16 +27,62 @@ import {
   ArrowRight,
   Receipt,
   Percent,
+  Trash2,
 } from 'lucide-react';
 import barApi from '../services/bar.api.js';
 import { openRazorpayCheckout } from '../../../shared/utils/razorpay.util.js';
+import useDebounce from '../../../shared/hooks/useDebounce.js';
 
 export default function BarPOS() {
-  const { user } = useSelector((state) => state.auth);
+  const { user, role } = useSelector((state) => state.auth);
   const activeClubId = localStorage.getItem('activeClubId') || user?.club_id;
 
-  // Active view tab: 'menu' | 'tables' | 'kds' | 'tabs' | 'closing' (No order terminal for admin!)
-  const [activeTab, setActiveTab] = useState('menu');
+  const userRole = (role || user?.role || '').toLowerCase();
+  const isKitchen = userRole === 'kitchen';
+  const isBarStaff = ['bar_staff', 'cafe_staff'].includes(userRole);
+  const isFrontDesk = userRole === 'front_desk';
+  const isExecutive = ['owner', 'manager', 'admin'].includes(userRole);
+
+  const availableTabs = useMemo(() => {
+    if (isKitchen) {
+      return [
+        { id: 'kds', label: 'Kitchen Display (KDS)', icon: ChefHat },
+      ];
+    }
+    if (isBarStaff) {
+      return [
+        { id: 'tables', label: 'Tables & Capacity', icon: Grid },
+        { id: 'menu', label: 'Menu & Pricing', icon: Utensils },
+        { id: 'kds', label: 'Bar Station (KDS)', icon: ChefHat },
+        { id: 'tabs', label: 'Member Tabs', icon: Wallet },
+        { id: 'closing', label: 'Daily Closing', icon: FileText },
+      ];
+    }
+    if (isFrontDesk) {
+      return [
+        { id: 'tables', label: 'Tables & Capacity', icon: Grid },
+        { id: 'tabs', label: 'Member Tabs', icon: Wallet },
+        { id: 'kds', label: 'Station KDS', icon: ChefHat },
+      ];
+    }
+    return [
+      { id: 'menu', label: 'Menu & Pricing', icon: Utensils },
+      { id: 'tables', label: 'Tables & Capacity', icon: Grid },
+      { id: 'kds', label: 'Kitchen & Bar (KDS)', icon: ChefHat },
+      { id: 'tabs', label: 'Member Tabs', icon: Wallet },
+      { id: 'closing', label: 'Daily Closing', icon: FileText },
+    ];
+  }, [isKitchen, isBarStaff, isFrontDesk]);
+
+  // Active view tab: kitchen is strictly locked to 'kds', bar staff defaults to 'tables'
+  const defaultTab = isKitchen ? 'kds' : isBarStaff ? 'tables' : 'menu';
+  const [activeTab, setActiveTab] = useState(defaultTab);
+
+  useEffect(() => {
+    if (isKitchen && activeTab !== 'kds') {
+      setActiveTab('kds');
+    }
+  }, [isKitchen, activeTab]);
 
   // Loading states
   const [loading, setLoading] = useState(true);
@@ -49,14 +95,16 @@ export default function BarPOS() {
   const [menuItems, setMenuItems] = useState([]);
   const [kdsItems, setKdsItems] = useState([]);
   const [memberTabs, setMemberTabs] = useState([]);
+  const [tabsFilter, setTabsFilter] = useState('open'); // 'open' | 'all'
   const [dailyClosing, setDailyClosing] = useState(null);
 
   // Filter & Search states
   const [activeCategory, setActiveCategory] = useState('all');
   const [itemSearchQuery, setItemSearchQuery] = useState('');
+  const debouncedItemSearch = useDebounce(itemSearchQuery, 300);
   const [vegOnly, setVegOnly] = useState(false);
   const [selectedZone, setSelectedZone] = useState('all');
-  const [kdsStation, setKdsStation] = useState(null);
+  const [kdsStation, setKdsStation] = useState(isKitchen ? 'kitchen' : isBarStaff ? 'bar' : null);
 
   // Modals for Menu & Pricing Design
   const [isAddCategoryOpen, setIsAddCategoryOpen] = useState(false);
@@ -97,13 +145,29 @@ export default function BarPOS() {
     setTimeout(() => setNotification(null), 3500);
   };
 
-  // Load Initial Data
+  const loadKdsData = useCallback(async () => {
+    try {
+      const items = await barApi.getKdsItems(kdsStation, activeClubId);
+      setKdsItems(items || []);
+    } catch (err) {
+      console.error('Failed to load KDS data:', err);
+    }
+  }, [activeClubId, kdsStation]);
+
+  // Load Initial Data (Menu search handled by backend fuzzy similarity)
   const loadPOSData = useCallback(async () => {
+    if (isKitchen) {
+      setRefreshing(true);
+      await loadKdsData();
+      setLoading(false);
+      setRefreshing(false);
+      return;
+    }
     try {
       setRefreshing(true);
       const [tablesData, menuData] = await Promise.all([
         barApi.getTables(activeClubId).catch(() => []),
-        barApi.getMenu(activeClubId).catch(() => ({ categories: [], items: [] })),
+        barApi.getMenu(activeClubId, null, null, debouncedItemSearch.trim() || null).catch(() => ({ categories: [], items: [] })),
       ]);
 
       setTables(tablesData || []);
@@ -115,25 +179,17 @@ export default function BarPOS() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [activeClubId]);
+  }, [activeClubId, isKitchen, loadKdsData, debouncedItemSearch]);
 
-  const loadKdsData = useCallback(async () => {
+  const loadTabsData = useCallback(async (filterOverride) => {
     try {
-      const items = await barApi.getKdsItems(kdsStation, activeClubId);
-      setKdsItems(items || []);
-    } catch (err) {
-      console.error('Failed to load KDS data:', err);
-    }
-  }, [activeClubId, kdsStation]);
-
-  const loadTabsData = useCallback(async () => {
-    try {
-      const tabs = await barApi.getTabs('open', activeClubId);
+      const activeFilter = filterOverride !== undefined ? filterOverride : tabsFilter;
+      const tabs = await barApi.getTabs(activeFilter, activeClubId);
       setMemberTabs(tabs || []);
     } catch (err) {
       console.error('Failed to load member tabs:', err);
     }
-  }, [activeClubId]);
+  }, [activeClubId, tabsFilter]);
 
   const loadDailyClosing = useCallback(async () => {
     try {
@@ -146,37 +202,66 @@ export default function BarPOS() {
 
   useEffect(() => {
     loadPOSData();
-  }, [loadPOSData]);
+    const handleGlobalUpdate = () => {
+      loadPOSData();
+      if (activeTab === 'kds') loadKdsData();
+      if (activeTab === 'tabs') loadTabsData();
+      if (activeTab === 'closing') loadDailyClosing();
+    };
 
-  // Tab change effects
+    window.addEventListener('tables-updated', handleGlobalUpdate);
+    window.addEventListener('order-placed', handleGlobalUpdate);
+    window.addEventListener('kds-updated', handleGlobalUpdate);
+    window.addEventListener('tabs-updated', handleGlobalUpdate);
+    const handleStorage = (e) => {
+      if (
+        e.key === 'ldce_tables_updated' ||
+        e.key === 'ldce_kds_updated' ||
+        e.key === 'ldce_tabs_updated' ||
+        e.key === 'ldce_orders_updated'
+      ) {
+        handleGlobalUpdate();
+      }
+    };
+    window.addEventListener('storage', handleStorage);
+    return () => {
+      window.removeEventListener('tables-updated', handleGlobalUpdate);
+      window.removeEventListener('order-placed', handleGlobalUpdate);
+      window.removeEventListener('kds-updated', handleGlobalUpdate);
+      window.removeEventListener('tabs-updated', handleGlobalUpdate);
+      window.removeEventListener('storage', handleStorage);
+    };
+  }, [loadPOSData, loadKdsData, loadTabsData, loadDailyClosing, activeTab]);
+
+  // Tab change effects with active polling
   useEffect(() => {
     if (activeTab === 'kds') {
       loadKdsData();
-      const interval = setInterval(loadKdsData, 8000);
+      const interval = setInterval(loadKdsData, 5000);
       return () => clearInterval(interval);
     }
     if (activeTab === 'tabs') {
       loadTabsData();
+      const interval = setInterval(loadTabsData, 5000);
+      return () => clearInterval(interval);
     }
     if (activeTab === 'closing') {
       loadDailyClosing();
+      const interval = setInterval(loadDailyClosing, 5000);
+      return () => clearInterval(interval);
     }
   }, [activeTab, loadKdsData, loadTabsData, loadDailyClosing]);
 
-  // Filtered Menu Items
+  // Filtered Menu Items (Search handled by backend fuzzy similarity)
   const filteredMenuItems = useMemo(() => {
     return menuItems.filter((item) => {
+      if (item.is_active === false) return false;
       const matchesCategory =
         activeCategory === 'all' || item.category_id === activeCategory;
-      const matchesSearch =
-        !itemSearchQuery.trim() ||
-        item.name.toLowerCase().includes(itemSearchQuery.toLowerCase()) ||
-        (item.description &&
-          item.description.toLowerCase().includes(itemSearchQuery.toLowerCase()));
       const matchesVeg = !vegOnly || item.is_veg === true;
-      return matchesCategory && matchesSearch && matchesVeg;
+      return matchesCategory && matchesVeg;
     });
-  }, [menuItems, activeCategory, itemSearchQuery, vegOnly]);
+  }, [menuItems, activeCategory, vegOnly]);
 
   // Distinct Zones
   const zones = useMemo(() => {
@@ -321,6 +406,29 @@ export default function BarPOS() {
     }
   };
 
+  // Remove / Delete item from catalog
+  const handleDeleteItem = async (item, e) => {
+    if (e) e.stopPropagation();
+    if (!item?.id) return;
+    const confirmDelete = window.confirm(`Are you sure you want to remove "${item.name}" from the active catalog?`);
+    if (!confirmDelete) return;
+
+    setActionLoading(true);
+    try {
+      await barApi.deleteMenuItem(item.id, activeClubId);
+      setMenuItems((prev) => prev.filter((i) => i.id !== item.id));
+      if (editingItem?.id === item.id) {
+        setEditingItem(null);
+      }
+      showNotification(`"${item.name}" removed from catalog!`);
+    } catch (err) {
+      console.error(err);
+      showNotification(err.customMessage || 'Failed to remove menu item', 'error');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   // ─── Table & Capacity Actions ───
   const handleCreateTable = async (e) => {
     e.preventDefault();
@@ -342,6 +450,8 @@ export default function BarPOS() {
       setNewTable({ name: '', zone: 'Main Dining', capacity: 4 });
       setIsAddTableOpen(false);
       loadPOSData();
+      window.dispatchEvent(new CustomEvent('tables-updated'));
+      localStorage.setItem('ldce_tables_updated', Date.now().toString());
     } catch (err) {
       console.error(err);
       showNotification(err.customMessage || 'Failed to create table', 'error');
@@ -369,9 +479,36 @@ export default function BarPOS() {
       showNotification(`Table "${editingTable.name}" updated successfully!`);
       setEditingTable(null);
       loadPOSData();
+      window.dispatchEvent(new CustomEvent('tables-updated'));
+      localStorage.setItem('ldce_tables_updated', Date.now().toString());
     } catch (err) {
       console.error(err);
       showNotification(err.customMessage || 'Failed to update table', 'error');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  // Quick change table status back to available or occupied
+  const handleToggleTableStatus = async (table, targetStatus = null) => {
+    const nextStatus = targetStatus || (table.status === 'available' ? 'occupied' : 'available');
+    setActionLoading(true);
+    try {
+      await barApi.updateTableStatus(table.id, nextStatus, activeClubId);
+      setTables((prev) =>
+        prev.map((t) =>
+          t.id === table.id
+            ? { ...t, status: nextStatus, active_order_id: nextStatus === 'available' ? null : t.active_order_id }
+            : t
+        )
+      );
+      showNotification(`Table "${table.name}" is now ${nextStatus === 'available' ? 'Available' : 'Occupied'}!`);
+      window.dispatchEvent(new CustomEvent('tables-updated'));
+      localStorage.setItem('ldce_tables_updated', Date.now().toString());
+      loadPOSData();
+    } catch (err) {
+      console.error(err);
+      showNotification(err.customMessage || 'Failed to update table status', 'error');
     } finally {
       setActionLoading(false);
     }
@@ -388,9 +525,49 @@ export default function BarPOS() {
       await barApi.updateKdsItemStatus(item.id, nextStatus, activeClubId);
       loadKdsData();
       showNotification(`Item marked as ${nextStatus}`, 'success');
+      window.dispatchEvent(new CustomEvent('kds-updated'));
+      localStorage.setItem('ldce_kds_updated', Date.now().toString());
     } catch (err) {
       console.error('KDS status update failed:', err);
       showNotification('Failed to update kitchen status', 'error');
+    }
+  };
+
+  // ─── Quick Clear Due (Paid In Person) ───
+  const handleQuickClearDue = async (tab) => {
+    if (!tab) return;
+    const balance = Number(tab.balance || 0);
+    const memberName = tab.member_name || tab.guest_name || 'Member';
+    const confirmed = window.confirm(
+      `Clear outstanding due of ₹${balance.toFixed(2)} for ${memberName}?\n\nThis records an in-person clearance, sets the outstanding balance to ₹0.00, closes all attached orders to paid, and frees dining tables.`
+    );
+    if (!confirmed) return;
+
+    setActionLoading(true);
+    try {
+      await barApi.settleTab(
+        tab.id,
+        {
+          method: 'cash',
+          reference: 'In-person Counter Clearance',
+          notes: `Paid in person at POS counter: ₹${balance.toFixed(2)}`,
+        },
+        activeClubId
+      );
+      loadTabsData();
+      loadPOSData();
+      window.dispatchEvent(new CustomEvent('tables-updated'));
+      window.dispatchEvent(new CustomEvent('order-placed'));
+      window.dispatchEvent(new CustomEvent('tabs-updated'));
+      localStorage.setItem('ldce_tables_updated', Date.now().toString());
+      localStorage.setItem('ldce_tabs_updated', Date.now().toString());
+      localStorage.setItem('ldce_orders_updated', Date.now().toString());
+      showNotification(`Due cleared! Outstanding balance is now ₹0.00 for ${memberName}.`, 'success');
+    } catch (err) {
+      console.error('Quick clear due error:', err);
+      showNotification(err.customMessage || 'Failed to clear due', 'error');
+    } finally {
+      setActionLoading(false);
     }
   };
 
@@ -400,6 +577,7 @@ export default function BarPOS() {
     setActionLoading(true);
     try {
       const balance = Number(settlingTab.balance || 0);
+      const memberName = settlingTab.member_name || settlingTab.guest_name || 'Member';
 
       if (tabPaymentMethod === 'razorpay') {
         const rzpOrder = await barApi.createRazorpayOrder(
@@ -412,9 +590,9 @@ export default function BarPOS() {
           amount: rzpOrder.amount,
           currency: rzpOrder.currency,
           name: 'Sports Club Tab Settlement',
-          description: `Settle Tab for ${settlingTab.member_name} - ₹${balance.toFixed(2)}`,
+          description: `Settle Tab for ${memberName} - ₹${balance.toFixed(2)}`,
           prefill: {
-            name: settlingTab.member_name,
+            name: memberName,
             phone: settlingTab.member_phone,
           },
           onSuccess: async (rzpResponse) => {
@@ -428,7 +606,14 @@ export default function BarPOS() {
             );
             setSettlingTab(null);
             loadTabsData();
-            showNotification('Member tab settled via Razorpay!', 'success');
+            loadPOSData();
+            window.dispatchEvent(new CustomEvent('tables-updated'));
+            window.dispatchEvent(new CustomEvent('order-placed'));
+            window.dispatchEvent(new CustomEvent('tabs-updated'));
+            localStorage.setItem('ldce_tables_updated', Date.now().toString());
+            localStorage.setItem('ldce_tabs_updated', Date.now().toString());
+            localStorage.setItem('ldce_orders_updated', Date.now().toString());
+            showNotification(`Due cleared! Tab settled via Razorpay for ${memberName}. Table freed.`, 'success');
           },
         });
       } else {
@@ -436,12 +621,20 @@ export default function BarPOS() {
           settlingTab.id,
           {
             method: tabPaymentMethod,
+            reference: tabPaymentMethod === 'cash' ? 'In-person Counter Clearance' : 'Card POS',
           },
           activeClubId
         );
         setSettlingTab(null);
         loadTabsData();
-        showNotification(`Tab settled via ${tabPaymentMethod}!`, 'success');
+        loadPOSData();
+        window.dispatchEvent(new CustomEvent('tables-updated'));
+        window.dispatchEvent(new CustomEvent('order-placed'));
+        window.dispatchEvent(new CustomEvent('tabs-updated'));
+        localStorage.setItem('ldce_tables_updated', Date.now().toString());
+        localStorage.setItem('ldce_tabs_updated', Date.now().toString());
+        localStorage.setItem('ldce_orders_updated', Date.now().toString());
+        showNotification(`Due cleared! Outstanding balance is now ₹0.00 for ${memberName}. Table freed.`, 'success');
       }
     } catch (err) {
       console.error('Tab settlement error:', err);
@@ -450,6 +643,7 @@ export default function BarPOS() {
       setActionLoading(false);
     }
   };
+
 
   return (
     <div style={{ minHeight: '100vh', background: '#FAF9F6', display: 'flex', flexDirection: 'column' }}>
@@ -477,20 +671,22 @@ export default function BarPOS() {
               justifyContent: 'center',
             }}
           >
-            <Sliders size={22} color="#FAF9F6" />
+            {isKitchen ? <ChefHat size={22} color="#FAF9F6" /> : <Sliders size={22} color="#FAF9F6" />}
           </div>
           <div>
             <h1 style={{ fontSize: '1.2rem', fontWeight: 700, margin: 0, letterSpacing: '-0.02em' }}>
-              Cafe & Bar Management
+              {isKitchen ? 'Kitchen Display System (KDS)' : 'Cafe & Bar Management'}
             </h1>
             <span style={{ fontSize: '0.75rem', opacity: 0.85, display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
               <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#10B981' }} />
-              Menu Design • Table Capacity • Kitchen Access
+              {isKitchen
+                ? 'Back of House • Live Order Fulfillment Queue'
+                : 'Menu Design • Table Capacity • Front of House POS'}
             </span>
           </div>
         </div>
 
-        {/* View Switcher Tabs (Strictly Admin / Staff: Menu, Tables, KDS, Tabs, Closing) */}
+        {/* View Switcher Tabs (Strictly filtered per role: Kitchen only sees KDS) */}
         <div
           style={{
             display: 'flex',
@@ -500,13 +696,7 @@ export default function BarPOS() {
             gap: '0.25rem',
           }}
         >
-          {[
-            { id: 'menu', label: 'Menu & Pricing', icon: Utensils },
-            { id: 'tables', label: 'Tables & Capacity', icon: Grid },
-            { id: 'kds', label: 'Kitchen & Bar (KDS)', icon: ChefHat },
-            { id: 'tabs', label: 'Member Tabs', icon: Wallet },
-            { id: 'closing', label: 'Daily Closing', icon: FileText },
-          ].map((tab) => {
+          {availableTabs.map((tab) => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
             return (
@@ -553,7 +743,7 @@ export default function BarPOS() {
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
           <button
             type="button"
-            onClick={loadPOSData}
+            onClick={isKitchen ? loadKdsData : loadPOSData}
             title="Refresh Data"
             disabled={refreshing}
             style={{
@@ -570,8 +760,16 @@ export default function BarPOS() {
             <RefreshCw size={16} className={refreshing ? 'animate-spin' : ''} />
           </button>
           <div style={{ textAlign: 'right', fontSize: '0.75rem', opacity: 0.9 }}>
-            <div style={{ fontWeight: 600 }}>{user?.full_name || 'Admin'}</div>
-            <div style={{ opacity: 0.75 }}>Manager / Admin View</div>
+            <div style={{ fontWeight: 600 }}>{user?.full_name || 'Staff'}</div>
+            <div style={{ opacity: 0.75 }}>
+              {isKitchen
+                ? '🍳 Kitchen Staff (Back of House)'
+                : isBarStaff
+                ? '☕ Bar & Cafe Staff'
+                : isFrontDesk
+                ? 'Front Desk Service'
+                : 'Manager / Executive View'}
+            </div>
           </div>
         </div>
       </header>
@@ -692,16 +890,22 @@ export default function BarPOS() {
             }}
           >
             {[
-              { label: 'Total Menu Items', val: menuItems.length, color: '#1F5C46' },
-              { label: 'Active Categories', val: categories.length, color: '#2563EB' },
+              { label: 'Total Menu Items', val: menuItems.filter((i) => i.is_active !== false).length, color: '#1F5C46' },
+              {
+                label: 'Active Categories',
+                val: categories.filter((cat) =>
+                  menuItems.some((i) => i.category_id === cat.id && i.is_active !== false)
+                ).length,
+                color: '#2563EB',
+              },
               {
                 label: 'Vegetarian Items',
-                val: menuItems.filter((i) => i.is_veg).length,
+                val: menuItems.filter((i) => i.is_veg && i.is_active !== false).length,
                 color: '#10B981',
               },
               {
                 label: 'In Stock / Live',
-                val: menuItems.filter((i) => i.is_available).length,
+                val: menuItems.filter((i) => i.is_available && i.is_active !== false).length,
                 color: '#059669',
               },
             ].map((st, idx) => (
@@ -765,6 +969,18 @@ export default function BarPOS() {
                     color: '#1A1A18',
                   }}
                 />
+                {itemSearchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setItemSearchQuery('')}
+                    style={{
+                      border: 'none', background: 'transparent', cursor: 'pointer', padding: 0, color: '#6B6B66', display: 'flex'
+                    }}
+                    aria-label="Clear search"
+                  >
+                    <X size={15} />
+                  </button>
+                )}
               </div>
 
               <button
@@ -819,7 +1035,7 @@ export default function BarPOS() {
                   whiteSpace: 'nowrap',
                 }}
               >
-                All Menu ({menuItems.length})
+                All Menu ({menuItems.filter((i) => i.is_active !== false).length})
               </button>
               {categories.map((cat) => (
                 <button
@@ -839,7 +1055,7 @@ export default function BarPOS() {
                     whiteSpace: 'nowrap',
                   }}
                 >
-                  {cat.name} ({menuItems.filter((i) => i.category_id === cat.id).length})
+                  {cat.name} ({menuItems.filter((i) => i.category_id === cat.id && i.is_active !== false).length})
                 </button>
               ))}
             </div>
@@ -1039,26 +1255,51 @@ export default function BarPOS() {
                         <span>{item.is_available ? 'In Stock' : 'Out of Stock'}</span>
                       </button>
 
-                      <button
-                        type="button"
-                        onClick={() => setEditingItem({ ...item })}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '0.35rem',
-                          fontSize: '0.78rem',
-                          fontWeight: 700,
-                          color: '#1F5C46',
-                          background: '#FFFFFF',
-                          border: '1px solid #B8D8CC',
-                          padding: '0.35rem 0.75rem',
-                          borderRadius: '6px',
-                          cursor: 'pointer',
-                        }}
-                      >
-                        <Edit2 size={13} />
-                        <span>Edit & Price</span>
-                      </button>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                        <button
+                          type="button"
+                          onClick={() => setEditingItem({ ...item })}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.3rem',
+                            fontSize: '0.75rem',
+                            fontWeight: 700,
+                            color: '#1F5C46',
+                            background: '#FFFFFF',
+                            border: '1px solid #B8D8CC',
+                            padding: '0.35rem 0.65rem',
+                            borderRadius: '6px',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          <Edit2 size={13} />
+                          <span>Edit</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={(e) => handleDeleteItem(item, e)}
+                          title="Remove item from catalog"
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.3rem',
+                            fontSize: '0.75rem',
+                            fontWeight: 700,
+                            color: '#DC2626',
+                            background: '#FEF2F2',
+                            border: '1px solid #FECACA',
+                            padding: '0.35rem 0.65rem',
+                            borderRadius: '6px',
+                            cursor: 'pointer',
+                            transition: 'all 0.15s ease',
+                          }}
+                        >
+                          <Trash2 size={13} />
+                          <span>Remove Item</span>
+                        </button>
+                      </div>
                     </div>
                   </div>
                 );
@@ -1314,20 +1555,71 @@ export default function BarPOS() {
                     )}
                   </div>
 
-                  {/* Edit Capacity & Details Button */}
-                  <div style={{ marginTop: '1rem', paddingTop: '0.75rem', borderTop: '1px solid #F4F2EC' }}>
+                  {/* Table Actions: Change status & Edit */}
+                  <div style={{ marginTop: '1rem', paddingTop: '0.75rem', borderTop: '1px solid #F4F2EC', display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
+                    {table.status !== 'available' ? (
+                      <button
+                        type="button"
+                        disabled={actionLoading}
+                        onClick={() => handleToggleTableStatus(table, 'available')}
+                        style={{
+                          width: '100%',
+                          padding: '0.5rem',
+                          borderRadius: '6px',
+                          border: 'none',
+                          background: '#059669',
+                          color: '#FFFFFF',
+                          fontWeight: 700,
+                          fontSize: '0.8rem',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '0.35rem',
+                          boxShadow: '0 2px 6px rgba(5,150,105,0.2)',
+                        }}
+                      >
+                        <CheckCircle2 size={14} />
+                        <span>Mark Available / Clear Table</span>
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        disabled={actionLoading}
+                        onClick={() => handleToggleTableStatus(table, 'occupied')}
+                        style={{
+                          width: '100%',
+                          padding: '0.45rem',
+                          borderRadius: '6px',
+                          border: '1px solid #F59E0B',
+                          background: '#FEF3C7',
+                          color: '#B45309',
+                          fontWeight: 700,
+                          fontSize: '0.78rem',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '0.35rem',
+                        }}
+                      >
+                        <Users size={13} />
+                        <span>Mark Occupied</span>
+                      </button>
+                    )}
+
                     <button
                       type="button"
                       onClick={() => setEditingTable({ ...table })}
                       style={{
                         width: '100%',
-                        padding: '0.5rem',
+                        padding: '0.45rem',
                         borderRadius: '6px',
-                        border: '1px solid #B8D8CC',
-                        background: '#FFFFFF',
-                        color: '#1F5C46',
-                        fontWeight: 700,
-                        fontSize: '0.8rem',
+                        border: '1px solid #E7E5DF',
+                        background: '#FAF9F6',
+                        color: '#6B6B66',
+                        fontWeight: 600,
+                        fontSize: '0.78rem',
                         cursor: 'pointer',
                         display: 'flex',
                         alignItems: 'center',
@@ -1537,13 +1829,88 @@ export default function BarPOS() {
       {/* ─── TAB 4: MEMBER TABS ─── */}
       {activeTab === 'tabs' && (
         <div style={{ padding: '1.5rem', flex: 1, overflowY: 'auto' }}>
-          <div style={{ marginBottom: '1.25rem' }}>
-            <h2 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#1A1A18', margin: 0 }}>
-              Member Bar & Cafe Tabs
-            </h2>
-            <span style={{ fontSize: '0.82rem', color: '#6B6B66' }}>
-              Active credit accounts for club members. Settle balances via Razorpay or Cash/Card.
-            </span>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem', marginBottom: '1.25rem' }}>
+            <div>
+              <h2 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#1A1A18', margin: 0 }}>
+                Member Bar & Cafe Tabs
+              </h2>
+              <span style={{ fontSize: '0.82rem', color: '#6B6B66' }}>
+                All user orders charged to member accounts are summed up user-wise here. When paid in person, staff can click "Clear Due" to settle the tab to ₹0.00.
+              </span>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <div style={{ display: 'inline-flex', background: '#EAE8E3', padding: '3px', borderRadius: '8px' }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTabsFilter('open');
+                    loadTabsData('open');
+                  }}
+                  style={{
+                    padding: '0.45rem 0.85rem',
+                    borderRadius: '6px',
+                    border: 'none',
+                    background: tabsFilter === 'open' ? '#FFFFFF' : 'transparent',
+                    color: tabsFilter === 'open' ? '#1F5C46' : '#6B6B66',
+                    fontWeight: 700,
+                    fontSize: '0.78rem',
+                    cursor: 'pointer',
+                    boxShadow: tabsFilter === 'open' ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.4rem',
+                  }}
+                >
+                  <Wallet size={14} />
+                  <span>Active Dues ({memberTabs.filter(t => t.status === 'open').length})</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTabsFilter('all');
+                    loadTabsData('all');
+                  }}
+                  style={{
+                    padding: '0.45rem 0.85rem',
+                    borderRadius: '6px',
+                    border: 'none',
+                    background: tabsFilter === 'all' ? '#FFFFFF' : 'transparent',
+                    color: tabsFilter === 'all' ? '#1F5C46' : '#6B6B66',
+                    fontWeight: 700,
+                    fontSize: '0.78rem',
+                    cursor: 'pointer',
+                    boxShadow: tabsFilter === 'all' ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.4rem',
+                  }}
+                >
+                  <FileText size={14} />
+                  <span>All Tabs & Settled History</span>
+                </button>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => loadTabsData()}
+                style={{
+                  padding: '0.5rem',
+                  borderRadius: '6px',
+                  border: '1px solid #E7E5DF',
+                  background: '#FFFFFF',
+                  color: '#1F5C46',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+                title="Refresh Member Tabs"
+              >
+                <RefreshCw size={15} />
+              </button>
+            </div>
           </div>
 
           {memberTabs.length === 0 ? (
@@ -1558,86 +1925,262 @@ export default function BarPOS() {
               }}
             >
               <Wallet size={40} color="#A8A29E" style={{ margin: '0 auto 0.5rem' }} />
-              <div style={{ fontWeight: 700, fontSize: '1rem', color: '#1A1A18' }}>No Open Member Tabs</div>
+              <div style={{ fontWeight: 700, fontSize: '1rem', color: '#1A1A18' }}>
+                {tabsFilter === 'open' ? 'No Open Member Dues' : 'No Member Tabs Found'}
+              </div>
               <div style={{ fontSize: '0.8rem', marginTop: '0.25rem' }}>
-                All member tabs are settled or currently empty.
+                {tabsFilter === 'open'
+                  ? 'All member cafe orders and tabs are settled with ₹0.00 outstanding.'
+                  : 'No member accounts have charged orders on tab yet.'}
               </div>
             </div>
           ) : (
             <div
               style={{
                 display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
-                gap: '1rem',
+                gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))',
+                gap: '1.25rem',
               }}
             >
-              {memberTabs.map((tab) => (
-                <div
-                  key={tab.id}
-                  style={{
-                    background: '#FFFFFF',
-                    border: '1px solid #E7E5DF',
-                    borderRadius: '10px',
-                    padding: '1.25rem',
-                    boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    justifyContent: 'space-between',
-                  }}
-                >
-                  <div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                      <div>
-                        <div style={{ fontSize: '1rem', fontWeight: 800, color: '#1A1A18' }}>
-                          {tab.member_name || tab.guest_name || 'Counter Tab'}
+              {memberTabs.map((tab) => {
+                const isSettled = tab.status === 'settled';
+                const balanceNum = Number(tab.balance || 0);
+                const totalCharged = Number(tab.total_orders_amount || tab.balance || 0);
+                const totalPaid = Number(tab.total_paid || 0);
+
+                return (
+                  <div
+                    key={tab.id}
+                    style={{
+                      background: '#FFFFFF',
+                      border: isSettled ? '1px solid #E5E7EB' : '1px solid #CBD5E1',
+                      borderRadius: '12px',
+                      padding: '1.25rem',
+                      boxShadow: isSettled ? '0 1px 4px rgba(0,0,0,0.03)' : '0 4px 12px rgba(31,92,70,0.08)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      justifyContent: 'space-between',
+                      opacity: isSettled ? 0.9 : 1,
+                    }}
+                  >
+                    <div>
+                      {/* Member Info & Status Badge */}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                        <div>
+                          <div style={{ fontSize: '1.05rem', fontWeight: 800, color: '#1A1A18' }}>
+                            {tab.member_name || tab.guest_name || 'Member Account'}
+                          </div>
+                          <div style={{ fontSize: '0.75rem', color: '#6B6B66', marginTop: '0.15rem' }}>
+                            {tab.member_code ? `Code: ${tab.member_code}` : 'Guest Tab'} {tab.member_phone ? `• ${tab.member_phone}` : ''}
+                          </div>
                         </div>
-                        <div style={{ fontSize: '0.75rem', color: '#6B6B66' }}>
-                          {tab.member_code ? `Code: ${tab.member_code}` : 'Guest Tab'} • {tab.orders_count || 0} Orders
-                        </div>
+
+                        {isSettled ? (
+                          <span
+                            style={{
+                              fontSize: '0.7rem',
+                              fontWeight: 800,
+                              color: '#065F46',
+                              background: '#D1FAE5',
+                              padding: '0.25rem 0.55rem',
+                              borderRadius: '6px',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '0.25rem',
+                            }}
+                          >
+                            <Check size={12} /> SETTLED • DUE CLEARED
+                          </span>
+                        ) : (
+                          <span
+                            style={{
+                              fontSize: '0.7rem',
+                              fontWeight: 800,
+                              color: '#B45309',
+                              background: '#FEF3C7',
+                              padding: '0.25rem 0.55rem',
+                              borderRadius: '6px',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '0.3rem',
+                            }}
+                          >
+                            <Clock size={12} /> OPEN TAB • ACTIVE DUE
+                          </span>
+                        )}
                       </div>
-                      <span
+
+                      {/* Outstanding Balance Banner */}
+                      <div
                         style={{
-                          fontSize: '0.7rem',
-                          fontWeight: 700,
-                          color: '#047857',
-                          background: '#EBFDF5',
-                          padding: '0.2rem 0.5rem',
-                          borderRadius: '4px',
+                          marginTop: '1.1rem',
+                          padding: '0.85rem 1rem',
+                          borderRadius: '8px',
+                          background: isSettled ? '#F9FAFB' : '#F0FDF4',
+                          border: isSettled ? '1px solid #E5E7EB' : '1px solid #BBF7D0',
                         }}
                       >
-                        OPEN TAB
-                      </span>
-                    </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+                          <div>
+                            <span style={{ fontSize: '0.72rem', fontWeight: 700, color: isSettled ? '#6B7280' : '#15803D', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                              {isSettled ? 'Outstanding Balance' : 'Total Outstanding Due'}
+                            </span>
+                            <div style={{ fontSize: '1.75rem', fontWeight: 900, color: isSettled ? '#059669' : '#1F5C46', lineHeight: 1.15, marginTop: '0.15rem' }}>
+                              ₹{balanceNum.toFixed(2)}
+                            </div>
+                          </div>
 
-                    <div style={{ marginTop: '1.25rem' }}>
-                      <span style={{ fontSize: '0.75rem', color: '#6B6B66' }}>Outstanding Balance</span>
-                      <div style={{ fontSize: '1.5rem', fontWeight: 900, color: '#1F5C46' }}>
-                        ₹{Number(tab.balance || 0).toFixed(2)}
+                          <div style={{ textAlign: 'right' }}>
+                            <span style={{ fontSize: '0.7rem', color: '#6B7280' }}>
+                              Total Charges
+                            </span>
+                            <div style={{ fontSize: '0.9rem', fontWeight: 700, color: '#1A1A18' }}>
+                              ₹{totalCharged.toFixed(2)}
+                            </div>
+                            {isSettled && (
+                              <div style={{ fontSize: '0.68rem', color: '#059669', fontWeight: 600 }}>
+                                Paid: ₹{totalPaid > 0 ? totalPaid.toFixed(2) : totalCharged.toFixed(2)}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        <div style={{ fontSize: '0.72rem', color: isSettled ? '#059669' : '#4B5563', marginTop: '0.4rem', fontWeight: 500 }}>
+                          {isSettled
+                            ? `✓ All orders fully paid. Due cleared to ₹0.00.`
+                            : `Summed up across ${tab.orders_count || tab.order_history?.length || 0} order(s) placed by this member.`}
+                        </div>
                       </div>
+
+                      {/* User's Order History (Summed up on Tab) */}
+                      {tab.order_history && tab.order_history.length > 0 ? (
+                        <div style={{ marginTop: '1rem', borderTop: '1px dashed #E7E5DF', paddingTop: '0.75rem' }}>
+                          <div style={{ fontSize: '0.75rem', fontWeight: 800, color: '#1A1A18', marginBottom: '0.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span>Accumulated Orders ({tab.order_history.length})</span>
+                            <span style={{ fontSize: '0.7rem', color: '#6B6B66' }}>Summed User-wise</span>
+                          </div>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem', maxHeight: '170px', overflowY: 'auto' }}>
+                            {tab.order_history.map((ord) => (
+                              <div
+                                key={ord.id}
+                                style={{
+                                  background: '#F8FAF9',
+                                  border: '1px solid #E7E5DF',
+                                  borderRadius: '6px',
+                                  padding: '0.5rem 0.65rem',
+                                  fontSize: '0.75rem',
+                                }}
+                              >
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontWeight: 700, color: '#1F5C46' }}>
+                                  <span>#{ord.order_no}</span>
+                                  <span>₹{Number(ord.total || 0).toFixed(2)}</span>
+                                </div>
+                                {ord.items_summary && (
+                                  <div style={{ color: '#4B5563', fontSize: '0.72rem', marginTop: '0.2rem', lineHeight: 1.3 }}>
+                                    {ord.items_summary}
+                                  </div>
+                                )}
+                                <div style={{ color: '#9CA3AF', fontSize: '0.68rem', marginTop: '0.25rem', display: 'flex', justifyContent: 'space-between' }}>
+                                  <span>📅 {new Date(ord.opened_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                  <span style={{ textTransform: 'capitalize', color: ord.status === 'paid' ? '#059669' : '#1F5C46', fontWeight: 700 }}>
+                                    Status: {ord.status}
+                                  </span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ) : (
+                        <div style={{ marginTop: '0.75rem', fontSize: '0.75rem', color: '#9CA3AF', fontStyle: 'italic' }}>
+                          No orders charged to this tab yet.
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Action Buttons: Clear Due (In person) & Settle via Payment */}
+                    <div style={{ marginTop: '1.25rem', paddingTop: '0.75rem', borderTop: '1px solid #F4F2EC' }}>
+                      {isSettled ? (
+                        <div
+                          style={{
+                            background: '#F0FDF4',
+                            border: '1px solid #BBF7D0',
+                            borderRadius: '8px',
+                            padding: '0.65rem',
+                            textAlign: 'center',
+                            color: '#166534',
+                            fontWeight: 700,
+                            fontSize: '0.8rem',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: '0.4rem',
+                          }}
+                        >
+                          <Check size={16} />
+                          <span>Due Cleared to ₹0.00 • Settled in Full</span>
+                        </div>
+                      ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                          {/* 1-Click Clear Due Button for Paid In Person */}
+                          <button
+                            type="button"
+                            disabled={actionLoading}
+                            onClick={() => handleQuickClearDue(tab)}
+                            style={{
+                              width: '100%',
+                              padding: '0.65rem',
+                              borderRadius: '7px',
+                              border: 'none',
+                              background: '#1F5C46',
+                              color: '#FFFFFF',
+                              fontWeight: 800,
+                              fontSize: '0.82rem',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: '0.4rem',
+                              boxShadow: '0 2px 6px rgba(31,92,70,0.2)',
+                            }}
+                            title="Paid in person - clears balance and makes it 0"
+                          >
+                            <Check size={16} />
+                            <span>Clear Due (₹{balanceNum.toFixed(2)}) • Paid in Person</span>
+                          </button>
+
+                          {/* Secondary: Settle via Razorpay or Card */}
+                          <button
+                            type="button"
+                            disabled={actionLoading}
+                            onClick={() => {
+                              setSettlingTab(tab);
+                              setTabPaymentMethod('cash');
+                            }}
+                            style={{
+                              width: '100%',
+                              padding: '0.5rem',
+                              borderRadius: '7px',
+                              border: '1px solid #D1D5DB',
+                              background: '#FFFFFF',
+                              color: '#374151',
+                              fontWeight: 700,
+                              fontSize: '0.78rem',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: '0.35rem',
+                            }}
+                          >
+                            <DollarSign size={14} />
+                            <span>Settle via Payment Modal (Razorpay / Card)</span>
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </div>
-
-                  <div style={{ marginTop: '1.25rem', paddingTop: '0.75rem', borderTop: '1px solid #F4F2EC' }}>
-                    <button
-                      type="button"
-                      onClick={() => setSettlingTab(tab)}
-                      style={{
-                        width: '100%',
-                        padding: '0.6rem',
-                        borderRadius: '6px',
-                        border: 'none',
-                        background: '#1F5C46',
-                        color: '#FFFFFF',
-                        fontWeight: 700,
-                        fontSize: '0.8rem',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      Settle Tab (Razorpay / Cash)
-                    </button>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
@@ -1646,13 +2189,35 @@ export default function BarPOS() {
       {/* ─── TAB 5: DAILY CLOSING ─── */}
       {activeTab === 'closing' && (
         <div style={{ padding: '1.5rem', flex: 1, overflowY: 'auto' }}>
-          <div style={{ marginBottom: '1.25rem' }}>
-            <h2 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#1A1A18', margin: 0 }}>
-              Daily Closing & Register Report
-            </h2>
-            <span style={{ fontSize: '0.82rem', color: '#6B6B66' }}>
-              Financial reconciliation for today's cafe and bar sales.
-            </span>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+            <div>
+              <h2 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#1A1A18', margin: 0 }}>
+                Daily Closing & Register Report
+              </h2>
+              <span style={{ fontSize: '0.82rem', color: '#6B6B66' }}>
+                Live financial reconciliation for today's cafe and bar sales.
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={loadDailyClosing}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.4rem',
+                padding: '0.45rem 0.85rem',
+                borderRadius: '6px',
+                border: '1px solid #E7E5DF',
+                background: '#FFFFFF',
+                color: '#1F5C46',
+                fontSize: '0.8rem',
+                fontWeight: 700,
+                cursor: 'pointer',
+              }}
+            >
+              <RefreshCw size={13} />
+              <span>Refresh Report</span>
+            </button>
           </div>
 
           {dailyClosing && (
@@ -1660,39 +2225,53 @@ export default function BarPOS() {
               <div
                 style={{
                   display: 'grid',
-                  gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
                   gap: '1rem',
                 }}
               >
                 <div style={{ background: '#FFFFFF', padding: '1.25rem', borderRadius: '8px', border: '1px solid #E7E5DF' }}>
                   <span style={{ fontSize: '0.75rem', color: '#6B6B66' }}>Total Orders Settled</span>
                   <div style={{ fontSize: '1.6rem', fontWeight: 800, color: '#1A1A18', marginTop: '0.25rem' }}>
-                    {dailyClosing.orders_count || 0}
+                    {dailyClosing.orders_count ?? dailyClosing.summary?.orders ?? 0}
                   </div>
                 </div>
 
                 <div style={{ background: '#FFFFFF', padding: '1.25rem', borderRadius: '8px', border: '1px solid #E7E5DF' }}>
-                  <span style={{ fontSize: '0.75rem', color: '#6B6B66' }}>Total Revenue</span>
+                  <span style={{ fontSize: '0.75rem', color: '#6B6B66' }}>Gross Sales</span>
+                  <div style={{ fontSize: '1.6rem', fontWeight: 800, color: '#1A1A18', marginTop: '0.25rem' }}>
+                    ₹{Number(dailyClosing.gross_sales ?? dailyClosing.summary?.gross ?? 0).toFixed(2)}
+                  </div>
+                </div>
+
+                <div style={{ background: '#FFFFFF', padding: '1.25rem', borderRadius: '8px', border: '1px solid #E7E5DF' }}>
+                  <span style={{ fontSize: '0.75rem', color: '#6B6B66' }}>Member Discounts</span>
+                  <div style={{ fontSize: '1.6rem', fontWeight: 800, color: '#15803D', marginTop: '0.25rem' }}>
+                    -₹{Number(dailyClosing.total_discounts ?? dailyClosing.summary?.discounts ?? 0).toFixed(2)}
+                  </div>
+                </div>
+
+                <div style={{ background: '#FFFFFF', padding: '1.25rem', borderRadius: '8px', border: '1px solid #E7E5DF' }}>
+                  <span style={{ fontSize: '0.75rem', color: '#6B6B66' }}>Net Revenue</span>
                   <div style={{ fontSize: '1.6rem', fontWeight: 900, color: '#1F5C46', marginTop: '0.25rem' }}>
-                    ₹{Number(dailyClosing.total_sales || 0).toFixed(2)}
+                    ₹{Number(dailyClosing.total_sales ?? dailyClosing.summary?.net_total ?? 0).toFixed(2)}
                   </div>
                 </div>
 
                 <div style={{ background: '#FFFFFF', padding: '1.25rem', borderRadius: '8px', border: '1px solid #E7E5DF' }}>
                   <span style={{ fontSize: '0.75rem', color: '#6B6B66' }}>GST Collected</span>
                   <div style={{ fontSize: '1.6rem', fontWeight: 800, color: '#2563EB', marginTop: '0.25rem' }}>
-                    ₹{Number(dailyClosing.total_tax || 0).toFixed(2)}
+                    ₹{Number(dailyClosing.total_tax ?? dailyClosing.summary?.tax ?? 0).toFixed(2)}
                   </div>
                 </div>
               </div>
 
-              {dailyClosing.by_payment_method && dailyClosing.by_payment_method.length > 0 && (
+              {(dailyClosing.by_payment_method?.length > 0 || dailyClosing.payment_breakdown?.length > 0) && (
                 <div style={{ background: '#FFFFFF', padding: '1.25rem', borderRadius: '8px', border: '1px solid #E7E5DF' }}>
                   <h3 style={{ fontSize: '0.95rem', fontWeight: 700, margin: '0 0 1rem', color: '#1A1A18' }}>
                     Collections by Payment Method
                   </h3>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                    {dailyClosing.by_payment_method.map((pm, idx) => (
+                    {(dailyClosing.by_payment_method || dailyClosing.payment_breakdown || []).map((pm, idx) => (
                       <div
                         key={idx}
                         style={{
@@ -1707,7 +2286,7 @@ export default function BarPOS() {
                           {pm.method === 'online' ? 'Razorpay Online' : pm.method}
                         </span>
                         <span style={{ fontWeight: 800, color: '#1F5C46' }}>
-                          ₹{Number(pm.total || 0).toFixed(2)} ({pm.count} txns)
+                          ₹{Number(pm.total_amount ?? pm.amount ?? pm.total ?? 0).toFixed(2)} ({pm.count} txns)
                         </span>
                       </div>
                     ))}
@@ -2349,15 +2928,41 @@ export default function BarPOS() {
                   <span>In Stock / Available for Ordering</span>
                 </label>
 
-                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.82rem', fontWeight: 600, color: '#1A1A18', cursor: 'pointer' }}>
-                  <input
-                    type="checkbox"
-                    checked={editingItem.is_active !== false}
-                    onChange={(e) => setEditingItem({ ...editingItem, is_active: e.target.checked })}
-                    style={{ width: '16px', height: '16px', accentColor: '#1F5C46' }}
-                  />
-                  <span>Active in Catalog</span>
-                </label>
+                <div style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  background: '#FEF2F2',
+                  border: '1px solid #FEE2E2',
+                  padding: '0.65rem 0.85rem',
+                  borderRadius: '6px',
+                  marginTop: '0.25rem',
+                }}>
+                  <div>
+                    <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#991B1B' }}>Catalog Presence</span>
+                    <p style={{ margin: 0, fontSize: '0.74rem', color: '#B91C1C' }}>Remove this item from active catalog & update category count</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={(e) => handleDeleteItem(editingItem, e)}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.35rem',
+                      padding: '0.45rem 0.85rem',
+                      background: '#DC2626',
+                      color: '#FFFFFF',
+                      border: 'none',
+                      borderRadius: '6px',
+                      fontSize: '0.78rem',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <Trash2 size={13} />
+                    <span>Remove Item</span>
+                  </button>
+                </div>
               </div>
 
               <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.75rem' }}>
@@ -2787,9 +3392,9 @@ export default function BarPOS() {
               </label>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.5rem' }}>
                 {[
+                  { id: 'cash', label: 'Cash (In-person)' },
+                  { id: 'card', label: 'Card / POS' },
                   { id: 'razorpay', label: 'Razorpay' },
-                  { id: 'cash', label: 'Cash' },
-                  { id: 'card', label: 'Card' },
                 ].map((m) => (
                   <button
                     key={m.id}
@@ -2803,7 +3408,7 @@ export default function BarPOS() {
                       background: tabPaymentMethod === m.id ? '#EBF3F0' : '#FFFFFF',
                       color: tabPaymentMethod === m.id ? '#1F5C46' : '#1A1A18',
                       fontWeight: 700,
-                      fontSize: '0.8rem',
+                      fontSize: '0.78rem',
                       cursor: 'pointer',
                     }}
                   >
@@ -2844,7 +3449,11 @@ export default function BarPOS() {
                   cursor: 'pointer',
                 }}
               >
-                {actionLoading ? 'Processing...' : 'Settle Now'}
+                {actionLoading
+                  ? 'Processing...'
+                  : tabPaymentMethod === 'cash'
+                  ? `Clear Due (₹${Number(settlingTab.balance || 0).toFixed(2)})`
+                  : 'Settle Now'}
               </button>
             </div>
           </div>

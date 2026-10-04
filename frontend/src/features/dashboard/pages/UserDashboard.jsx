@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router';
 import {
   Search,
@@ -11,14 +11,21 @@ import {
   ArrowRight,
   ShieldCheck,
   Sparkles,
+  ShoppingBag,
+  Clock,
 } from 'lucide-react';
 import useAuth from '../../auth/hook/useAuth.js';
 import useUserDashboard from '../../clubs/hooks/useUserDashboard.js';
+import apiClient from '../../../shared/services/api.js';
 import '../styles/user-dashboard.scss';
 
-export default function UserDashboard() {
+function UserDashboard() {
   const { user, changeClub } = useAuth();
   const navigate = useNavigate();
+
+  const [userBookings, setUserBookings] = useState([]);
+  const [userOrders, setUserOrders] = useState([]);
+  const [loadingActivity, setLoadingActivity] = useState(true);
 
   const {
     myClubs,
@@ -39,6 +46,42 @@ export default function UserDashboard() {
     clearToast,
   } = useUserDashboard();
 
+  useEffect(() => {
+    async function fetchUserActivity() {
+      try {
+        setLoadingActivity(true);
+        const [bookingsRes, ordersRes] = await Promise.all([
+          apiClient.get('/bookings', { params: { user_only: 'true' } }).catch(() => ({ data: { bookings: [] } })),
+          apiClient.get('/orders').catch(() => ({ data: { orders: [] } })),
+        ]);
+        setUserBookings(bookingsRes.data?.bookings || []);
+        setUserOrders(ordersRes.data?.orders || []);
+      } catch (err) {
+        console.warn('Could not load user activity:', err);
+      } finally {
+        setLoadingActivity(false);
+      }
+    }
+    fetchUserActivity();
+
+    const handleUpdate = () => fetchUserActivity();
+    const handleStorage = (e) => {
+      if (e.key === 'ldce_booking_updated' || e.key === 'ldce_tables_updated') {
+        fetchUserActivity();
+      }
+    };
+    window.addEventListener('booking-updated', handleUpdate);
+    window.addEventListener('court-booked', handleUpdate);
+    window.addEventListener('order-placed', handleUpdate);
+    window.addEventListener('storage', handleStorage);
+    return () => {
+      window.removeEventListener('booking-updated', handleUpdate);
+      window.removeEventListener('court-booked', handleUpdate);
+      window.removeEventListener('order-placed', handleUpdate);
+      window.removeEventListener('storage', handleStorage);
+    };
+  }, []);
+
   // Dynamic sports from database
   const sportOptions = useMemo(() => {
     if (!availableSports || availableSports.length === 0) return [];
@@ -46,14 +89,14 @@ export default function UserDashboard() {
   }, [availableSports]);
 
   // Joined club IDs for quick lookup
-  const joinedClubIds = new Set(myClubs.map((c) => c.id));
+  const joinedClubIds = useMemo(() => new Set(myClubs.map((c) => c.id)), [myClubs]);
 
-  const handleSelectClub = (club) => {
+  const handleSelectClub = useCallback((club) => {
     if (changeClub) {
       changeClub(club.id, club.user_role || 'member');
     }
     navigate(`/club/${club.slug || club.id}`);
-  };
+  }, [changeClub, navigate]);
 
   // Time-of-day greeting (memoized)
   const greeting = useMemo(() => {
@@ -98,11 +141,128 @@ export default function UserDashboard() {
             <span className="stat-lbl">Courts Available</span>
           </div>
           <div className="stat-chip">
-            <span className="stat-val">Active</span>
-            <span className="stat-lbl">Status</span>
+            <span className="stat-val">{userBookings.length}</span>
+            <span className="stat-lbl">My Bookings</span>
+          </div>
+          <div className="stat-chip">
+            <span className="stat-val">{userOrders.length}</span>
+            <span className="stat-lbl">My Orders</span>
           </div>
         </div>
       </section>
+
+      {/* ------------------------------------------------------------------ */}
+      {/* SECTION 0: YOUR ACTIVE COURT RESERVATIONS & ORDERS */}
+      {/* ------------------------------------------------------------------ */}
+      {(userBookings.length > 0 || userOrders.length > 0) && (
+        <section style={{ marginBottom: '2.5rem' }}>
+          <div className="cl-user-dashboard__section-title">
+            <div className="title-left">
+              <h2>Your Active Reservations & Orders</h2>
+              <span className="count-badge">{userBookings.length + userOrders.length}</span>
+            </div>
+            <span className="title-subtitle">Confirmed court reservations and placed cafe/bar orders</span>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '1rem' }}>
+            {/* Recent Bookings */}
+            {userBookings.map((b) => {
+              const dateStr = b.start_at
+                ? new Date(b.start_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                : (b.date || 'Today');
+              const timeStr = b.start_at && b.end_at
+                ? `${new Date(b.start_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })} - ${new Date(b.end_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })}`
+                : (b.time || '1-Hour Slot');
+
+              return (
+                <div
+                  key={b.id}
+                  style={{
+                    background: '#FFFFFF',
+                    border: '1.5px solid #A7F3D0',
+                    borderRadius: '12px',
+                    padding: '1.25rem',
+                    boxShadow: '0 4px 16px rgba(16, 185, 129, 0.06)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'space-between',
+                  }}
+                >
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.5rem' }}>
+                      <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#1F5C46', background: '#ECFDF5', padding: '0.2rem 0.6rem', borderRadius: '4px' }}>
+                        🏸 COURT RESERVATION
+                      </span>
+                      <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#047857', background: '#D1FAE5', padding: '0.2rem 0.5rem', borderRadius: '4px', textTransform: 'uppercase' }}>
+                        ● {b.status || 'Confirmed'}
+                      </span>
+                    </div>
+
+                    <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: '#0f172a', margin: '0.25rem 0' }}>
+                      {b.court_name || 'Athletic Court'}
+                    </h3>
+                    <div style={{ fontSize: '0.82rem', color: '#64748b', display: 'flex', alignItems: 'center', gap: '0.4rem', marginTop: '0.35rem' }}>
+                      <Calendar size={14} color="#1F5C46" />
+                      <span>{dateStr} • {timeStr}</span>
+                    </div>
+                  </div>
+
+                  <div style={{ marginTop: '1rem', paddingTop: '0.75rem', borderTop: '1px solid #F1F5F9', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.8rem' }}>
+                    <span style={{ color: '#64748b' }}>Booking Ref: #{String(b.id).slice(0, 8).toUpperCase()}</span>
+                    <span style={{ fontWeight: 800, color: '#1F5C46' }}>
+                      {b.total_amount ? `₹${b.total_amount}` : 'Free Member Quota'}
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+
+            {/* Recent Orders */}
+            {userOrders.map((o) => (
+              <div
+                key={o.id}
+                style={{
+                  background: '#FFFFFF',
+                  border: '1px solid #E2E8F0',
+                  borderRadius: '12px',
+                  padding: '1.25rem',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.03)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'space-between',
+                }}
+              >
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.5rem' }}>
+                    <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#2563EB', background: '#EFF6FF', padding: '0.2rem 0.6rem', borderRadius: '4px' }}>
+                      ☕ CAFE / BAR ORDER
+                    </span>
+                    <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#2563EB', background: '#DBEAFE', padding: '0.2rem 0.5rem', borderRadius: '4px', textTransform: 'uppercase' }}>
+                      ● {o.status || 'Confirmed'}
+                    </span>
+                  </div>
+
+                  <h3 style={{ fontSize: '1.05rem', fontWeight: 800, color: '#0f172a', margin: '0.25rem 0' }}>
+                    Order #{o.order_no || String(o.id).slice(0, 8).toUpperCase()}
+                  </h3>
+                  <div style={{ fontSize: '0.82rem', color: '#64748b', marginTop: '0.25rem' }}>
+                    {Array.isArray(o.items) && o.items.length > 0
+                      ? o.items.map(i => `${i.quantity}× ${i.item_name || i.name}`).join(', ')
+                      : 'Bar / Cafe items'}
+                  </div>
+                </div>
+
+                <div style={{ marginTop: '1rem', paddingTop: '0.75rem', borderTop: '1px solid #F1F5F9', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.8rem' }}>
+                  <span style={{ color: '#64748b' }}>Paid & Placed</span>
+                  <span style={{ fontWeight: 800, color: '#0f172a', fontSize: '0.95rem' }}>
+                    ₹{Number(o.total || 0).toFixed(2)}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* ------------------------------------------------------------------ */}
       {/* SECTION 1: CLUBS YOU'VE JOINED */}
@@ -366,3 +526,5 @@ export default function UserDashboard() {
     </div>
   );
 }
+
+export default React.memo(UserDashboard);

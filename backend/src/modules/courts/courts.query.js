@@ -2,7 +2,19 @@ export const GET_COURTS = `
   SELECT c.id, c.sport_id, s.name AS sport_name, s.icon AS sport_icon,
          c.name, c.surface, c.description, c.image_url,
          c.is_indoor, c.has_lighting, c.max_players, c.sort_order, c.is_active,
-         c.created_at, c.updated_at
+         c.created_at, c.updated_at,
+         COALESCE(
+           (SELECT price FROM app.court_rates cr
+            WHERE cr.club_id = c.club_id AND cr.court_id = c.id AND cr.is_active
+            ORDER BY cr.priority DESC, cr.created_at DESC LIMIT 1),
+           (SELECT price FROM app.court_rates cr
+            WHERE cr.club_id = c.club_id AND cr.sport_id = c.sport_id AND cr.court_id IS NULL AND cr.is_active
+            ORDER BY cr.priority DESC, cr.created_at DESC LIMIT 1),
+           (SELECT price FROM app.court_rates cr
+            WHERE cr.club_id = c.club_id AND cr.sport_id IS NULL AND cr.court_id IS NULL AND cr.is_active
+            ORDER BY cr.priority DESC, cr.created_at DESC LIMIT 1),
+           400
+         ) AS hourly_rate
   FROM app.courts c
   LEFT JOIN app.sports s ON s.id = c.sport_id AND s.club_id = c.club_id
   WHERE c.club_id = $1 AND ($2::boolean IS NULL OR c.is_active = $2)
@@ -10,7 +22,19 @@ export const GET_COURTS = `
 `;
 
 export const GET_COURT_BY_ID = `
-  SELECT c.*, s.name AS sport_name, s.icon AS sport_icon
+  SELECT c.*, s.name AS sport_name, s.icon AS sport_icon,
+         COALESCE(
+           (SELECT price FROM app.court_rates cr
+            WHERE cr.club_id = c.club_id AND cr.court_id = c.id AND cr.is_active
+            ORDER BY cr.priority DESC, cr.created_at DESC LIMIT 1),
+           (SELECT price FROM app.court_rates cr
+            WHERE cr.club_id = c.club_id AND cr.sport_id = c.sport_id AND cr.court_id IS NULL AND cr.is_active
+            ORDER BY cr.priority DESC, cr.created_at DESC LIMIT 1),
+           (SELECT price FROM app.court_rates cr
+            WHERE cr.club_id = c.club_id AND cr.sport_id IS NULL AND cr.court_id IS NULL AND cr.is_active
+            ORDER BY cr.priority DESC, cr.created_at DESC LIMIT 1),
+           400
+         ) AS hourly_rate
   FROM app.courts c
   LEFT JOIN app.sports s ON s.id = c.sport_id AND s.club_id = c.club_id
   WHERE c.club_id = $1 AND c.id = $2;

@@ -5,8 +5,8 @@ export const inventoryApi = {
     const res = await apiClient.get('/inventory/products', { params });
     return res.data;
   },
-  async getCategories() {
-    const res = await apiClient.get('/inventory/categories');
+  async getCategories(params = {}) {
+    const res = await apiClient.get('/inventory/categories', { params });
     return res.data;
   },
   async createProduct(productData) {

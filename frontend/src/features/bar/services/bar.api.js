@@ -36,13 +36,14 @@ export const barApi = {
     return res.data.data;
   },
 
-  getMenu: async (clubId, categoryId = null, availableOnly = null) => {
+  getMenu: async (clubId, categoryId = null, availableOnly = null, search = null) => {
     const config = clubId ? { headers: { 'x-club-id': clubId } } : {};
     const res = await apiClient.get('/bar/menu', {
       ...config,
       params: {
         ...(categoryId ? { categoryId } : {}),
         ...(availableOnly !== null ? { available_only: availableOnly } : {}),
+        ...(search ? { search: search.trim() } : {}),
       },
     });
     return res.data.data;
@@ -57,6 +58,12 @@ export const barApi = {
   updateMenuItem: async (itemId, data, clubId) => {
     const config = clubId ? { headers: { 'x-club-id': clubId } } : {};
     const res = await apiClient.put(`/bar/menu/item/${itemId}`, data, config);
+    return res.data.data;
+  },
+
+  deleteMenuItem: async (itemId, clubId) => {
+    const config = clubId ? { headers: { 'x-club-id': clubId } } : {};
+    const res = await apiClient.delete(`/bar/menu/item/${itemId}`, config);
     return res.data.data;
   },
 

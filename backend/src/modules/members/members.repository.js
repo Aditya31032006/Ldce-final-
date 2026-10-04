@@ -27,9 +27,9 @@ export async function createMember(userId, clubId, memberData) {
   });
 }
 
-export async function getMembers(userId, clubId, status = null) {
+export async function getMembers(userId, clubId, status = null, search = null) {
   return withTenantTransaction(userId, clubId, async (client) => {
-    const res = await client.query(queries.GET_MEMBERS, [clubId, status]);
+    const res = await client.query(queries.GET_MEMBERS, [clubId, status, search ? search.trim() : null]);
     return res.rows || [];
   });
 }

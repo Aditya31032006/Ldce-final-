@@ -2,7 +2,7 @@ import React from 'react';
 import { useToast } from '../context/ToastContext.jsx';
 import '../styles/toast.scss';
 
-export const ConfirmModal = () => {
+export const ConfirmModal = React.memo(() => {
   const { confirmDialog, handleConfirmClose } = useToast();
 
   if (!confirmDialog.isOpen) return null;
@@ -68,6 +68,6 @@ export const ConfirmModal = () => {
       </div>
     </div>
   );
-};
+});
 
 export default ConfirmModal;

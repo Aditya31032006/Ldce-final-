@@ -252,7 +252,7 @@ export default function Register() {
             <p className="cl-auth-page__subtitle" style={{ fontSize: '0.78rem', marginBottom: '0.65rem' }}>
               {accountType === 'facility'
                 ? 'Your email will be granted full Administrator access for this facility and its operations.'
-                : 'Book courts, join social sessions, order pro shop gear, and run cafe tabs.'}
+                : 'Book courts, order pro shop gear, and run cafe tabs.'}
             </p>
 
             {/* GSAP-Powered Segmented Switcher with Smooth Sliding Indicator */}

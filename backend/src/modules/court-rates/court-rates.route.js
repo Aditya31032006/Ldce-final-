@@ -6,9 +6,9 @@ import { getCourtRatesController, createCourtRateController, updateCourtRateCont
 const router = Router();
 router.use(resolveClubScope);
 
-router.get('/', verifyToken, requireRole('owner', 'manager'), getCourtRatesController);
-router.post('/', verifyToken, requireRole('owner', 'manager'), createCourtRateController);
-router.put('/:rateId', verifyToken, requireRole('owner', 'manager'), updateCourtRateController);
-router.delete('/:rateId', verifyToken, requireRole('owner'), deleteCourtRateController);
+router.get('/', verifyToken, getCourtRatesController);
+router.post('/', verifyToken, requireRole('owner', 'manager', 'admin'), createCourtRateController);
+router.put('/:rateId', verifyToken, requireRole('owner', 'manager', 'admin'), updateCourtRateController);
+router.delete('/:rateId', verifyToken, requireRole('owner', 'manager', 'admin'), deleteCourtRateController);
 
 export default router;

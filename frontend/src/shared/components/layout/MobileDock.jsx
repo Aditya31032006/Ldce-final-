@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { NavLink } from 'react-router';
 import {
   LayoutDashboard,
@@ -14,12 +14,12 @@ import {
 
 import useAuth from '../../../features/auth/hook/useAuth.js';
 
-export default function MobileDock({ onOpenSidebar }) {
+function MobileDock({ onOpenSidebar }) {
   const { role } = useAuth();
   const userRole = (role || 'public').toLowerCase();
 
   // Role-specific primary dock action items (max 4 + 1 "More" button)
-  const getDockItems = () => {
+  const dockItems = useMemo(() => {
     switch (userRole) {
       case 'owner':
       case 'manager':
@@ -28,7 +28,7 @@ export default function MobileDock({ onOpenSidebar }) {
           { label: 'Overview', path: '/dashboard', icon: LayoutDashboard },
           { label: 'Courts', path: '/courts', icon: Trophy },
           { label: 'Bar POS', path: '/bar', icon: Coffee },
-          { label: 'Finance', path: '/finance', icon: BookOpen },
+          { label: 'Reports', path: '/reports', icon: BookOpen },
         ];
       case 'front_desk':
         return [
@@ -58,11 +58,8 @@ export default function MobileDock({ onOpenSidebar }) {
           { label: 'Bookings', path: '/bookings', icon: Calendar },
           { label: 'Cafe', path: '/bar', icon: Coffee },
         ];
-
     }
-  };
-
-  const dockItems = getDockItems();
+  }, [userRole]);
 
   return (
     <nav className="cl-app-layout__mobile-dock" aria-label="Mobile Bottom Navigation">
@@ -100,3 +97,5 @@ export default function MobileDock({ onOpenSidebar }) {
     </nav>
   );
 }
+
+export default React.memo(MobileDock);

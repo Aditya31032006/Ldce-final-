@@ -58,9 +58,13 @@ export async function openRazorpayCheckout({
       order_id: orderId,
       handler: function (response) {
         if (onSuccess) {
-          onSuccess(response);
+          // Properly await the async onSuccess callback
+          Promise.resolve(onSuccess(response))
+            .then(() => resolve(response))
+            .catch((err) => reject(err));
+        } else {
+          resolve(response);
         }
-        resolve(response);
       },
       prefill: {
         name: prefill.name || '',

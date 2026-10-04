@@ -58,7 +58,9 @@ export async function getClubDetails(userId, clubIdOrSlug) {
       needs_renewal: membership.days_remaining != null && Number(membership.days_remaining) <= 7,
       max_bookings_per_day: membership.max_bookings_per_day,
       court_free: membership.court_free,
-      court_discount_percent: membership.court_discount_percent,
+      court_discount_percent: Number(membership.court_discount_percent || 0),
+      shop_discount_percent: Number(membership.shop_discount_percent || 0),
+      bar_discount_percent: Number(membership.bar_discount_percent || 0),
     } : { is_member: false },
   };
 }

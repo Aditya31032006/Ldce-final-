@@ -8,7 +8,7 @@ import RouteLoader from '../../../shared/components/RouteLoader.jsx';
  * Restricts access to nested routes based on allowed user roles.
  * Prevents URL tampering between Admin/Staff and Normal Member users.
  */
-export default function RoleGuard({ allowedRoles = [], fallback = null, redirectTo = null }) {
+function RoleGuard({ allowedRoles = [], fallback = null, redirectTo = null }) {
   const { user, role, isAuthenticated, loading } = useAuth();
   const location = useLocation();
 
@@ -96,4 +96,6 @@ export default function RoleGuard({ allowedRoles = [], fallback = null, redirect
     </Suspense>
   );
 }
+
+export default React.memo(RoleGuard);
 

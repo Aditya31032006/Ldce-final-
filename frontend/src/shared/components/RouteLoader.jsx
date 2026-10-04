@@ -5,7 +5,7 @@ import React from 'react';
  * Aesthetic loading fallback for React.Suspense page transitions.
  * Styled to seamlessly harmonize with the Court & Ledger design system.
  */
-export default function RouteLoader({ message = 'Loading view...', fullScreen = false }) {
+function RouteLoader({ message = 'Loading view...', fullScreen = false }) {
   return (
     <div
       role="status"
@@ -120,3 +120,5 @@ export default function RouteLoader({ message = 'Loading view...', fullScreen = 
     </div>
   );
 }
+
+export default React.memo(RouteLoader);

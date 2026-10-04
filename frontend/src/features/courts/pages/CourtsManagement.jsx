@@ -18,7 +18,7 @@ const btnSecondary = { padding: '0.5rem 1.1rem', background: '#FFFFFF', color: '
 const card = { background: '#FFFFFF', border: '1px solid #E7E5DF', borderRadius: '8px', padding: '1.25rem', marginBottom: '0.875rem', boxShadow: 'none' };
 
 // ─── Sports Tab ──────────────────────────────────────────────────────────────
-function SportsTab({ role }) {
+const SportsTab = React.memo(function SportsTab({ role }) {
   const { toast } = useToast();
   const [sports, setSports] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -31,13 +31,13 @@ function SportsTab({ role }) {
   const load = useCallback(async () => {
     setLoading(true);
     try { setSports(await sportsApi.list(null)); } catch { toast.error('Failed to load sports'); } finally { setLoading(false); }
-  }, []);
+  }, [toast]);
 
   useEffect(() => { load(); }, [load]);
 
-  const resetForm = () => { setForm({ name: '', description: '', icon: '🎾', sort_order: 0 }); setEditing(null); setShowForm(false); };
+  const resetForm = useCallback(() => { setForm({ name: '', description: '', icon: '🎾', sort_order: 0 }); setEditing(null); setShowForm(false); }, []);
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = useCallback(async (e) => {
     e.preventDefault();
     if (!form.name.trim()) return toast.error('Sport name is required');
     try {
@@ -50,15 +50,15 @@ function SportsTab({ role }) {
       }
       resetForm(); load();
     } catch (err) { toast.error(err.response?.data?.message || 'Failed to save sport'); }
-  };
+  }, [form, editing, toast, resetForm, load]);
 
-  const handleToggle = async (sport) => {
+  const handleToggle = useCallback(async (sport) => {
     try {
       await sportsApi.update(sport.id, { is_active: !sport.is_active });
       toast.success(sport.is_active ? 'Sport deactivated' : 'Sport activated');
       load();
     } catch { toast.error('Failed to update'); }
-  };
+  }, [load, toast]);
 
   if (loading) return <div style={{ padding: '2rem', textAlign: 'center', color: '#94a3b8' }}>Loading sports...</div>;
 
@@ -145,10 +145,10 @@ function SportsTab({ role }) {
       )}
     </div>
   );
-}
+});
 
 // ─── Courts Tab ──────────────────────────────────────────────────────────────
-function CourtsTab({ role }) {
+const CourtsTab = React.memo(function CourtsTab({ role }) {
   const { toast } = useToast();
   const [courts, setCourts] = useState([]);
   const [sports, setSports] = useState([]);
@@ -165,13 +165,18 @@ function CourtsTab({ role }) {
       const [c, s] = await Promise.all([courtsApi.list(null), sportsApi.list(true)]);
       setCourts(c); setSports(s);
     } catch { toast.error('Failed to load courts'); } finally { setLoading(false); }
-  }, []);
+  }, [toast]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    load();
+    const handleRatesUpdate = () => load();
+    window.addEventListener('court-rates-updated', handleRatesUpdate);
+    return () => window.removeEventListener('court-rates-updated', handleRatesUpdate);
+  }, [load]);
 
-  const resetForm = () => { setForm({ name: '', sport_id: '', surface: '', description: '', is_indoor: false, has_lighting: false, max_players: 4, sort_order: 0, is_active: true }); setEditing(null); setShowForm(false); };
+  const resetForm = useCallback(() => { setForm({ name: '', sport_id: '', surface: '', description: '', is_indoor: false, has_lighting: false, max_players: 4, sort_order: 0, is_active: true }); setEditing(null); setShowForm(false); }, []);
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = useCallback(async (e) => {
     e.preventDefault();
     if (!form.name.trim()) return toast.error('Court name is required');
     if (!form.sport_id) return toast.error('Please select a sport');
@@ -180,12 +185,12 @@ function CourtsTab({ role }) {
       else { await courtsApi.create(form); toast.success('Court created!'); }
       resetForm(); load();
     } catch (err) { toast.error(err.response?.data?.message || 'Failed to save court'); }
-  };
+  }, [form, editing, toast, resetForm, load]);
 
-  const handleToggle = async (court) => {
+  const handleToggle = useCallback(async (court) => {
     try { await courtsApi.update(court.id, { is_active: !court.is_active }); toast.success('Updated'); load(); }
     catch { toast.error('Failed'); }
-  };
+  }, [load, toast]);
 
   if (loading) return <div style={{ padding: '2rem', textAlign: 'center', color: '#94a3b8' }}>Loading courts...</div>;
 
@@ -261,7 +266,7 @@ function CourtsTab({ role }) {
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
             <thead>
               <tr style={{ borderBottom: '2px solid #e2e8f0' }}>
-                {['Court', 'Sport', 'Surface', 'Type', 'Max Players', 'Lighting', 'Status', canEdit ? 'Actions' : ''].filter(Boolean).map(h => (
+                {['Court', 'Sport', 'Surface', 'Type', 'Max Players', 'Lighting', 'Rate / Hr', 'Status', canEdit ? 'Actions' : ''].filter(Boolean).map(h => (
                   <th key={h} style={{ padding: '0.75rem', textAlign: 'left', fontWeight: 700, color: '#64748b', fontSize: '0.75rem', textTransform: 'uppercase' }}>{h}</th>
                 ))}
               </tr>
@@ -275,6 +280,7 @@ function CourtsTab({ role }) {
                   <td style={{ padding: '0.85rem 0.75rem' }}>{court.is_indoor ? '🏠 Indoor' : '☀️ Outdoor'}</td>
                   <td style={{ padding: '0.85rem 0.75rem' }}>{court.max_players}</td>
                   <td style={{ padding: '0.85rem 0.75rem' }}>{court.has_lighting ? '✅' : '—'}</td>
+                  <td style={{ padding: '0.85rem 0.75rem', fontWeight: 700, color: '#1F5C46' }}>₹{Number(court.hourly_rate || 400).toFixed(0)}</td>
                   <td style={{ padding: '0.85rem 0.75rem' }}>
                     <span style={{ padding: '0.2rem 0.6rem', borderRadius: '9999px', fontSize: '0.75rem', fontWeight: 700, background: court.is_active ? '#dcfce7' : '#fee2e2', color: court.is_active ? '#16a34a' : '#dc2626' }}>
                       {court.is_active ? 'Active' : 'Inactive'}
@@ -299,10 +305,10 @@ function CourtsTab({ role }) {
       )}
     </div>
   );
-}
+});
 
 // ─── Operating Hours Tab ──────────────────────────────────────────────────────
-function OperatingHoursTab({ role }) {
+const OperatingHoursTab = React.memo(function OperatingHoursTab({ role }) {
   const { toast } = useToast();
   const [courts, setCourts] = useState([]);
   const [selectedCourt, setSelectedCourt] = useState(null);
@@ -322,16 +328,18 @@ function OperatingHoursTab({ role }) {
     }).catch(() => setHours(DEFAULT_HOURS));
   }, [selectedCourt]);
 
-  const handleSave = async () => {
+  const handleSave = useCallback(async () => {
     if (!selectedCourt) return toast.error('Select a court first');
     setSaving(true);
     try {
       await courtsApi.setHours(selectedCourt, hours);
       toast.success('Operating hours saved!');
     } catch (err) { toast.error(err.response?.data?.message || 'Failed to save'); } finally { setSaving(false); }
-  };
+  }, [selectedCourt, hours, toast]);
 
-  const update = (weekday, field, value) => setHours(h => h.map(d => d.weekday === weekday ? { ...d, [field]: value } : d));
+  const update = useCallback((weekday, field, value) => {
+    setHours(h => h.map(d => d.weekday === weekday ? { ...d, [field]: value } : d));
+  }, []);
 
   return (
     <div>
@@ -388,10 +396,10 @@ function OperatingHoursTab({ role }) {
       )}
     </div>
   );
-}
+});
 
 // ─── Court Rates Tab ──────────────────────────────────────────────────────────
-function CourtRatesTab({ role }) {
+const CourtRatesTab = React.memo(function CourtRatesTab({ role }) {
   const { toast } = useToast();
   const [rates, setRates] = useState([]);
   const [sports, setSports] = useState([]);
@@ -401,9 +409,9 @@ function CourtRatesTab({ role }) {
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState({ sport_id: '', court_id: '', plan_id: '', weekday: '', time_from: '', time_to: '', valid_from: '', valid_to: '', price: '', priority: 0 });
-  const canEdit = ['owner', 'manager'].includes(role);
+  const canEdit = ['owner', 'manager', 'admin'].includes((role || '').toLowerCase());
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true);
     try {
       const [r, s, c, p] = await Promise.all([
@@ -414,15 +422,27 @@ function CourtRatesTab({ role }) {
       ]);
       setRates(r); setSports(s); setCourts(c); setPlans(p);
     } catch { toast.error('Failed to load pricing data'); } finally { setLoading(false); }
-  };
+  }, [toast]);
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [load]);
 
-  const resetForm = () => { setForm({ sport_id: '', court_id: '', plan_id: '', weekday: '', time_from: '', time_to: '', valid_from: '', valid_to: '', price: '', priority: 0 }); setEditing(null); setShowForm(false); };
+  const openNewRateForm = useCallback(() => {
+    setEditing(null);
+    setForm({ sport_id: '', court_id: '', plan_id: '', weekday: '', time_from: '', time_to: '', valid_from: '', valid_to: '', price: '', priority: 0 });
+    setShowForm(true);
+  }, []);
 
-  const handleSubmit = async (e) => {
+  const resetForm = useCallback(() => {
+    setForm({ sport_id: '', court_id: '', plan_id: '', weekday: '', time_from: '', time_to: '', valid_from: '', valid_to: '', price: '', priority: 0 });
+    setEditing(null);
+    setShowForm(false);
+  }, []);
+
+  const handleSubmit = useCallback(async (e) => {
     e.preventDefault();
-    if (!form.price) return toast.error('Price is required');
+    if (form.price === '' || form.price === null || isNaN(form.price) || +form.price < 0) {
+      return toast.error('A valid non-negative price is required');
+    }
     const payload = {
       ...form,
       sport_id: form.sport_id || null,
@@ -434,19 +454,33 @@ function CourtRatesTab({ role }) {
       valid_from: form.valid_from || null,
       valid_to: form.valid_to || null,
       price: +form.price,
+      priority: form.priority !== '' ? +form.priority : 0,
     };
     try {
-      if (editing) { await courtRatesApi.update(editing.id, payload); toast.success('Rate updated!'); }
-      else { await courtRatesApi.create(payload); toast.success('Rate created!'); }
-      resetForm(); load();
+      if (editing) {
+        await courtRatesApi.update(editing.id, payload);
+        toast.success('Pricing rule updated successfully!');
+      } else {
+        await courtRatesApi.create(payload);
+        toast.success('Pricing rule created successfully!');
+      }
+      window.dispatchEvent(new CustomEvent('court-rates-updated'));
+      localStorage.setItem('ldce_court_rates_updated', Date.now().toString());
+      resetForm();
+      load();
     } catch (err) { toast.error(err.response?.data?.message || 'Failed to save rate'); }
-  };
+  }, [form, editing, toast, resetForm, load]);
 
-  const handleDelete = async (id) => {
+  const handleDelete = useCallback(async (id) => {
     if (!window.confirm('Deactivate this pricing rule?')) return;
-    try { await courtRatesApi.remove(id); toast.success('Rate deactivated'); load(); }
-    catch { toast.error('Failed'); }
-  };
+    try {
+      await courtRatesApi.remove(id);
+      toast.success('Rate deactivated');
+      window.dispatchEvent(new CustomEvent('court-rates-updated'));
+      localStorage.setItem('ldce_court_rates_updated', Date.now().toString());
+      load();
+    } catch { toast.error('Failed'); }
+  }, [load, toast]);
 
   if (loading) return <div style={{ padding: '2rem', textAlign: 'center', color: '#94a3b8' }}>Loading pricing rules...</div>;
 
@@ -457,7 +491,20 @@ function CourtRatesTab({ role }) {
           <h2 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#0f172a', margin: 0 }}>Court Pricing Rules</h2>
           <p style={{ color: '#64748b', fontSize: '0.85rem', margin: '0.2rem 0 0' }}>Most specific match wins. Higher priority = applied first.</p>
         </div>
-        {canEdit && <button style={btnPrimary} onClick={() => { setShowForm(!showForm); setEditing(null); resetForm(); }}>+ Add Rate</button>}
+        {canEdit && (
+          <button
+            style={btnPrimary}
+            onClick={() => {
+              if (showForm && !editing) {
+                setShowForm(false);
+              } else {
+                openNewRateForm();
+              }
+            }}
+          >
+            {showForm && !editing ? '✕ Close Form' : '+ Add Rate'}
+          </button>
+        )}
       </div>
 
       {showForm && (
@@ -567,8 +614,20 @@ function CourtRatesTab({ role }) {
                       <div style={{ display: 'flex', gap: '0.4rem' }}>
                         <button style={{ ...btnSecondary, padding: '0.25rem 0.6rem', fontSize: '0.8rem' }} onClick={() => {
                           setEditing(rate);
-                          setForm({ sport_id: rate.sport_id || '', court_id: rate.court_id || '', plan_id: rate.plan_id || '', weekday: rate.weekday != null ? String(rate.weekday) : '', time_from: rate.time_from || '', time_to: rate.time_to || '', valid_from: rate.valid_from || '', valid_to: rate.valid_to || '', price: rate.price, priority: rate.priority });
+                          setForm({
+                            sport_id: rate.sport_id || '',
+                            court_id: rate.court_id || '',
+                            plan_id: rate.plan_id || '',
+                            weekday: rate.weekday != null ? String(rate.weekday) : '',
+                            time_from: rate.time_from || '',
+                            time_to: rate.time_to || '',
+                            valid_from: rate.valid_from ? String(rate.valid_from).split('T')[0] : '',
+                            valid_to: rate.valid_to ? String(rate.valid_to).split('T')[0] : '',
+                            price: rate.price,
+                            priority: rate.priority ?? 0,
+                          });
                           setShowForm(true);
+                          window.scrollTo({ top: 0, behavior: 'smooth' });
                         }}>Edit</button>
                         <button style={btnDanger} onClick={() => handleDelete(rate.id)}>Del</button>
                       </div>
@@ -582,7 +641,7 @@ function CourtRatesTab({ role }) {
       )}
     </div>
   );
-}
+});
 
 // ─── Main Courts Management Page ──────────────────────────────────────────────
 const TABS = [
@@ -592,7 +651,7 @@ const TABS = [
   { key: 'pricing', label: '💰 Pricing Rules' },
 ];
 
-export default function CourtsManagement() {
+function CourtsManagement() {
   const { role } = useAuth();
   const userRole = (role || 'public').toLowerCase();
   const [tab, setTab] = useState('sports');
@@ -627,3 +686,5 @@ export default function CourtsManagement() {
     </div>
   );
 }
+
+export default React.memo(CourtsManagement);

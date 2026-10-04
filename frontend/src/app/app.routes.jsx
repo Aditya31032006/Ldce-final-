@@ -19,15 +19,11 @@ const BookingCalendar = lazy(() => import('../features/bookings/pages/BookingCal
 const CourtsManagement = lazy(() => import('../features/courts/pages/CourtsManagement.jsx'));
 const MembersList = lazy(() => import('../features/members/pages/MembersList.jsx'));
 const MembershipPlans = lazy(() => import('../features/plans/pages/MembershipPlans.jsx'));
-const SocialSessionsList = lazy(() => import('../features/socialSessions/pages/SocialSessionsList.jsx'));
 const BarPOS = lazy(() => import('../features/bar/pages/BarPOS.jsx'));
 const InventoryList = lazy(() => import('../features/inventory/pages/InventoryList.jsx'));
 const OrdersList = lazy(() => import('../features/orders/pages/OrdersList.jsx'));
-const LeadsList = lazy(() => import('../features/leads/pages/LeadsList.jsx'));
-const FinanceDashboard = lazy(() => import('../features/finance/pages/FinanceDashboard.jsx'));
 const StaffManagement = lazy(() => import('../features/hr/pages/StaffManagement.jsx'));
 const ReportsDashboard = lazy(() => import('../features/reports/pages/ReportsDashboard.jsx'));
-const ClubsList = lazy(() => import('../features/clubs/pages/ClubsList.jsx'));
 const ClubDetailsPage = lazy(() => import('../features/clubs/pages/ClubDetailsPage.jsx'));
 
 import RouteLoader from '../shared/components/RouteLoader.jsx';
@@ -132,21 +128,13 @@ export const router = createBrowserRouter([
         element: <UserDashboardRoute />,
       },
 
-      // User Profile & Store Services (Accessible to all members and staff)
-      {
-        path: '/inventory',
-        element: withSuspense(InventoryList),
-      },
-      {
-        path: '/orders',
-        element: withSuspense(OrdersList),
-      },
+      // User Profile (Accessible to all authenticated users)
       {
         path: '/profile',
         element: withSuspense(Profile),
       },
 
-      // Front Desk & Staff Management Operations (Hidden and blocked from normal users)
+      // Front Desk & Court Operations (Owner, Manager, Admin, Front Desk)
       {
         element: <RoleGuard allowedRoles={['owner', 'manager', 'admin', 'front_desk']} />,
         children: [
@@ -163,27 +151,27 @@ export const router = createBrowserRouter([
             element: withSuspense(CourtsManagement),
           },
           {
-            path: '/plans',
-            element: withSuspense(MembershipPlans),
-          },
-          {
-            path: '/social-sessions',
-            element: withSuspense(SocialSessionsList),
-          },
-          {
             path: '/members',
             element: withSuspense(MembersList),
-          },
-          {
-            path: '/leads',
-            element: withSuspense(LeadsList),
           },
         ],
       },
 
-      // Shop & Bar Staff Protected Operations (Bar POS restricted to staff)
+      // Pro Shop Store & Inventory (Accessible to all authenticated users: staff manages inventory, members purchase gear)
       {
-        element: <RoleGuard allowedRoles={['owner', 'manager', 'admin', 'shop_staff', 'bar_staff']} />,
+        path: '/inventory',
+        element: withSuspense(InventoryList),
+      },
+
+      // Pro Shop Orders (Accessible to all authenticated users: staff manages fulfillment, members view order history)
+      {
+        path: '/orders',
+        element: withSuspense(OrdersList),
+      },
+
+      // Bar & Cafe Operations (Owner, Manager, Admin, Bar Staff, Kitchen, Front Desk)
+      {
+        element: <RoleGuard allowedRoles={['owner', 'manager', 'admin', 'bar_staff', 'kitchen', 'front_desk']} />,
         children: [
           {
             path: '/bar',
@@ -193,24 +181,16 @@ export const router = createBrowserRouter([
             path: '/pos',
             element: withSuspense(BarPOS),
           },
-          {
-            path: '/orders',
-            element: withSuspense(OrdersList),
-          },
         ],
       },
 
-      // Executive Manager & Owner Protected Operations (Hidden from staff & members)
+      // Executive Management: Plans, Staff HR & Reports (Owner, Manager, Admin)
       {
         element: <RoleGuard allowedRoles={['owner', 'manager', 'admin']} />,
         children: [
           {
-            path: '/clubs',
-            element: withSuspense(ClubsList),
-          },
-          {
-            path: '/finance',
-            element: withSuspense(FinanceDashboard),
+            path: '/plans',
+            element: withSuspense(MembershipPlans),
           },
           {
             path: '/hr',

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router';
 import useAuth from '../hook/useAuth.js';
 import authApi from '../services/auth.api.js';
 import clubsApi from '../../clubs/services/clubs.api.js';
@@ -9,12 +10,46 @@ import { fileToBase64, urlToBase64 } from '../../../shared/utils/image.util.js';
 export default function Profile() {
   const { user, role, clubId, clubs, logout, updateUserLocal } = useAuth();
   const { toast } = useToast();
+  const navigate = useNavigate();
 
   const isOwner = (role || '').toLowerCase() === 'owner';
   const isClubAdmin = ['owner', 'admin', 'manager'].includes((role || '').toLowerCase());
+  const effectiveClubId = clubId || user?.clubId || (clubs && clubs[0]?.id) || (clubs && clubs[0]?.club_id) || (typeof window !== 'undefined' ? localStorage.getItem('activeClubId') : null);
+
+  const activeClubObj = clubs?.find(c => (c.club_id === effectiveClubId || c.id === effectiveClubId)) || clubs?.[0];
+  const activeClubName = activeClubObj?.name || 'Local Sports Facility';
+  const activeClubSlug = activeClubObj?.slug || activeClubObj?.id || effectiveClubId;
 
   // Navigation tab for Owner / Admin: 'profile' | 'staff' | 'gallery'
-  const [activeTab, setActiveTab] = useState('profile');
+  // Normal members/players are ALWAYS locked to 'profile' tab
+  const [activeTab, setActiveTabState] = useState(() => {
+    if (!isClubAdmin) return 'profile';
+    try {
+      const saved = localStorage.getItem('profile_active_tab');
+      if (saved === 'staff' && !isOwner) return 'profile';
+      if (saved === 'gallery' && !isClubAdmin) return 'profile';
+      return saved || 'profile';
+    } catch {
+      return 'profile';
+    }
+  });
+
+  const setActiveTab = (tab) => {
+    setActiveTabState(tab);
+    try {
+      localStorage.setItem('profile_active_tab', tab);
+    } catch (_) {}
+  };
+
+  const effectiveTab = isClubAdmin
+    ? (activeTab === 'staff' && !isOwner ? 'profile' : (activeTab || 'profile'))
+    : 'profile';
+
+  useEffect(() => {
+    if (!isClubAdmin && activeTab !== 'profile') {
+      setActiveTab('profile');
+    }
+  }, [isClubAdmin, activeTab]);
 
   // --- Avatar States ---
   const [avatarLoading, setAvatarLoading] = useState(false);
@@ -22,6 +57,7 @@ export default function Profile() {
   const [avatarPreview, setAvatarPreview] = useState('');
   const [avatarInputUrl, setAvatarInputUrl] = useState('');
   const [avatarImgError, setAvatarImgError] = useState(false);
+  const [localAvatarPreview, setLocalAvatarPreview] = useState(user?.avatar_url || '');
   const directFileInputRef = useRef(null);
   const modalFileInputRef = useRef(null);
 
@@ -42,7 +78,7 @@ export default function Profile() {
   // --- Club Gallery States (Owner & Admin) ---
   const [galleryImages, setGalleryImages] = useState([]);
   const [galleryLoading, setGalleryLoading] = useState(false);
-  const [newGalleryFiles, setNewGalleryFiles] = useState([]);
+  const [selectedGalleryPhotos, setSelectedGalleryPhotos] = useState([]);
   const [galleryCaption, setGalleryCaption] = useState('');
   const [galleryUrlInput, setGalleryUrlInput] = useState('');
   const galleryFileInputRef = useRef(null);
@@ -54,22 +90,31 @@ export default function Profile() {
   const [staffRole, setStaffRole] = useState('front_desk');
   const [addStaffSubmitting, setAddStaffSubmitting] = useState(false);
 
+  // Sync avatar when user object loads or updates
+  useEffect(() => {
+    if (user?.avatar_url && !localAvatarPreview) {
+      setLocalAvatarPreview(user.avatar_url);
+    }
+  }, [user?.avatar_url]);
+
   // Load Gallery and Staff for Owner/Admin
   useEffect(() => {
-    if (isClubAdmin && clubId) {
+    if (isClubAdmin && effectiveClubId) {
       loadGallery();
       if (isOwner) loadStaff();
     }
-  }, [isClubAdmin, isOwner, clubId]);
+  }, [isClubAdmin, isOwner, effectiveClubId]);
 
   useEffect(() => {
     setAvatarImgError(false);
-  }, [user?.avatar_url]);
+  }, [user?.avatar_url, localAvatarPreview]);
 
   const loadGallery = async () => {
+    const targetClubId = effectiveClubId;
+    if (!targetClubId) return;
     setGalleryLoading(true);
     try {
-      const res = await clubsApi.getClubGallery(clubId);
+      const res = await clubsApi.getClubGallery(targetClubId);
       setGalleryImages(res.gallery || []);
     } catch (err) {
       console.warn('Could not load gallery:', err.message);
@@ -95,24 +140,34 @@ export default function Profile() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (!file.type.startsWith('image/')) {
-      toast.error('Please upload an image file (PNG, JPG, WebP)');
+    const isImageMime = file.type && file.type.startsWith('image/');
+    const isImageExt = /\.(jpe?g|png|webp|gif|svg|bmp|avif)$/i.test(file.name || '');
+    if (!isImageMime && !isImageExt) {
+      toast.error('Please upload a valid image file (PNG, JPG, WebP, etc.)');
       return;
     }
 
-    if (file.size > 15 * 1024 * 1024) {
-      toast.error('Image size must be less than 15MB');
+    if (file.size > 20 * 1024 * 1024) {
+      toast.error('Image size must be less than 20MB');
       return;
     }
 
+    // Instantly show local preview so the user sees the photo change immediately
+    const objectUrl = URL.createObjectURL(file);
+    setLocalAvatarPreview(objectUrl);
+    setAvatarImgError(false);
     setAvatarLoading(true);
+
     try {
       const base64Data = await fileToBase64(file, 800, 800, 0.85);
-      const res = await authApi.updateAvatar(base64Data);
-      updateUserData(res.user);
+      const res = await authApi.updateAvatar(base64Data, user?.id);
+      const updatedUser = res.user || { ...user, avatar_url: base64Data };
+      updateUserData(updatedUser);
+      setLocalAvatarPreview(base64Data);
       setAvatarImgError(false);
       toast.success('Profile picture updated successfully!');
     } catch (err) {
+      setLocalAvatarPreview(user?.avatar_url || '');
       toast.error(err.response?.data?.message || err.customMessage || 'Failed to update profile picture');
     } finally {
       setAvatarLoading(false);
@@ -124,8 +179,10 @@ export default function Profile() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (!file.type.startsWith('image/')) {
-      toast.error('Please upload an image file (PNG, JPG, WebP)');
+    const isImageMime = file.type && file.type.startsWith('image/');
+    const isImageExt = /\.(jpe?g|png|webp|gif|svg|bmp|avif)$/i.test(file.name || '');
+    if (!isImageMime && !isImageExt) {
+      toast.error('Please upload an image file (PNG, JPG, WebP, etc.)');
       return;
     }
 
@@ -133,7 +190,8 @@ export default function Profile() {
     try {
       const base64Data = await fileToBase64(file, 800, 800, 0.85);
       setAvatarPreview(base64Data);
-      toast.info('Base64 image preview ready. Click "Save Profile Picture" below.');
+      setAvatarInputUrl('');
+      toast.info('Image loaded! Click "Save Profile Picture" below.');
     } catch (err) {
       toast.error('Failed to load image file');
     } finally {
@@ -142,44 +200,63 @@ export default function Profile() {
     }
   };
 
+  const handleUrlChange = (newUrl) => {
+    setAvatarInputUrl(newUrl);
+    const trimmed = newUrl.trim();
+    if (trimmed && (trimmed.startsWith('http://') || trimmed.startsWith('https://') || trimmed.startsWith('data:image/'))) {
+      setAvatarPreview(trimmed);
+    } else if (!trimmed) {
+      setAvatarPreview('');
+    }
+  };
+
   const handleUrlPreview = async () => {
-    if (!avatarInputUrl.trim()) return;
+    const trimmed = avatarInputUrl.trim();
+    if (!trimmed) return;
     setAvatarLoading(true);
     try {
-      const base64Data = await urlToBase64(avatarInputUrl.trim(), 800, 800, 0.85);
-      setAvatarPreview(base64Data);
-      toast.info('URL converted to Base64 preview');
+      const base64Data = await urlToBase64(trimmed, 800, 800, 0.85);
+      setAvatarPreview(base64Data || trimmed);
+      toast.info('Image preview ready');
     } catch (err) {
-      toast.error('Failed to convert image URL to Base64');
+      setAvatarPreview(trimmed);
     } finally {
       setAvatarLoading(false);
     }
   };
 
   const handleSaveAvatar = async () => {
-    const base64ToSave = avatarPreview || avatarInputUrl.trim();
-    if (!base64ToSave) {
-      toast.error('Please select an image file or provide a URL first');
+    const targetImage = (avatarPreview || avatarInputUrl.trim()).trim();
+    if (!targetImage) {
+      toast.error('Please select an image file or provide an image link first');
       return;
     }
 
     setAvatarLoading(true);
     try {
-      const finalBase64 = base64ToSave.startsWith('data:image/')
-        ? base64ToSave
-        : await urlToBase64(base64ToSave, 800, 800, 0.85);
-
-      const res = await authApi.updateAvatar(finalBase64);
-
-      // Update Redux state immediately
-      updateUserData(res.user);
+      setLocalAvatarPreview(targetImage);
       setAvatarImgError(false);
 
-      toast.success('Profile picture saved successfully in Base64!');
+      let finalAvatar = targetImage;
+      if (!targetImage.startsWith('data:image/')) {
+        try {
+          finalAvatar = await urlToBase64(targetImage, 800, 800, 0.85);
+        } catch {
+          finalAvatar = targetImage;
+        }
+      }
+
+      const res = await authApi.updateAvatar(finalAvatar, user?.id);
+      const updatedUser = res.user || { ...user, avatar_url: finalAvatar };
+      updateUserData(updatedUser);
+      setLocalAvatarPreview(finalAvatar);
+      setAvatarImgError(false);
+      toast.success('Profile picture saved successfully!');
       setShowAvatarModal(false);
       setAvatarPreview('');
       setAvatarInputUrl('');
     } catch (err) {
+      setLocalAvatarPreview(user?.avatar_url || '');
       toast.error(err.response?.data?.message || err.customMessage || 'Failed to save profile picture');
     } finally {
       setAvatarLoading(false);
@@ -191,7 +268,12 @@ export default function Profile() {
     setAvatarLoading(true);
     try {
       const res = await authApi.deleteAvatar();
-      updateUserData(res.user);
+      if (res.user) {
+        updateUserData(res.user);
+      } else {
+        updateUserData({ ...user, avatar_url: null });
+      }
+      setLocalAvatarPreview('');
       setAvatarImgError(false);
       toast.success('Profile picture removed successfully');
     } catch (err) {
@@ -283,62 +365,136 @@ export default function Profile() {
   };
 
 
-  // --- Gallery Handlers (Owner Only) ---
+  // --- Gallery Handlers (Owner & Club Admins) ---
   const handleGalleryFilesChange = async (e) => {
     const files = Array.from(e.target.files || []);
     if (!files.length) return;
 
-    const validFiles = files.filter(f => f.type.startsWith('image/'));
+    const validFiles = files.filter(f => 
+      (f.type && f.type.startsWith('image/')) || 
+      /\.(jpe?g|png|webp|gif|svg|bmp|avif)$/i.test(f.name || '')
+    );
     if (validFiles.length < files.length) {
       toast.warning('Some non-image files were skipped');
     }
 
+    if (!validFiles.length) {
+      toast.error('Please choose valid image files (PNG, JPG, WebP, etc.)');
+      return;
+    }
+
     setGalleryLoading(true);
     try {
-      const base64Promises = validFiles.map(file => fileToBase64(file, 1600, 1200, 0.85));
-      const base64Images = await Promise.all(base64Promises);
-      setNewGalleryFiles(prev => [...prev, ...base64Images]);
-      toast.info(`Converted ${base64Images.length} image(s) to Base64 format`);
+      const newItems = [];
+      for (const file of validFiles) {
+        try {
+          const base64 = await fileToBase64(file, 1600, 1200, 0.85);
+          newItems.push({
+            id: 'sel-' + Date.now() + '-' + Math.random().toString(36).substr(2, 6),
+            dataUrl: base64,
+            name: file.name,
+            caption: galleryCaption.trim() || '',
+          });
+        } catch (err) {
+          console.warn('Could not encode file:', file.name, err);
+        }
+      }
+      setSelectedGalleryPhotos(prev => [...prev, ...newItems]);
+      toast.success(`Loaded ${newItems.length} photo(s) into preview selection!`);
     } catch (err) {
-      toast.error('Failed to convert images to Base64');
+      toast.error('Failed to process selected images');
+    } finally {
+      setGalleryLoading(false);
+      if (galleryFileInputRef.current) galleryFileInputRef.current.value = '';
+    }
+  };
+
+  const handleAddUrlToGallery = async () => {
+    const trimmed = galleryUrlInput.trim();
+    if (!trimmed) {
+      toast.error('Please enter an image URL');
+      return;
+    }
+    setGalleryLoading(true);
+    try {
+      let finalUrl = trimmed;
+      if (!trimmed.startsWith('data:image/')) {
+        try {
+          finalUrl = await urlToBase64(trimmed, 1600, 1200, 0.85);
+        } catch {
+          finalUrl = trimmed;
+        }
+      }
+      setSelectedGalleryPhotos(prev => [
+        ...prev,
+        {
+          id: 'url-' + Date.now() + '-' + Math.random().toString(36).substr(2, 6),
+          dataUrl: finalUrl,
+          name: 'Web Image',
+          caption: galleryCaption.trim() || '',
+        },
+      ]);
+      setGalleryUrlInput('');
+      toast.success('Image URL added to preview selection!');
+    } catch (err) {
+      toast.error('Could not load image URL');
     } finally {
       setGalleryLoading(false);
     }
   };
 
+  const handleRemoveSelectedPhoto = (photoId) => {
+    setSelectedGalleryPhotos(prev => prev.filter(p => p.id !== photoId));
+  };
+
   const handleAddGalleryImages = async () => {
-    let imagesToUpload = [...newGalleryFiles];
+    let photosToSave = [...selectedGalleryPhotos];
+
+    // If an image URL is typed in the input box, include it automatically!
     if (galleryUrlInput.trim()) {
+      const trimmed = galleryUrlInput.trim();
+      let finalUrl = trimmed;
       try {
-        const base64FromUrl = await urlToBase64(galleryUrlInput.trim(), 1600, 1200, 0.85);
-        imagesToUpload.push(base64FromUrl);
-      } catch (e) {
-        imagesToUpload.push(galleryUrlInput.trim());
+        finalUrl = await urlToBase64(trimmed, 1600, 1200, 0.85);
+      } catch {
+        finalUrl = trimmed;
       }
+      photosToSave.push({
+        id: 'url-direct',
+        dataUrl: finalUrl,
+        name: 'Web Image',
+        caption: galleryCaption.trim() || '',
+      });
     }
 
-    if (!imagesToUpload.length) {
+    if (!photosToSave.length) {
       toast.error('Please choose image files or enter an image URL to add');
+      return;
+    }
+
+    const targetClubId = effectiveClubId;
+    if (!targetClubId) {
+      toast.error('Could not resolve active club ID. Please refresh or select a club.');
       return;
     }
 
     setGalleryLoading(true);
     try {
       const payload = {
-        images: imagesToUpload.map((base64Url, idx) => ({
-          image_url: base64Url,
-          caption: galleryCaption.trim() || undefined,
+        images: photosToSave.map((item, idx) => ({
+          image_url: item.dataUrl,
+          caption: item.caption || galleryCaption.trim() || undefined,
           sort_order: (galleryImages.length || 0) + idx,
         })),
       };
 
-      await clubsApi.addClubGallery(clubId, payload);
-      toast.success(`${imagesToUpload.length} Base64 photo(s) added to club gallery!`);
-      setNewGalleryFiles([]);
+      await clubsApi.addClubGallery(targetClubId, payload);
+      toast.success(`${photosToSave.length} photo(s) saved to club gallery!`);
+      setSelectedGalleryPhotos([]);
       setGalleryCaption('');
       setGalleryUrlInput('');
       if (galleryFileInputRef.current) galleryFileInputRef.current.value = '';
-      loadGallery();
+      await loadGallery();
     } catch (err) {
       toast.error(err.response?.data?.message || err.customMessage || 'Failed to add gallery photos');
     } finally {
@@ -348,9 +504,10 @@ export default function Profile() {
 
   const handleDeleteGalleryImage = async (imageId) => {
     if (!window.confirm('Delete this photo from the club gallery?')) return;
+    const targetClubId = effectiveClubId;
     setGalleryLoading(true);
     try {
-      await clubsApi.deleteClubGallery(clubId, imageId);
+      await clubsApi.deleteClubGallery(targetClubId, imageId);
       toast.success('Gallery photo removed successfully');
       setGalleryImages(prev => prev.filter(img => img.id !== imageId));
     } catch (err) {
@@ -402,14 +559,16 @@ export default function Profile() {
       {/* Header */}
       <div style={{ marginBottom: '1.75rem' }}>
         <h1 style={{ fontSize: '1.85rem', fontWeight: 700, color: '#0f172a', marginBottom: '0.35rem' }}>
-          Account & Club Settings
+          {isClubAdmin ? 'Account & Club Settings' : 'My Member Profile'}
         </h1>
         <p style={{ color: '#64748b', fontSize: '0.95rem' }}>
-          Manage your personal profile, credentials, and club operational controls
+          {isClubAdmin
+            ? 'Manage your personal profile, credentials, and club operational controls'
+            : 'Manage your personal details, membership credentials, and account security'}
         </p>
       </div>
 
-      {/* Navigation Tabs (Owner & Admin get quick access to Staff and Gallery) */}
+      {/* Navigation Tabs (Only rendered for Club Admins / Owners) */}
       {isClubAdmin && (
         <div style={{
           display: 'flex',
@@ -426,10 +585,10 @@ export default function Profile() {
               padding: '0.65rem 1.25rem',
               fontWeight: 600,
               fontSize: '0.9rem',
-              color: activeTab === 'profile' ? '#2563eb' : '#64748b',
-              background: activeTab === 'profile' ? '#eff6ff' : 'transparent',
+              color: effectiveTab === 'profile' ? '#2563eb' : '#64748b',
+              background: effectiveTab === 'profile' ? '#eff6ff' : 'transparent',
               border: 'none',
-              borderBottom: activeTab === 'profile' ? '2px solid #2563eb' : '2px solid transparent',
+              borderBottom: effectiveTab === 'profile' ? '2px solid #2563eb' : '2px solid transparent',
               borderRadius: '0.375rem 0.375rem 0 0',
               cursor: 'pointer',
               display: 'flex',
@@ -448,10 +607,10 @@ export default function Profile() {
                 padding: '0.65rem 1.25rem',
                 fontWeight: 600,
                 fontSize: '0.9rem',
-                color: activeTab === 'staff' ? '#2563eb' : '#64748b',
-                background: activeTab === 'staff' ? '#eff6ff' : 'transparent',
+                color: effectiveTab === 'staff' ? '#2563eb' : '#64748b',
+                background: effectiveTab === 'staff' ? '#eff6ff' : 'transparent',
                 border: 'none',
-                borderBottom: activeTab === 'staff' ? '2px solid #2563eb' : '2px solid transparent',
+                borderBottom: effectiveTab === 'staff' ? '2px solid #2563eb' : '2px solid transparent',
                 borderRadius: '0.375rem 0.375rem 0 0',
                 cursor: 'pointer',
                 display: 'flex',
@@ -470,10 +629,10 @@ export default function Profile() {
               padding: '0.65rem 1.25rem',
               fontWeight: 600,
               fontSize: '0.9rem',
-              color: activeTab === 'gallery' ? '#2563eb' : '#64748b',
-              background: activeTab === 'gallery' ? '#eff6ff' : 'transparent',
+              color: effectiveTab === 'gallery' ? '#2563eb' : '#64748b',
+              background: effectiveTab === 'gallery' ? '#eff6ff' : 'transparent',
               border: 'none',
-              borderBottom: activeTab === 'gallery' ? '2px solid #2563eb' : '2px solid transparent',
+              borderBottom: effectiveTab === 'gallery' ? '2px solid #2563eb' : '2px solid transparent',
               borderRadius: '0.375rem 0.375rem 0 0',
               cursor: 'pointer',
               display: 'flex',
@@ -489,13 +648,13 @@ export default function Profile() {
       {/* =========================================================
           TAB 1: USER PROFILE & SECURITY
          ========================================================= */}
-      {(!isClubAdmin || activeTab === 'profile') && (
+      {effectiveTab === 'profile' && (
         <div style={{
           background: '#ffffff',
           borderRadius: '0.85rem',
           border: '1px solid #e2e8f0',
           padding: '2rem',
-          maxWidth: '640px',
+          maxWidth: '680px',
           boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
         }}>
           {/* Avatar & Header */}
@@ -505,7 +664,7 @@ export default function Profile() {
             <input
               ref={directFileInputRef}
               type="file"
-              accept="image/*"
+              accept="image/*,.png,.jpg,.jpeg,.webp,.gif,.svg,.bmp,.avif"
               onChange={handleDirectFileSelect}
               style={{ display: 'none' }}
             />
@@ -515,39 +674,48 @@ export default function Profile() {
               onClick={() => directFileInputRef.current?.click()}
               title="Click to choose a photo from your device"
             >
-              {user?.avatar_url && !avatarImgError ? (
-                <img
-                  src={user.avatar_url}
-                  alt={user?.full_name || 'Profile'}
-                  style={{
+              {(() => {
+                const currentDisplayAvatar = localAvatarPreview || user?.avatar_url;
+                const isDataOrBlob = currentDisplayAvatar && (currentDisplayAvatar.startsWith('data:') || currentDisplayAvatar.startsWith('blob:'));
+                if (currentDisplayAvatar && (isDataOrBlob || !avatarImgError)) {
+                  return (
+                    <img
+                      key={currentDisplayAvatar.slice(0, 50)}
+                      src={currentDisplayAvatar}
+                      alt={user?.full_name || 'Profile'}
+                      referrerPolicy="no-referrer"
+                      style={{
+                        width: '108px',
+                        height: '108px',
+                        borderRadius: '50%',
+                        objectFit: 'cover',
+                        border: '3px solid #3b82f6',
+                        boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)',
+                      }}
+                      onError={() => {
+                        if (!isDataOrBlob) setAvatarImgError(true);
+                      }}
+                    />
+                  );
+                }
+                return (
+                  <div style={{
                     width: '108px',
                     height: '108px',
                     borderRadius: '50%',
-                    objectFit: 'cover',
-                    border: '3px solid #3b82f6',
+                    background: 'linear-gradient(135deg, #2563eb, #1d4ed8)',
+                    color: '#ffffff',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '2.5rem',
+                    fontWeight: 700,
                     boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)',
-                  }}
-                  onError={() => {
-                    setAvatarImgError(true);
-                  }}
-                />
-              ) : (
-                <div style={{
-                  width: '108px',
-                  height: '108px',
-                  borderRadius: '50%',
-                  background: 'linear-gradient(135deg, #2563eb, #1d4ed8)',
-                  color: '#ffffff',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: '2.5rem',
-                  fontWeight: 700,
-                  boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)',
-                }}>
-                  {user?.full_name ? user.full_name[0].toUpperCase() : 'U'}
-                </div>
-              )}
+                  }}>
+                    {user?.full_name ? user.full_name[0].toUpperCase() : 'U'}
+                  </div>
+                );
+              })()}
 
               {/* Camera Icon Overlay */}
               <div style={{
@@ -566,7 +734,7 @@ export default function Profile() {
                 border: '2px solid #ffffff',
                 boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
               }}>
-                📷
+                {avatarLoading ? '⏳' : '📷'}
               </div>
             </div>
 
@@ -590,7 +758,7 @@ export default function Profile() {
                   gap: '0.35rem',
                 }}
               >
-                {avatarLoading ? 'Uploading Base64...' : '📷 Upload Photo'}
+                {avatarLoading ? 'Saving...' : '📷 Upload Photo'}
               </button>
 
               <button
@@ -615,7 +783,7 @@ export default function Profile() {
                 🌐 Paste URL
               </button>
 
-              {user?.avatar_url && (
+              {(user?.avatar_url || localAvatarPreview) && (
                 <button
                   type="button"
                   onClick={handleDeleteAvatar}
@@ -654,6 +822,141 @@ export default function Profile() {
             </span>
           </div>
 
+          {/* Member Digital Pass Card for non-admins */}
+          {!isClubAdmin && (
+            <div style={{
+              background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)',
+              borderRadius: '0.75rem',
+              padding: '1.25rem 1.5rem',
+              color: '#ffffff',
+              marginBottom: '1.5rem',
+              boxShadow: '0 4px 14px rgba(15, 23, 42, 0.12)',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              flexWrap: 'wrap',
+              gap: '1rem',
+            }}>
+              <div>
+                <div style={{ fontSize: '0.7rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '0.2rem' }}>
+                  Verified Club Member Pass
+                </div>
+                <div style={{ fontSize: '1.2rem', fontWeight: 800, color: '#ffffff', letterSpacing: '-0.02em' }}>
+                  {activeClubName}
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.4rem', flexWrap: 'wrap' }}>
+                  <span style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.3rem',
+                    background: 'rgba(16, 185, 129, 0.2)',
+                    color: '#34d399',
+                    padding: '0.2rem 0.65rem',
+                    borderRadius: '9999px',
+                    fontSize: '0.72rem',
+                    fontWeight: 700,
+                  }}>
+                    ● Active Membership
+                  </span>
+                  <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>
+                    Pass ID: {user?.id ? `MEM-${user.id.slice(0, 6).toUpperCase()}` : 'MEM-ACTIVE'}
+                  </span>
+                </div>
+              </div>
+              {activeClubObj && (
+                <button
+                  type="button"
+                  onClick={() => navigate(`/club/${activeClubSlug}`)}
+                  style={{
+                    background: 'rgba(255, 255, 255, 0.12)',
+                    border: '1px solid rgba(255, 255, 255, 0.25)',
+                    color: '#ffffff',
+                    borderRadius: '0.5rem',
+                    padding: '0.55rem 1rem',
+                    fontSize: '0.8rem',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                  }}
+                >
+                  Club Portal →
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* Member Quick Shortcuts (Courts, Shop, Orders) */}
+          {!isClubAdmin && (
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(3, 1fr)',
+              gap: '0.75rem',
+              marginBottom: '1.5rem',
+            }}>
+              <button
+                type="button"
+                onClick={() => navigate(`/club/${activeClubSlug}/courts`)}
+                style={{
+                  padding: '0.85rem 0.5rem',
+                  background: '#f8fafc',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: '0.6rem',
+                  cursor: 'pointer',
+                  textAlign: 'center',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  gap: '0.25rem',
+                }}
+              >
+                <span style={{ fontSize: '1.35rem' }}>🎾</span>
+                <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#0f172a' }}>Book Court</span>
+                <span style={{ fontSize: '0.7rem', color: '#64748b' }}>Reserve a slot</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => navigate(`/inventory?clubId=${effectiveClubId}`)}
+                style={{
+                  padding: '0.85rem 0.5rem',
+                  background: '#f8fafc',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: '0.6rem',
+                  cursor: 'pointer',
+                  textAlign: 'center',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  gap: '0.25rem',
+                }}
+              >
+                <span style={{ fontSize: '1.35rem' }}>🛍️</span>
+                <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#0f172a' }}>Pro Shop</span>
+                <span style={{ fontSize: '0.7rem', color: '#64748b' }}>Buy gear</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => navigate(`/orders?clubId=${effectiveClubId}`)}
+                style={{
+                  padding: '0.85rem 0.5rem',
+                  background: '#f8fafc',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: '0.6rem',
+                  cursor: 'pointer',
+                  textAlign: 'center',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  gap: '0.25rem',
+                }}
+              >
+                <span style={{ fontSize: '1.35rem' }}>📦</span>
+                <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#0f172a' }}>My Orders</span>
+                <span style={{ fontSize: '0.7rem', color: '#64748b' }}>Track status</span>
+              </button>
+            </div>
+          )}
+
           {/* User Details Grid */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '1.5rem' }}>
             <div style={{ background: '#f8fafc', padding: '0.75rem', borderRadius: '0.5rem', border: '1px solid #f1f5f9' }}>
@@ -669,18 +972,73 @@ export default function Profile() {
               </div>
             </div>
             <div style={{ background: '#f8fafc', padding: '0.75rem', borderRadius: '0.5rem', border: '1px solid #f1f5f9' }}>
-              <label style={{ fontSize: '0.7rem', color: '#64748b', textTransform: 'uppercase', fontWeight: 700 }}>Active Club ID</label>
-              <div style={{ fontSize: '0.8rem', color: '#0f172a', marginTop: '0.2rem', fontWeight: 600, wordBreak: 'break-all' }}>
-                {clubId || 'None'}
+              <label style={{ fontSize: '0.7rem', color: '#64748b', textTransform: 'uppercase', fontWeight: 700 }}>Active Sports Club</label>
+              <div style={{ fontSize: '0.85rem', color: '#0f172a', marginTop: '0.2rem', fontWeight: 600, wordBreak: 'break-word' }}>
+                {activeClubName}
               </div>
             </div>
             <div style={{ background: '#f8fafc', padding: '0.75rem', borderRadius: '0.5rem', border: '1px solid #f1f5f9' }}>
-              <label style={{ fontSize: '0.7rem', color: '#64748b', textTransform: 'uppercase', fontWeight: 700 }}>Account ID</label>
+              <label style={{ fontSize: '0.7rem', color: '#64748b', textTransform: 'uppercase', fontWeight: 700 }}>Member ID Code</label>
               <div style={{ fontSize: '0.8rem', color: '#0f172a', marginTop: '0.2rem', fontWeight: 600, wordBreak: 'break-all' }}>
-                {user?.id ? `${user.id.slice(0, 8)}...` : 'N/A'}
+                {user?.id ? `MEM-${user.id.slice(0, 6).toUpperCase()}` : 'N/A'}
               </div>
             </div>
           </div>
+
+          {/* My Joined Clubs Section */}
+          {clubs && clubs.length > 0 && (
+            <div style={{
+              background: '#f8fafc',
+              border: '1px solid #e2e8f0',
+              borderRadius: '0.75rem',
+              padding: '1.25rem',
+              marginBottom: '1.5rem',
+            }}>
+              <h3 style={{ fontSize: '0.95rem', fontWeight: 700, color: '#0f172a', margin: '0 0 0.75rem 0', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                🏛️ My Joined Clubs ({clubs.length})
+              </h3>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                {clubs.map((c) => (
+                  <div
+                    key={c.id || c.club_id}
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      padding: '0.65rem 0.85rem',
+                      background: '#ffffff',
+                      border: '1px solid #e2e8f0',
+                      borderRadius: '0.5rem',
+                    }}
+                  >
+                    <div>
+                      <div style={{ fontWeight: 700, fontSize: '0.85rem', color: '#0f172a' }}>{c.name}</div>
+                      <div style={{ fontSize: '0.75rem', color: '#64748b' }}>
+                        Role: <span style={{ textTransform: 'capitalize', fontWeight: 600 }}>{c.role || 'Member'}</span>
+                        {c.city ? ` • ${c.city}` : ''}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => navigate(`/club/${c.slug || c.id || c.club_id}`)}
+                      style={{
+                        padding: '0.35rem 0.75rem',
+                        fontSize: '0.75rem',
+                        fontWeight: 600,
+                        color: '#2563eb',
+                        background: '#eff6ff',
+                        border: '1px solid #bfdbfe',
+                        borderRadius: '0.375rem',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Visit Club →
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* =========================================================
               PROMINENT SECURITY & PASSWORD SECTION
@@ -782,7 +1140,10 @@ export default function Profile() {
           {/* Sign Out Button */}
           <button
             type="button"
-            onClick={logout}
+            onClick={async () => {
+              navigate('/', { replace: true });
+              await logout();
+            }}
             style={{
               width: '100%',
               padding: '0.65rem 1rem',
@@ -803,7 +1164,7 @@ export default function Profile() {
       {/* =========================================================
           TAB 2: CLUB STAFF MEMBERS (Owner Only)
          ========================================================= */}
-      {isOwner && activeTab === 'staff' && (
+      {isOwner && effectiveTab === 'staff' && (
         <div style={{
           background: '#ffffff',
           borderRadius: '0.85rem',
@@ -988,7 +1349,7 @@ export default function Profile() {
       {/* =========================================================
           TAB 3: CLUB SHOWCASE GALLERY (Owner & Admin)
          ========================================================= */}
-      {isClubAdmin && activeTab === 'gallery' && (
+      {isClubAdmin && effectiveTab === 'gallery' && (
         <div style={{
           background: '#ffffff',
           borderRadius: '0.85rem',
@@ -1030,6 +1391,7 @@ export default function Profile() {
             </h4>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              {/* File Selector */}
               <div>
                 <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: '#475569', marginBottom: '0.35rem', textTransform: 'uppercase' }}>
                   Select Photos from Computer
@@ -1038,37 +1400,60 @@ export default function Profile() {
                   ref={galleryFileInputRef}
                   type="file"
                   multiple
-                  accept="image/*"
+                  accept="image/*,.png,.jpg,.jpeg,.webp,.gif,.svg,.bmp,.avif"
                   onChange={handleGalleryFilesChange}
                   style={{ fontSize: '0.85rem', color: '#334155' }}
                 />
-                {newGalleryFiles.length > 0 && (
-                  <span style={{ fontSize: '0.8rem', color: '#16a34a', fontWeight: 600, display: 'block', marginTop: '0.35rem' }}>
-                    ✓ {newGalleryFiles.length} photo(s) selected and encoded in Base64
-                  </span>
-                )}
               </div>
 
+              {/* Web URL Input with Add Button */}
               <div>
                 <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: '#475569', marginBottom: '0.35rem', textTransform: 'uppercase' }}>
                   Or Add Image Web URL (Converts to Base64)
                 </label>
-                <input
-                  type="url"
-                  placeholder="https://images.unsplash.com/photo-..."
-                  value={galleryUrlInput}
-                  onChange={(e) => setGalleryUrlInput(e.target.value)}
-                  style={{
-                    width: '100%',
-                    padding: '0.6rem 0.85rem',
-                    fontSize: '0.85rem',
-                    borderRadius: '0.375rem',
-                    border: '1px solid #cbd5e1',
-                    background: '#ffffff',
-                  }}
-                />
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  <input
+                    type="url"
+                    placeholder="https://images.unsplash.com/photo-..."
+                    value={galleryUrlInput}
+                    onChange={(e) => setGalleryUrlInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleAddUrlToGallery();
+                      }
+                    }}
+                    style={{
+                      flex: 1,
+                      padding: '0.6rem 0.85rem',
+                      fontSize: '0.85rem',
+                      borderRadius: '0.375rem',
+                      border: '1px solid #cbd5e1',
+                      background: '#ffffff',
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={handleAddUrlToGallery}
+                    disabled={galleryLoading || !galleryUrlInput.trim()}
+                    style={{
+                      padding: '0.6rem 1rem',
+                      background: '#eff6ff',
+                      color: '#2563eb',
+                      border: '1px solid #bfdbfe',
+                      borderRadius: '0.375rem',
+                      fontWeight: 600,
+                      fontSize: '0.85rem',
+                      cursor: (galleryLoading || !galleryUrlInput.trim()) ? 'not-allowed' : 'pointer',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    + Add URL
+                  </button>
+                </div>
               </div>
 
+              {/* Default Caption */}
               <div>
                 <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: '#475569', marginBottom: '0.35rem', textTransform: 'uppercase' }}>
                   Caption (Optional)
@@ -1089,10 +1474,110 @@ export default function Profile() {
                 />
               </div>
 
+              {/* LIVE SELECTION PREVIEW GRID */}
+              {selectedGalleryPhotos.length > 0 && (
+                <div style={{
+                  padding: '1rem',
+                  background: '#ffffff',
+                  borderRadius: '0.5rem',
+                  border: '1px solid #cbd5e1',
+                  marginTop: '0.5rem',
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+                    <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#16a34a' }}>
+                      ✓ {selectedGalleryPhotos.length} photo(s) ready to upload:
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedGalleryPhotos([])}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: '#ef4444',
+                        fontSize: '0.75rem',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Clear All
+                    </button>
+                  </div>
+
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))',
+                    gap: '0.75rem',
+                  }}>
+                    {selectedGalleryPhotos.map((photo) => (
+                      <div
+                        key={photo.id}
+                        style={{
+                          position: 'relative',
+                          border: '1px solid #cbd5e1',
+                          borderRadius: '0.375rem',
+                          overflow: 'hidden',
+                          background: '#f8fafc',
+                        }}
+                      >
+                        <img
+                          src={photo.dataUrl}
+                          alt={photo.name || 'preview'}
+                          referrerPolicy="no-referrer"
+                          style={{
+                            width: '100%',
+                            height: '90px',
+                            objectFit: 'cover',
+                            display: 'block',
+                          }}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveSelectedPhoto(photo.id)}
+                          title="Remove photo"
+                          style={{
+                            position: 'absolute',
+                            top: '4px',
+                            right: '4px',
+                            background: 'rgba(239, 68, 68, 0.9)',
+                            color: '#ffffff',
+                            border: 'none',
+                            borderRadius: '50%',
+                            width: '20px',
+                            height: '20px',
+                            fontSize: '0.7rem',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          ✕
+                        </button>
+                        <div style={{ padding: '4px 6px' }}>
+                          <input
+                            type="text"
+                            placeholder="Caption..."
+                            value={photo.caption}
+                            onChange={(e) => handleUpdateSelectedCaption(photo.id, e.target.value)}
+                            style={{
+                              width: '100%',
+                              padding: '2px 4px',
+                              fontSize: '0.7rem',
+                              border: '1px solid #e2e8f0',
+                              borderRadius: '2px',
+                            }}
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <button
                 type="button"
                 onClick={handleAddGalleryImages}
-                disabled={galleryLoading || (newGalleryFiles.length === 0 && !galleryUrlInput.trim())}
+                disabled={galleryLoading || (selectedGalleryPhotos.length === 0 && !galleryUrlInput.trim())}
                 style={{
                   alignSelf: 'flex-start',
                   padding: '0.65rem 1.5rem',
@@ -1102,11 +1587,16 @@ export default function Profile() {
                   borderRadius: '0.375rem',
                   fontWeight: 600,
                   fontSize: '0.9rem',
-                  cursor: (galleryLoading || (newGalleryFiles.length === 0 && !galleryUrlInput.trim())) ? 'not-allowed' : 'pointer',
-                  opacity: (galleryLoading || (newGalleryFiles.length === 0 && !galleryUrlInput.trim())) ? 0.6 : 1,
+                  cursor: (galleryLoading || (selectedGalleryPhotos.length === 0 && !galleryUrlInput.trim())) ? 'not-allowed' : 'pointer',
+                  opacity: (galleryLoading || (selectedGalleryPhotos.length === 0 && !galleryUrlInput.trim())) ? 0.6 : 1,
+                  marginTop: '0.5rem',
                 }}
               >
-                {galleryLoading ? 'Processing & Uploading...' : '+ Save Photos to Gallery'}
+                {galleryLoading
+                  ? 'Saving Photos...'
+                  : selectedGalleryPhotos.length > 0
+                    ? `+ Save ${selectedGalleryPhotos.length} Photo(s) to Gallery`
+                    : '+ Save Photos to Gallery'}
               </button>
             </div>
           </div>
@@ -1226,15 +1716,16 @@ export default function Profile() {
               Update Profile Picture
             </h3>
             <p style={{ fontSize: '0.85rem', color: '#64748b', marginBottom: '1.25rem' }}>
-              Select an image from your device or paste an image link. Stored directly in Base64 format.
+              Paste any image link (URL) or select a photo from your device.
             </p>
 
             {/* Live Preview */}
-            {avatarPreview && (
+            {(avatarPreview || avatarInputUrl.trim()) && (
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: '1.25rem' }}>
                 <img
-                  src={avatarPreview}
+                  src={avatarPreview || avatarInputUrl.trim()}
                   alt="Preview"
+                  referrerPolicy="no-referrer"
                   style={{
                     width: '96px',
                     height: '96px',
@@ -1242,43 +1733,31 @@ export default function Profile() {
                     objectFit: 'cover',
                     border: '3px solid #2563eb',
                     marginBottom: '0.5rem',
+                    boxShadow: '0 2px 8px rgba(37,99,235,0.2)',
                   }}
                 />
                 <span style={{ fontSize: '0.75rem', color: '#16a34a', fontWeight: 600 }}>
-                  ✓ Base64 preview ready
+                  ✓ Image preview ready
                 </span>
               </div>
             )}
 
             <div style={{ marginBottom: '1.25rem' }}>
               <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: '#334155', marginBottom: '0.35rem' }}>
-                Choose Local Image File
-              </label>
-              <input
-                ref={modalFileInputRef}
-                type="file"
-                accept="image/*"
-                onChange={handleModalFileSelect}
-                style={{ fontSize: '0.85rem' }}
-              />
-            </div>
-
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', margin: '1rem 0' }}>
-              <hr style={{ flex: 1, border: 'none', borderTop: '1px solid #e2e8f0' }} />
-              <span style={{ fontSize: '0.75rem', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 600 }}>OR</span>
-              <hr style={{ flex: 1, border: 'none', borderTop: '1px solid #e2e8f0' }} />
-            </div>
-
-            <div style={{ marginBottom: '1.5rem' }}>
-              <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: '#334155', marginBottom: '0.35rem' }}>
-                Image Web Link
+                Image Web Link (URL)
               </label>
               <div style={{ display: 'flex', gap: '0.5rem' }}>
                 <input
                   type="url"
                   placeholder="https://example.com/photo.jpg"
                   value={avatarInputUrl}
-                  onChange={(e) => setAvatarInputUrl(e.target.value)}
+                  onChange={(e) => handleUrlChange(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleSaveAvatar();
+                    }
+                  }}
                   style={{
                     flex: 1,
                     padding: '0.5rem 0.75rem',
@@ -1303,6 +1782,25 @@ export default function Profile() {
                   Preview
                 </button>
               </div>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', margin: '1rem 0' }}>
+              <hr style={{ flex: 1, border: 'none', borderTop: '1px solid #e2e8f0' }} />
+              <span style={{ fontSize: '0.75rem', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 600 }}>OR CHOOSE FILE</span>
+              <hr style={{ flex: 1, border: 'none', borderTop: '1px solid #e2e8f0' }} />
+            </div>
+
+            <div style={{ marginBottom: '1.5rem' }}>
+              <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: '#334155', marginBottom: '0.35rem' }}>
+                Select Photo from Device
+              </label>
+              <input
+                ref={modalFileInputRef}
+                type="file"
+                accept="image/*,.png,.jpg,.jpeg,.webp,.gif,.svg,.bmp,.avif"
+                onChange={handleModalFileSelect}
+                style={{ fontSize: '0.85rem' }}
+              />
             </div>
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
@@ -1342,7 +1840,7 @@ export default function Profile() {
                   opacity: (avatarLoading || (!avatarPreview && !avatarInputUrl.trim())) ? 0.6 : 1,
                 }}
               >
-                {avatarLoading ? 'Saving Base64...' : 'Save Profile Picture'}
+                {avatarLoading ? 'Saving...' : 'Save Profile Picture'}
               </button>
             </div>
           </div>
