@@ -416,7 +416,7 @@ function UserDashboard() {
               const isJoining = joiningClubId === club.id;
 
               return (
-                <div key={club.id} className="public-club-card">
+                <div key={club.id}  className="public-club-card">
                   {/* Photo Cover Banner */}
                   <div className="card-banner">
                     {club.cover_url ? (

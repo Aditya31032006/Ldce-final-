@@ -894,14 +894,19 @@ function ClubDetailsPage() {
         <AlertCircle size={44} color="#DC2626" style={{ margin: '0 auto 1rem' }} />
         <h2 style={{ fontSize: '1.5rem', fontWeight: 700, color: '#1A1A18', marginBottom: '0.5rem' }}>Club Not Found</h2>
         <p style={{ color: '#6B6B66', marginBottom: '1.5rem' }}>{error || "The club you requested could not be found or has been deactivated."}</p>
-        <Link to="/user/dashboard" style={{
-          display: 'inline-flex', alignItems: 'center', gap: '0.5rem',
-          padding: '0.5rem 1.25rem', background: '#1F5C46', color: '#FFFFFF',
-          borderRadius: '6px', textDecoration: 'none', fontWeight: 600, fontSize: '0.875rem'
-        }}>
+        <button
+          type="button"
+          onClick={() => navigate(-1)}
+          style={{
+            display: 'inline-flex', alignItems: 'center', gap: '0.5rem',
+            padding: '0.5rem 1.25rem', background: '#1F5C46', color: '#FFFFFF',
+            borderRadius: '6px', border: 'none', fontWeight: 600, fontSize: '0.875rem',
+            cursor: 'pointer'
+          }}
+        >
           <ArrowLeft size={16} />
-          <span>Back to Clubs Directory</span>
-        </Link>
+          <span>Back</span>
+        </button>
       </div>
     );
   }
@@ -1660,13 +1665,18 @@ function ClubDetailsPage() {
 
         {/* Top Breadcrumb Nav */}
         <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '1rem 1.5rem 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Link to="/user/dashboard" style={{
-            display: 'inline-flex', alignItems: 'center', gap: '0.4rem',
-            color: '#6B6B66', textDecoration: 'none', fontSize: '0.85rem', fontWeight: 500
-          }}>
+          <button
+            type="button"
+            onClick={() => navigate(-1)}
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: '0.4rem',
+              color: '#6B6B66', background: 'transparent', border: 'none',
+              padding: 0, fontSize: '0.85rem', fontWeight: 500, cursor: 'pointer'
+            }}
+          >
             <ArrowLeft size={14} />
-            <span>All Clubs Directory</span>
-          </Link>
+            <span>Back</span>
+          </button>
 
           <span style={{
             fontSize: '0.75rem', fontWeight: 600, color: '#15803D',
@@ -2368,13 +2378,18 @@ function ClubDetailsPage() {
 
       {/* Top Breadcrumb Nav */}
       <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '1rem 1.5rem 0' }}>
-        <Link to="/user/dashboard" style={{
-          display: 'inline-flex', alignItems: 'center', gap: '0.4rem',
-          color: '#6B6B66', textDecoration: 'none', fontSize: '0.85rem', fontWeight: 500
-        }}>
+        <button
+          type="button"
+          onClick={() => navigate(-1)}
+          style={{
+            display: 'inline-flex', alignItems: 'center', gap: '0.4rem',
+            color: '#6B6B66', background: 'transparent', border: 'none',
+            padding: 0, fontSize: '0.85rem', fontWeight: 500, cursor: 'pointer'
+          }}
+        >
           <ArrowLeft size={14} />
-          <span>All Clubs Directory</span>
-        </Link>
+          <span>Back</span>
+        </button>
       </div>
 
       {/* Hero Cover & Branding */}

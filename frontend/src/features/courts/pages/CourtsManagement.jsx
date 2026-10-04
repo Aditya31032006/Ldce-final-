@@ -97,10 +97,10 @@ const SportsTab = React.memo(function SportsTab({ role }) {
               <label style={labelStyle}>Description</label>
               <input style={inputStyle} value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} placeholder="Optional description" />
             </div>
-            <div style={{ marginBottom: '1rem' }}>
+            {/* <div style={{ marginBottom: '1rem' }}>
               <label style={labelStyle}>Sort Order</label>
               <input type="number" style={{ ...inputStyle, width: '100px' }} value={form.sort_order} onChange={e => setForm(f => ({ ...f, sort_order: +e.target.value }))} min={0} />
-            </div>
+            </div> */}
             <div style={{ display: 'flex', gap: '0.75rem' }}>
               <button type="submit" style={btnPrimary}>Save Sport</button>
               <button type="button" style={btnSecondary} onClick={resetForm}>Cancel</button>
