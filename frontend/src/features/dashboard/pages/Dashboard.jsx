@@ -204,28 +204,6 @@ export default function Dashboard() {
               }}>
                 ● Real-time DB Synced
               </span>
-
-              {activeClubObj && (
-                <button
-                  type="button"
-                  onClick={() => navigate(`/club/${clubSlug}`)}
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '0.35rem',
-                    background: '#ffffff',
-                    color: '#2563eb',
-                    border: '1px solid #cbd5e1',
-                    padding: '0.25rem 0.65rem',
-                    borderRadius: '0.375rem',
-                    fontSize: '0.75rem',
-                    fontWeight: 600,
-                    cursor: 'pointer'
-                  }}
-                >
-                  <Building2 size={12} /> View Public Portal →
-                </button>
-              )}
             </div>
           </div>
 

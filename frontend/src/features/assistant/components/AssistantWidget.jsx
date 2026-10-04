@@ -23,7 +23,8 @@ import {
   Coffee,
   ShoppingBag,
   ChevronRight,
-  Bot
+  Bot,
+  MessageSquare
 } from 'lucide-react';
 
 const QUICK_PROMPTS = [
@@ -233,43 +234,43 @@ export default function AssistantWidget() {
 
   return (
     <>
-      {/* FLOATING TRIGGER BUTTON (Minimalist & Harmonized) */}
+      {/* FLOATING TRIGGER BUTTON (Minimalist Black Circle) */}
       {!isOpen && (
         <button
           onClick={() => setIsOpen(true)}
-          title="Open Executive AI Advisor"
+          title="Open Assistant"
+          aria-label="Open Assistant"
           style={{
             position: 'fixed',
             bottom: '24px',
             right: '24px',
             zIndex: 9999,
+            width: '46px',
+            height: '46px',
+            borderRadius: '50%',
+            background: '#121316',
+            color: '#FFFFFF',
+            border: '1px solid rgba(255, 255, 255, 0.12)',
+            boxShadow: '0 4px 16px rgba(0, 0, 0, 0.22), 0 2px 5px rgba(0, 0, 0, 0.08)',
+            cursor: 'pointer',
             display: 'flex',
             alignItems: 'center',
-            gap: '0.65rem',
-            padding: '0.65rem 1.15rem',
-            borderRadius: '9999px',
-            background: '#1F5C46',
-            color: '#FFFFFF',
-            border: '1px solid rgba(255, 255, 255, 0.2)',
-            boxShadow: '0 8px 24px rgba(31, 92, 70, 0.25), 0 2px 6px rgba(0, 0, 0, 0.05)',
-            cursor: 'pointer',
-            transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+            justifyContent: 'center',
+            padding: 0,
+            transition: 'all 0.18s cubic-bezier(0.4, 0, 0.2, 1)',
           }}
-          onMouseEnter={(e) => (e.currentTarget.style.transform = 'translateY(-2px)')}
-          onMouseLeave={(e) => (e.currentTarget.style.transform = 'translateY(0)')}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.transform = 'translateY(-2px) scale(1.04)';
+            e.currentTarget.style.background = '#000000';
+            e.currentTarget.style.boxShadow = '0 6px 20px rgba(0, 0, 0, 0.32)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.transform = 'translateY(0) scale(1)';
+            e.currentTarget.style.background = '#121316';
+            e.currentTarget.style.boxShadow = '0 4px 16px rgba(0, 0, 0, 0.22), 0 2px 5px rgba(0, 0, 0, 0.08)';
+          }}
         >
-          <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <Sparkles size={18} color="#FFFFFF" />
-            <span style={{ position: 'absolute', top: '-1px', right: '-1px', width: '7px', height: '7px', borderRadius: '50%', background: '#34d399', border: '1.5px solid #1F5C46' }} />
-          </div>
-          <div style={{ textAlign: 'left' }}>
-            <span style={{ display: 'block', fontSize: '0.85rem', fontWeight: 700, letterSpacing: '-0.01em', lineHeight: 1.2 }}>
-              AI Advisor
-            </span>
-            <span style={{ display: 'block', fontSize: '0.68rem', color: '#A7F3D0', fontWeight: 500, letterSpacing: '0.02em' }}>
-              Live DB Telemetry
-            </span>
-          </div>
+          <MessageSquare size={19} color="#FFFFFF" strokeWidth={1.85} />
         </button>
       )}
 

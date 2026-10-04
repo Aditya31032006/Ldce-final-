@@ -1140,7 +1140,10 @@ export default function Profile() {
           {/* Sign Out Button */}
           <button
             type="button"
-            onClick={logout}
+            onClick={async () => {
+              navigate('/', { replace: true });
+              await logout();
+            }}
             style={{
               width: '100%',
               padding: '0.65rem 1rem',

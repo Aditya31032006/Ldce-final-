@@ -9,8 +9,8 @@ export default function Navbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const handleLogout = async () => {
+    navigate('/', { replace: true });
     await logout();
-    navigate('/login');
   };
 
   const navItems = [

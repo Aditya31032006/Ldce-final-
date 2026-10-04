@@ -199,6 +199,9 @@ export function useAuth() {
       console.warn('Backend logout cleanup notice:', e);
     } finally {
       dispatch(logoutSuccess());
+      if (window.location.pathname !== '/') {
+        window.location.href = '/';
+      }
     }
   }, [dispatch]);
 

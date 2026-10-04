@@ -1,5 +1,5 @@
 import React from 'react';
-import { Menu, Search, Bell } from 'lucide-react';
+import { Menu } from 'lucide-react';
 import { Link } from 'react-router';
 import useAuth from '../../../features/auth/hook/useAuth.js';
 
@@ -17,7 +17,7 @@ export default function Navbar({ onToggleSidebar }) {
 
   return (
     <header className="cl-app-layout__navbar">
-      {/* Navbar Left: Mobile Menu & Search Bar */}
+      {/* Navbar Left: Mobile Menu Toggle */}
       <div className="nav-left">
         <button
           type="button"
@@ -27,19 +27,9 @@ export default function Navbar({ onToggleSidebar }) {
         >
           <Menu size={20} />
         </button>
-
-        <div className="search-box">
-          <Search size={15} className="search-icon" />
-          <input
-            type="text"
-            placeholder="Search members, bookings, courts, orders..."
-            aria-label="Global quick search"
-          />
-          <kbd>⌘K</kbd>
-        </div>
       </div>
 
-      {/* Navbar Right: Status Pill, Club Switcher, Alerts & User */}
+      {/* Navbar Right: Status Pill, Club Switcher & User Avatar */}
       <div className="nav-right">
         {/* Live Facility Status Indicator */}
         <div className="status-pill" title="Court management engine active">
@@ -62,19 +52,6 @@ export default function Navbar({ onToggleSidebar }) {
             ))}
           </select>
         )}
-
-        {/* Notifications Icon */}
-        <button
-          type="button"
-          className="notification-btn"
-          aria-label="Notifications"
-          title="3 Unread Alerts"
-        >
-          <Bell size={18} />
-          <span className="unread-dot" />
-        </button>
-
-        <div className="divider-line" />
 
         {/* User Pill / Avatar */}
         <Link

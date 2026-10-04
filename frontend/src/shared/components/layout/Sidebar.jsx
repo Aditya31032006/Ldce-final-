@@ -151,8 +151,8 @@ export default function Sidebar({ isOpen, onClose }) {
     };
 
   const handleLogout = async () => {
+    navigate('/', { replace: true });
     await logout();
-    navigate('/login');
   };
 
   // Base staff sections

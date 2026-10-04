@@ -136,7 +136,6 @@ export default function LandingPage() {
           <Link to="/" className="nav-brand">
             <span className="brand-dot" />
             <span className="brand-name">Clubhouse</span>
-            <span className="brand-badge">v2.4 LIVE</span>
           </Link>
 
           {/* Center Navigation Links */}
