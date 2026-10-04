@@ -54,8 +54,15 @@ import {
   Eye,
   Percent,
   Compass,
-  FileSpreadsheet
+  FileSpreadsheet,
+  FileText,
+  Download,
+  X
 } from 'lucide-react';
+import PrintableReportsDocument from '../components/PrintableReportsDocument.jsx';
+import { generatePdfWithHtml2Canvas } from '../utils/pdfExport.util.js';
+import '../styles/reports-print.scss';
+
 
 // Custom dark styled tooltip for all Recharts visualizations
 const CustomChartTooltip = React.memo(({ active, payload, label, prefix = '', suffix = '' }) => {
@@ -111,11 +118,30 @@ function ReportsDashboard() {
   const [refreshing, setRefreshing] = useState(false);
   const [analyticsData, setAnalyticsData] = useState(null);
   const [lastUpdated, setLastUpdated] = useState(null);
+  const [showFormalPreview, setShowFormalPreview] = useState(false);
+  const [generatingPdf, setGeneratingPdf] = useState(false);
 
   // Interactive Chart View Controls
   const [revenueChartMode, setRevenueChartMode] = useState('donut'); // 'donut' | 'bar'
   const [sportMetricMode, setSportMetricMode] = useState('hours'); // 'hours' | 'reservations'
   const [hourlyChartType, setHourlyChartType] = useState('area'); // 'area' | 'bar'
+
+  const handleExportPdf = useCallback(async () => {
+    try {
+      setGeneratingPdf(true);
+      toast.info('Rendering formal monochrome document to PDF using html2canvas...');
+      const cleanClubName = (clubName || 'Facility').replace(/[^a-zA-Z0-9]/g, '_');
+      const filename = `Executive_Audit_Report_${cleanClubName}_${new Date().toISOString().split('T')[0]}.pdf`;
+      await generatePdfWithHtml2Canvas('formal-audit-report', filename);
+      toast.success('Monochrome Audit PDF generated and downloaded successfully!');
+    } catch (err) {
+      console.error('PDF export error:', err);
+      toast.error('html2canvas rendering notice: Falling back to direct browser print.');
+      window.print();
+    } finally {
+      setGeneratingPdf(false);
+    }
+  }, [clubName, toast]);
 
   const fetchAnalytics = useCallback(async (isManual = false) => {
     if (!effectiveClubId) {
@@ -322,131 +348,184 @@ function ReportsDashboard() {
 
   return (
     <div style={{ minHeight: '100vh', background: '#f8fafc', paddingBottom: '5rem', color: '#0f172a' }}>
-      {/* EXECUTIVE TOP HEADER */}
-      <div style={{ background: '#0f172a', color: '#ffffff', padding: '2.5rem 1.5rem 2.25rem', borderBottom: '1px solid #1e293b' }}>
-        <div style={{ maxWidth: '1360px', margin: '0 auto' }}>
-          <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '1.25rem', marginBottom: '1.5rem' }}>
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.5rem' }}>
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', background: 'rgba(16, 185, 129, 0.2)', color: '#34d399', fontSize: '0.75rem', fontWeight: 700, padding: '0.2rem 0.65rem', borderRadius: '9999px', border: '1px solid rgba(16, 185, 129, 0.3)' }}>
-                  <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#10b981', display: 'inline-block' }}></span>
-                  LIVE DATABASE TELEMETRY & MULTI-CHART BI
-                </span>
-                {lastUpdated && (
-                  <span style={{ color: '#94a3b8', fontSize: '0.75rem' }}>
-                    Synced {lastUpdated.toLocaleTimeString()}
+      <div className="reports-screen-content">
+        {/* EXECUTIVE TOP HEADER */}
+        <div style={{ background: '#0f172a', color: '#ffffff', padding: '2.5rem 1.5rem 2.25rem', borderBottom: '1px solid #1e293b' }}>
+          <div style={{ maxWidth: '1360px', margin: '0 auto' }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '1.25rem', marginBottom: '1.5rem' }}>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.5rem' }}>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', background: 'rgba(16, 185, 129, 0.2)', color: '#34d399', fontSize: '0.75rem', fontWeight: 700, padding: '0.2rem 0.65rem', borderRadius: '9999px', border: '1px solid rgba(16, 185, 129, 0.3)' }}>
+                    <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#10b981', display: 'inline-block' }}></span>
+                    LIVE DATABASE TELEMETRY & MULTI-CHART BI
                   </span>
-                )}
-              </div>
-              <h1 style={{ fontSize: '2.15rem', fontWeight: 800, letterSpacing: '-0.025em', margin: 0, display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                <BarChart3 className="text-emerald-400" size={34} />
-                Executive Business Intelligence & Analytics
-              </h1>
-              <p style={{ color: '#94a3b8', fontSize: '0.95rem', marginTop: '0.35rem', marginBottom: 0 }}>
-                Interactive multi-dimensional charts, revenue attribution, peak load curves & workforce telemetry for <strong style={{ color: '#f1f5f9' }}>{clubName}</strong>
-              </p>
-            </div>
-
-            {/* Filter Controls & Actions */}
-            <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '0.75rem' }}>
-              {/* Club Selector */}
-              {clubs && clubs.length > 1 && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: '#1e293b', padding: '0.35rem 0.75rem', borderRadius: '0.5rem', border: '1px solid #334155' }}>
-                  <Building2 size={16} className="text-emerald-400" />
-                  <select
-                    value={effectiveClubId || ''}
-                    onChange={(e) => {
-                      if (changeClub) changeClub(e.target.value);
-                      setSearchParams({ clubId: e.target.value });
-                    }}
-                    style={{ background: 'transparent', color: '#f8fafc', border: 'none', outline: 'none', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer' }}
-                  >
-                    {clubs.map(c => (
-                      <option key={c.id || c.club_id} value={c.id || c.club_id} style={{ background: '#0f172a', color: '#ffffff' }}>
-                        {c.name}
-                      </option>
-                    ))}
-                  </select>
+                  {lastUpdated && (
+                    <span style={{ color: '#94a3b8', fontSize: '0.75rem' }}>
+                      Synced {lastUpdated.toLocaleTimeString()}
+                    </span>
+                  )}
                 </div>
-              )}
-
-              {/* Time Range Pills */}
-              <div style={{ display: 'flex', background: '#1e293b', padding: '0.25rem', borderRadius: '0.5rem', border: '1px solid #334155' }}>
-                {[
-                  { id: 'all', label: 'All Time' },
-                  { id: '30d', label: 'Last 30d' },
-                  { id: '7d', label: 'Last 7d' },
-                  { id: 'today', label: 'Today' }
-                ].map(tab => (
-                  <button
-                    key={tab.id}
-                    onClick={() => setTimeRange(tab.id)}
-                    style={{
-                      background: timeRange === tab.id ? '#10b981' : 'transparent',
-                      color: timeRange === tab.id ? '#ffffff' : '#94a3b8',
-                      border: 'none',
-                      padding: '0.35rem 0.85rem',
-                      borderRadius: '0.375rem',
-                      fontSize: '0.8rem',
-                      fontWeight: 700,
-                      cursor: 'pointer',
-                      transition: 'all 0.15s ease'
-                    }}
-                  >
-                    {tab.label}
-                  </button>
-                ))}
+                <h1 style={{ fontSize: '2.15rem', fontWeight: 800, letterSpacing: '-0.025em', margin: 0, display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                  <BarChart3 className="text-emerald-400" size={34} />
+                  Executive Business Intelligence & Analytics
+                </h1>
+                <p style={{ color: '#94a3b8', fontSize: '0.95rem', marginTop: '0.35rem', marginBottom: 0 }}>
+                  Interactive multi-dimensional charts, revenue attribution, peak load curves & workforce telemetry for <strong style={{ color: '#f1f5f9' }}>{clubName}</strong>
+                </p>
               </div>
 
-              {/* Refresh Sync Button */}
-              <button
-                onClick={() => fetchAnalytics(true)}
-                disabled={refreshing}
-                title="Synchronize fresh metrics from database"
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.5rem',
-                  background: '#1e293b',
-                  color: '#f8fafc',
-                  border: '1px solid #334155',
-                  padding: '0.5rem 0.9rem',
-                  borderRadius: '0.5rem',
-                  fontSize: '0.85rem',
-                  fontWeight: 600,
-                  cursor: 'pointer'
-                }}
-              >
-                <RefreshCw size={15} style={{ animation: refreshing ? 'spin 1s linear infinite' : 'none' }} />
-                <span>Sync</span>
-              </button>
+              {/* Filter Controls & Actions */}
+              <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '0.75rem' }}>
+                {/* Club Selector */}
+                {clubs && clubs.length > 1 && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: '#1e293b', padding: '0.35rem 0.75rem', borderRadius: '0.5rem', border: '1px solid #334155' }}>
+                    <Building2 size={16} className="text-emerald-400" />
+                    <select
+                      value={effectiveClubId || ''}
+                      onChange={(e) => {
+                        if (changeClub) changeClub(e.target.value);
+                        setSearchParams({ clubId: e.target.value });
+                      }}
+                      style={{ background: 'transparent', color: '#f8fafc', border: 'none', outline: 'none', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer' }}
+                    >
+                      {clubs.map(c => (
+                        <option key={c.id || c.club_id} value={c.id || c.club_id} style={{ background: '#0f172a', color: '#ffffff' }}>
+                          {c.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
 
-              {/* Print / Export Report */}
-              <button
-                onClick={() => window.print()}
-                title="Print or save PDF summary"
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.5rem',
-                  background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                  color: '#ffffff',
-                  border: 'none',
-                  padding: '0.5rem 1rem',
-                  borderRadius: '0.5rem',
-                  fontSize: '0.85rem',
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  boxShadow: '0 4px 12px rgba(16, 185, 129, 0.25)'
-                }}
-              >
-                <Printer size={16} />
-                <span>Export PDF</span>
-              </button>
+                {/* Time Range Pills */}
+                <div style={{ display: 'flex', background: '#1e293b', padding: '0.25rem', borderRadius: '0.5rem', border: '1px solid #334155' }}>
+                  {[
+                    { id: 'all', label: 'All Time' },
+                    { id: '30d', label: 'Last 30d' },
+                    { id: '7d', label: 'Last 7d' },
+                    { id: 'today', label: 'Today' }
+                  ].map(tab => (
+                    <button
+                      key={tab.id}
+                      onClick={() => setTimeRange(tab.id)}
+                      style={{
+                        background: timeRange === tab.id ? '#10b981' : 'transparent',
+                        color: timeRange === tab.id ? '#ffffff' : '#94a3b8',
+                        border: 'none',
+                        padding: '0.35rem 0.85rem',
+                        borderRadius: '0.375rem',
+                        fontSize: '0.8rem',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        transition: 'all 0.15s ease'
+                      }}
+                    >
+                      {tab.label}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Refresh Sync Button */}
+                <button
+                  onClick={() => fetchAnalytics(true)}
+                  disabled={refreshing}
+                  title="Synchronize fresh metrics from database"
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem',
+                    background: '#1e293b',
+                    color: '#f8fafc',
+                    border: '1px solid #334155',
+                    padding: '0.5rem 0.9rem',
+                    borderRadius: '0.5rem',
+                    fontSize: '0.85rem',
+                    fontWeight: 600,
+                    cursor: 'pointer'
+                  }}
+                >
+                  <RefreshCw size={15} style={{ animation: refreshing ? 'spin 1s linear infinite' : 'none' }} />
+                  <span>Sync</span>
+                </button>
+
+                {/* Formal Document Preview Modal Trigger */}
+                <button
+                  onClick={() => setShowFormalPreview(true)}
+                  title="Preview formal monochrome audit document"
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.45rem',
+                    background: '#1e293b',
+                    color: '#e2e8f0',
+                    border: '1px solid #475569',
+                    padding: '0.5rem 0.9rem',
+                    borderRadius: '0.5rem',
+                    fontSize: '0.85rem',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease'
+                  }}
+                >
+                  <Eye size={16} />
+                  <span>Formal Preview</span>
+                </button>
+
+                {/* PDF Export via html2canvas */}
+                <button
+                  onClick={handleExportPdf}
+                  disabled={generatingPdf}
+                  title="Generate formal monochrome PDF using html2canvas"
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.45rem',
+                    background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)',
+                    color: '#ffffff',
+                    border: '1px solid #475569',
+                    padding: '0.5rem 1rem',
+                    borderRadius: '0.5rem',
+                    fontSize: '0.85rem',
+                    fontWeight: 700,
+                    cursor: generatingPdf ? 'not-allowed' : 'pointer',
+                    boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)',
+                    opacity: generatingPdf ? 0.7 : 1
+                  }}
+                >
+                  {generatingPdf ? (
+                    <RefreshCw size={16} style={{ animation: 'spin 1s linear infinite' }} />
+                  ) : (
+                    <Download size={16} />
+                  )}
+                  <span>{generatingPdf ? 'Rendering PDF...' : 'Download PDF'}</span>
+                </button>
+
+                {/* Direct Print */}
+                <button
+                  onClick={() => window.print()}
+                  title="Direct print formal document"
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.45rem',
+                    background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                    color: '#ffffff',
+                    border: 'none',
+                    padding: '0.5rem 1rem',
+                    borderRadius: '0.5rem',
+                    fontSize: '0.85rem',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    boxShadow: '0 4px 12px rgba(16, 185, 129, 0.25)'
+                  }}
+                >
+                  <Printer size={16} />
+                  <span>Print</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>
-      </div>
 
       <div style={{ maxWidth: '1360px', margin: '-1.5rem auto 0', padding: '0 1.5rem' }}>
         {/* ROW 1: 6 GRANULAR EXECUTIVE METRIC CARDS */}
@@ -719,8 +798,8 @@ function ReportsDashboard() {
                   <AreaChart data={fullHourlyData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                     <defs>
                       <linearGradient id="trafficGradient" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.6}/>
-                        <stop offset="95%" stopColor="#3b82f6" stopOpacity={0.0}/>
+                        <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.6} />
+                        <stop offset="95%" stopColor="#3b82f6" stopOpacity={0.0} />
                       </linearGradient>
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
@@ -1252,8 +1331,87 @@ function ReportsDashboard() {
           )}
         </div>
       </div>
+    </div> {/* end .reports-screen-content */}
+
+    {/* MONOCHROME FORMAL AUDIT DOCUMENT: Captured by html2canvas and rendered for @media print */}
+    <div id="formal-audit-report-container">
+      <PrintableReportsDocument
+        clubName={clubName}
+        activeClubObj={activeClubObj}
+        timeRange={timeRange}
+        lastUpdated={lastUpdated}
+        user={user}
+        role={role}
+        kpi={kpi}
+        revBySource={revBySource}
+        paymentMethods={paymentMethods}
+        courtDetails={courtDetails}
+        membershipTiers={membershipTiers}
+        topShopProducts={topShopProducts}
+        topBarItems={topBarItems}
+        staffDist={staffDist}
+        demographics={demographics}
+      />
     </div>
-  );
+
+    {/* ON-SCREEN FORMAL DOCUMENT PREVIEW MODAL */}
+    {showFormalPreview && (
+      <div className="formal-preview-modal-overlay" onClick={() => setShowFormalPreview(false)}>
+        <div className="formal-preview-modal-dialog" onClick={(e) => e.stopPropagation()}>
+          <div className="formal-preview-modal-header">
+            <div>
+              <h3>Official Monochrome Audit Document Preview</h3>
+              <p>Strictly Formal Executive Format • High Contrast Monochrome (No Colors) • Ready for html2canvas PDF Export & A4 Print</p>
+            </div>
+            <div className="preview-actions">
+              <button
+                className="btn-preview-export"
+                onClick={handleExportPdf}
+                disabled={generatingPdf}
+              >
+                {generatingPdf ? <RefreshCw size={15} style={{ animation: 'spin 1s linear infinite' }} /> : <Download size={15} />}
+                <span>{generatingPdf ? 'Rendering PDF...' : 'Download PDF'}</span>
+              </button>
+              <button
+                className="btn-preview-print"
+                onClick={() => window.print()}
+              >
+                <Printer size={15} />
+                <span>Print</span>
+              </button>
+              <button
+                className="btn-preview-close"
+                onClick={() => setShowFormalPreview(false)}
+                title="Close Preview"
+              >
+                <X size={20} />
+              </button>
+            </div>
+          </div>
+          <div className="formal-preview-modal-body">
+            <PrintableReportsDocument
+              clubName={clubName}
+              activeClubObj={activeClubObj}
+              timeRange={timeRange}
+              lastUpdated={lastUpdated}
+              user={user}
+              role={role}
+              kpi={kpi}
+              revBySource={revBySource}
+              paymentMethods={paymentMethods}
+              courtDetails={courtDetails}
+              membershipTiers={membershipTiers}
+              topShopProducts={topShopProducts}
+              topBarItems={topBarItems}
+              staffDist={staffDist}
+              demographics={demographics}
+            />
+          </div>
+        </div>
+      </div>
+    )}
+  </div>
+);
 }
 
 export default React.memo(ReportsDashboard);
