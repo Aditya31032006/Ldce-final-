@@ -7,7 +7,6 @@ import {
   Users,
   IdCard,
   ShieldCheck,
-  UserPlus,
   Warehouse,
   ShoppingBag,
   Coffee,
@@ -20,7 +19,6 @@ import {
   LogOut,
   X,
   ArrowLeft,
-  Sparkles,
 } from 'lucide-react';
 
 import useAuth from '../../../features/auth/hook/useAuth.js';
@@ -68,12 +66,6 @@ const NAVIGATION_SECTIONS = [
         icon: ShieldCheck,
         roles: ['owner', 'manager', 'admin'],
       },
-      {
-        label: 'Leads CRM',
-        path: '/leads',
-        icon: UserPlus,
-        roles: ['owner', 'manager', 'admin', 'front_desk'],
-      },
     ],
   },
   {
@@ -117,12 +109,6 @@ const NAVIGATION_SECTIONS = [
         label: 'Staff Management',
         path: '/hr',
         icon: UserCheck,
-        roles: ['owner', 'manager', 'admin'],
-      },
-      {
-        label: 'AI Executive Advisor',
-        path: '/assistant',
-        icon: Sparkles,
         roles: ['owner', 'manager', 'admin'],
       },
     ],
