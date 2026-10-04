@@ -363,7 +363,6 @@ function UserDashboard() {
               Live Directory
             </span>
           </div>
-          <span className="title-subtitle">Fuzzy search by club name, sport, or city</span>
         </div>
 
         {/* Debounced Search Input & Sport Filters */}
