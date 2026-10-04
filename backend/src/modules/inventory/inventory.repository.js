@@ -109,20 +109,48 @@ export async function updateProduct(userId, clubId, productId, updateData) {
       updateData.name !== undefined ? updateData.name.trim() : null,
       updateData.description !== undefined ? updateData.description.trim() : null,
       categoryId,
-      updateData.image_url !== undefined ? updateData.image_url.trim() : null,
+      updateData.image_url !== undefined ? (updateData.image_url ? updateData.image_url.trim() : '') : null,
       updateData.is_online !== undefined ? Boolean(updateData.is_online) : null,
       updateData.is_active !== undefined ? Boolean(updateData.is_active) : null
     ]);
 
-    if (updateData.stock_qty !== undefined || updateData.price !== undefined) {
-      await client.query(queries.UPDATE_VARIANT_STOCK, [
+    const updateVariantNeeded = (
+      updateData.stock_qty !== undefined ||
+      updateData.price !== undefined ||
+      updateData.mrp !== undefined ||
+      updateData.sku !== undefined ||
+      updateData.reorder_level !== undefined ||
+      updateData.is_active !== undefined
+    );
+
+    if (updateVariantNeeded) {
+      const vResult = await client.query(queries.UPDATE_VARIANT_STOCK, [
         productId,
         clubId,
-        updateData.stock_qty !== undefined ? Number(updateData.stock_qty) : null,
-        updateData.price !== undefined ? Number(updateData.price) : null,
-        updateData.mrp !== undefined ? Number(updateData.mrp) : null,
-        updateData.is_active !== undefined ? Boolean(updateData.is_active) : null
+        updateData.stock_qty !== undefined && updateData.stock_qty !== '' ? Number(updateData.stock_qty) : null,
+        updateData.price !== undefined && updateData.price !== '' ? Number(updateData.price) : null,
+        updateData.mrp !== undefined && updateData.mrp !== '' && updateData.mrp !== null ? Number(updateData.mrp) : (updateData.mrp === '' ? 0 : null),
+        updateData.is_active !== undefined ? Boolean(updateData.is_active) : null,
+        updateData.sku !== undefined && updateData.sku !== null ? updateData.sku.trim() : null,
+        updateData.reorder_level !== undefined && updateData.reorder_level !== '' && updateData.reorder_level !== null ? Number(updateData.reorder_level) : null
       ]);
+
+      if (vResult.rowCount === 0) {
+        await client.query(queries.INSERT_VARIANT, [
+          clubId,
+          productId,
+          updateData.sku?.trim() || `SKU-${Date.now().toString(36).toUpperCase()}`,
+          updateData.barcode || null,
+          updateData.size || null,
+          updateData.color || null,
+          Number(updateData.price) || 0,
+          updateData.mrp ? Number(updateData.mrp) : null,
+          true,
+          Number(updateData.stock_qty) || 0,
+          Number(updateData.reorder_level) || 5,
+          true
+        ]);
+      }
     }
 
     return pResult.rows[0];

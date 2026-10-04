@@ -95,6 +95,7 @@ export default function InventoryList() {
   };
   const [formData, setFormData] = useState(initialForm);
   const fileInputRef = useRef(null);
+  const editFileInputRef = useRef(null);
 
   const loadInventory = async () => {
     if (!effectiveClubId) {
@@ -190,16 +191,18 @@ export default function InventoryList() {
       category_name: p.category_name || '',
       sku: variant.sku || p.sku || '',
       barcode: variant.barcode || '',
-      price: variant.price || p.price || '',
-      mrp: variant.mrp || p.mrp || '',
+      price: variant.price !== undefined && variant.price !== null ? variant.price : (p.price || ''),
+      mrp: (variant.mrp !== undefined && variant.mrp !== null && Number(variant.mrp) > 0)
+        ? variant.mrp
+        : ((p.mrp && Number(p.mrp) > 0) ? p.mrp : ''),
       cost_price: variant.cost_price || '',
-      stock_qty: variant.stock_qty !== undefined ? variant.stock_qty : (p.stock_qty || 0),
-      reorder_level: variant.reorder_level || 5,
+      stock_qty: variant.stock_qty !== undefined && variant.stock_qty !== null ? variant.stock_qty : (p.stock_qty || 0),
+      reorder_level: variant.reorder_level !== undefined && variant.reorder_level !== null ? variant.reorder_level : (p.reorder_level !== undefined && p.reorder_level !== null ? p.reorder_level : 5),
       size: variant.size || '',
       color: variant.color || '',
       description: p.description || '',
       image_url: p.image_url || '',
-      is_online: p.is_online !== undefined ? p.is_online : true,
+      is_online: p.is_online !== undefined ? Boolean(p.is_online) : true,
     });
     setShowEditModal(true);
   };
@@ -208,6 +211,15 @@ export default function InventoryList() {
   const handleUpdateProduct = async (e) => {
     e.preventDefault();
     if (!editingProduct) return;
+
+    if (!formData.name?.trim()) {
+      toast.error('Product name is required');
+      return;
+    }
+    if (formData.price === '' || Number(formData.price) < 0) {
+      toast.error('Please enter a valid selling price');
+      return;
+    }
 
     setSubmitting(true);
     try {
@@ -1827,33 +1839,85 @@ export default function InventoryList() {
 
             <form onSubmit={handleUpdateProduct} style={{ padding: '1.5rem' }}>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '1rem' }}>
+                {/* Product Name */}
                 <div>
                   <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: '#334155', marginBottom: '0.35rem' }}>
-                    Product Name
+                    Product Name *
                   </label>
                   <input
                     type="text"
                     required
+                    placeholder="e.g. Wilson Pro Staff V14 Tennis Racket"
                     value={formData.name}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                     style={{ width: '100%', padding: '0.6rem', border: '1px solid #cbd5e1', borderRadius: '0.375rem', fontSize: '0.85rem' }}
                   />
                 </div>
 
+                {/* Category & SKU */}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
                   <div>
                     <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: '#334155', marginBottom: '0.35rem' }}>
-                      Price ($)
+                      Category *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. Rackets, Balls, Apparel"
+                      value={formData.category_name}
+                      onChange={(e) => setFormData({ ...formData, category_name: e.target.value })}
+                      style={{ width: '100%', padding: '0.6rem', border: '1px solid #cbd5e1', borderRadius: '0.375rem', fontSize: '0.85rem' }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: '#334155', marginBottom: '0.35rem' }}>
+                      SKU Code
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. RKT-001"
+                      value={formData.sku}
+                      onChange={(e) => setFormData({ ...formData, sku: e.target.value })}
+                      style={{ width: '100%', padding: '0.6rem', border: '1px solid #cbd5e1', borderRadius: '0.375rem', fontSize: '0.85rem' }}
+                    />
+                  </div>
+                </div>
+
+                {/* Selling Price & MRP */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: '#334155', marginBottom: '0.35rem' }}>
+                      Selling Price ($) *
                     </label>
                     <input
                       type="number"
                       step="0.01"
+                      min="0"
                       required
+                      placeholder="0.00"
                       value={formData.price}
                       onChange={(e) => setFormData({ ...formData, price: e.target.value })}
                       style={{ width: '100%', padding: '0.6rem', border: '1px solid #cbd5e1', borderRadius: '0.375rem', fontSize: '0.85rem' }}
                     />
                   </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: '#334155', marginBottom: '0.35rem' }}>
+                      MRP / List Price ($)
+                    </label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      placeholder="0.00"
+                      value={formData.mrp}
+                      onChange={(e) => setFormData({ ...formData, mrp: e.target.value })}
+                      style={{ width: '100%', padding: '0.6rem', border: '1px solid #cbd5e1', borderRadius: '0.375rem', fontSize: '0.85rem' }}
+                    />
+                  </div>
+                </div>
+
+                {/* Stock Quantity & Reorder Level */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
                   <div>
                     <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: '#334155', marginBottom: '0.35rem' }}>
                       Stock Quantity
@@ -1866,8 +1930,109 @@ export default function InventoryList() {
                       style={{ width: '100%', padding: '0.6rem', border: '1px solid #cbd5e1', borderRadius: '0.375rem', fontSize: '0.85rem' }}
                     />
                   </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: '#334155', marginBottom: '0.35rem' }}>
+                      Reorder Threshold
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={formData.reorder_level}
+                      onChange={(e) => setFormData({ ...formData, reorder_level: Number(e.target.value) })}
+                      style={{ width: '100%', padding: '0.6rem', border: '1px solid #cbd5e1', borderRadius: '0.375rem', fontSize: '0.85rem' }}
+                    />
+                  </div>
                 </div>
 
+                {/* Product Image (Stored in Base64) */}
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: '#334155', marginBottom: '0.35rem' }}>
+                    Product Image (Stored in Base64)
+                  </label>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                    <div style={{
+                      width: '64px',
+                      height: '64px',
+                      borderRadius: '0.5rem',
+                      background: '#f1f5f9',
+                      border: '1px dashed #cbd5e1',
+                      overflow: 'hidden',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flexShrink: 0
+                    }}>
+                      {formData.image_url ? (
+                        <img src={formData.image_url} alt="" referrerPolicy="no-referrer" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      ) : (
+                        <ImageIcon size={22} style={{ color: '#94a3b8' }} />
+                      )}
+                    </div>
+                    <div>
+                      <input
+                        type="file"
+                        accept="image/*,.png,.jpg,.jpeg,.webp,.gif,.svg,.bmp,.avif"
+                        ref={editFileInputRef}
+                        onChange={handleImageFileChange}
+                        style={{ display: 'none' }}
+                      />
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <button
+                          type="button"
+                          onClick={() => editFileInputRef.current?.click()}
+                          style={{
+                            padding: '0.5rem 0.85rem',
+                            background: '#f8fafc',
+                            border: '1px solid #cbd5e1',
+                            borderRadius: '0.375rem',
+                            fontSize: '0.8rem',
+                            fontWeight: 600,
+                            cursor: 'pointer'
+                          }}
+                        >
+                          Choose Local Photo
+                        </button>
+                        {formData.image_url && (
+                          <button
+                            type="button"
+                            onClick={() => setFormData(prev => ({ ...prev, image_url: '' }))}
+                            style={{
+                              padding: '0.5rem 0.75rem',
+                              background: '#fef2f2',
+                              border: '1px solid #fecaca',
+                              borderRadius: '0.375rem',
+                              fontSize: '0.8rem',
+                              fontWeight: 600,
+                              color: '#dc2626',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            Remove Photo
+                          </button>
+                        )}
+                      </div>
+                      <div style={{ fontSize: '0.725rem', color: '#94a3b8', marginTop: '0.25rem' }}>
+                        Supports JPG, PNG, WEBP (auto-converts to Base64)
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Product Description */}
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: '#334155', marginBottom: '0.35rem' }}>
+                    Product Description
+                  </label>
+                  <textarea
+                    rows={2}
+                    placeholder="Provide details about size, material, or court performance..."
+                    value={formData.description}
+                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                    style={{ width: '100%', padding: '0.6rem', border: '1px solid #cbd5e1', borderRadius: '0.375rem', fontSize: '0.85rem', fontFamily: 'inherit' }}
+                  />
+                </div>
+
+                {/* Sell Online Toggle */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                   <input
                     type="checkbox"
@@ -1877,7 +2042,7 @@ export default function InventoryList() {
                     style={{ cursor: 'pointer', width: '16px', height: '16px' }}
                   />
                   <label htmlFor="edit_is_online" style={{ fontSize: '0.85rem', fontWeight: 600, color: '#334155', cursor: 'pointer' }}>
-                    Available for Online Customer Orders
+                    Make visible in Customer Online Store
                   </label>
                 </div>
               </div>
