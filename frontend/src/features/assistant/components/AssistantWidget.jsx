@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import useAuth from '../../auth/hook/useAuth.js';
 import assistantApi from '../services/assistant.api.js';
 import MarkdownRenderer from './MarkdownRenderer.jsx';
@@ -60,13 +60,16 @@ const QUICK_PROMPTS = [
   }
 ];
 
-export default function AssistantWidget() {
+function AssistantWidget() {
   const { user, role, clubId, clubs } = useAuth();
 
   const userRole = (role || '').toLowerCase();
   const isAuthorized = ['owner', 'manager', 'admin'].includes(userRole);
 
-  const activeClubObj = clubs?.find(c => (c.club_id === clubId || c.id === clubId)) || clubs?.[0];
+  const activeClubObj = useMemo(() => {
+    return clubs?.find(c => (c.club_id === clubId || c.id === clubId)) || clubs?.[0];
+  }, [clubs, clubId]);
+
   const clubName = activeClubObj?.name || 'Club Facility';
   const effectiveClubId = clubId || activeClubObj?.id || activeClubObj?.club_id;
 
@@ -82,16 +85,16 @@ export default function AssistantWidget() {
   const abortControllerRef = useRef(null);
   const inputRef = useRef(null);
 
-  const scrollToBottom = () => {
+  const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
+  }, []);
 
   useEffect(() => {
     if (isOpen) {
       scrollToBottom();
       inputRef.current?.focus();
     }
-  }, [isOpen, messages, currentTool]);
+  }, [isOpen, messages, currentTool, scrollToBottom]);
 
   useEffect(() => {
     if (messages.length === 0 && effectiveClubId) {
@@ -107,11 +110,7 @@ export default function AssistantWidget() {
     }
   }, [effectiveClubId, clubName, user]);
 
-  if (!isAuthorized) {
-    return null;
-  }
-
-  const handleSendMessage = async (customPrompt) => {
+  const handleSendMessage = useCallback(async (customPrompt) => {
     const textToSend = (customPrompt || inputValue).trim();
     if (!textToSend || isStreaming) return;
 
@@ -202,17 +201,17 @@ export default function AssistantWidget() {
       setIsStreaming(false);
       setCurrentTool(null);
     }
-  };
+  }, [inputValue, isStreaming, messages, effectiveClubId]);
 
-  const handleStopStreaming = () => {
+  const handleStopStreaming = useCallback(() => {
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
       setIsStreaming(false);
       setCurrentTool(null);
     }
-  };
+  }, []);
 
-  const handleClearChat = () => {
+  const handleClearChat = useCallback(() => {
     if (window.confirm('Clear conversation history?')) {
       setMessages([
         {
@@ -224,13 +223,17 @@ export default function AssistantWidget() {
         }
       ]);
     }
-  };
+  }, [clubName]);
 
-  const handleCopyText = (id, text) => {
+  const handleCopyText = useCallback((id, text) => {
     navigator.clipboard.writeText(text);
     setCopiedId(id);
     setTimeout(() => setCopiedId(null), 2000);
-  };
+  }, []);
+
+  if (!isAuthorized) {
+    return null;
+  }
 
   return (
     <>
@@ -682,3 +685,5 @@ export default function AssistantWidget() {
     </>
   );
 }
+
+export default React.memo(AssistantWidget);

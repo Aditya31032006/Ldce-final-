@@ -1,20 +1,22 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { fetchLeads } from '../leads.slice.js';
 
-export default function LeadsList() {
+function LeadsList() {
   const dispatch = useDispatch();
-  const { leadsList } = useSelector((state) => state.leads);
+  const { leadsList = [] } = useSelector((state) => state.leads);
 
   useEffect(() => {
     dispatch(fetchLeads());
   }, [dispatch]);
 
-  const displayLeads = leadsList.length > 0 ? leadsList : [
-    { id: 'lead-1', name: 'Metro Tech Corporate Badminton Cup', contact: 'hr@metrotech.com', type: 'Corporate Event', status: 'new', value: '$2,500' },
-    { id: 'lead-2', name: 'Junior Summer Squash Camp', contact: 'parent@gmail.com', type: 'Training Program', status: 'in_progress', value: '$450' },
-    { id: 'lead-3', name: 'Apex Academy Court Block Booking', contact: 'coach.dan@apex.com', type: 'Recurring Booking', status: 'won', value: '$4,800' },
-  ];
+  const displayLeads = useMemo(() => {
+    return leadsList.length > 0 ? leadsList : [
+      { id: 'lead-1', name: 'Metro Tech Corporate Badminton Cup', contact: 'hr@metrotech.com', type: 'Corporate Event', status: 'new', value: '$2,500' },
+      { id: 'lead-2', name: 'Junior Summer Squash Camp', contact: 'parent@gmail.com', type: 'Training Program', status: 'in_progress', value: '$450' },
+      { id: 'lead-3', name: 'Apex Academy Court Block Booking', contact: 'coach.dan@apex.com', type: 'Recurring Booking', status: 'won', value: '$4,800' },
+    ];
+  }, [leadsList]);
 
   return (
     <div className="df-page-wrapper">
@@ -64,3 +66,5 @@ export default function LeadsList() {
     </div>
   );
 }
+
+export default React.memo(LeadsList);

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import useAuth from '../../auth/hook/useAuth.js';
 import dashboardApi from '../services/dashboard.api.js';
@@ -26,7 +26,7 @@ import {
   DollarSign
 } from 'lucide-react';
 
-export default function Dashboard() {
+function Dashboard() {
   const { user, role, clubId, clubs, changeClub } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -35,7 +35,10 @@ export default function Dashboard() {
   const queryClubId = searchParams.get('clubId') || searchParams.get('club');
   const effectiveClubId = queryClubId || clubId || (clubs && (clubs[0]?.id || clubs[0]?.club_id));
 
-  const activeClubObj = clubs?.find(c => (c.club_id === effectiveClubId || c.id === effectiveClubId)) || clubs?.[0];
+  const activeClubObj = useMemo(() => {
+    return clubs?.find(c => (c.club_id === effectiveClubId || c.id === effectiveClubId)) || clubs?.[0];
+  }, [clubs, effectiveClubId]);
+
   const clubName = activeClubObj?.name || 'Sports Facility';
   const clubSlug = activeClubObj?.slug || activeClubObj?.id || effectiveClubId;
 
@@ -43,7 +46,7 @@ export default function Dashboard() {
   const [refreshing, setRefreshing] = useState(false);
   const [dashboardData, setDashboardData] = useState(null);
 
-  const loadData = async (isManualRefresh = false) => {
+  const loadData = useCallback(async (isManualRefresh = false) => {
     if (!effectiveClubId) {
       setLoading(false);
       return;
@@ -63,14 +66,14 @@ export default function Dashboard() {
       setLoading(false);
       setRefreshing(false);
     }
-  };
+  }, [effectiveClubId, toast]);
 
   useEffect(() => {
     if (queryClubId && queryClubId !== clubId && changeClub) {
       changeClub(queryClubId);
     }
     loadData();
-  }, [effectiveClubId, queryClubId]);
+  }, [effectiveClubId, queryClubId, clubId, changeClub, loadData]);
 
   const kpi = dashboardData?.kpi || {
     totalRevenue: 0,
@@ -103,16 +106,16 @@ export default function Dashboard() {
   const courts = dashboardData?.courts || [];
   const recentActivity = dashboardData?.recentActivity || [];
 
-  const formatCurrency = (val) => {
+  const formatCurrency = useCallback((val) => {
     const num = Number(val) || 0;
     return new Intl.NumberFormat('en-IN', {
       style: 'currency',
       currency: 'INR',
       maximumFractionDigits: 0,
     }).format(num);
-  };
+  }, []);
 
-  const formatTimeAgo = (dateStr) => {
+  const formatTimeAgo = useCallback((dateStr) => {
     if (!dateStr) return '';
     const date = new Date(dateStr);
     const now = new Date();
@@ -123,7 +126,7 @@ export default function Dashboard() {
     const diffHour = Math.floor(diffMin / 60);
     if (diffHour < 24) return `${diffHour}h ago`;
     return date.toLocaleDateString('en-IN', { month: 'short', day: 'numeric' });
-  };
+  }, []);
 
   const revenueTotal = Math.max(revenueBySource.total, 1);
   const revStreams = [
@@ -809,3 +812,5 @@ export default function Dashboard() {
     </div>
   );
 }
+
+export default React.memo(Dashboard);

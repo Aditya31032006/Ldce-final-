@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useCallback, useMemo } from 'react';
 import { NavLink, useNavigate, useLocation } from 'react-router';
 import {
   LayoutDashboard,
@@ -129,7 +129,7 @@ const NAVIGATION_SECTIONS = [
   },
 ];
 
-export default function Sidebar({ isOpen, onClose }) {
+function Sidebar({ isOpen, onClose }) {
   const { user, role, clubs, clubId, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
@@ -142,133 +142,140 @@ export default function Sidebar({ isOpen, onClose }) {
   const activeClubSlug = clubRouteMatch ? clubRouteMatch[1] : null;
 
   // Find active club metadata
-  const activeClub = (activeClubSlug && clubs?.find((c) => c.slug === activeClubSlug || c.id === activeClubSlug))
-    || clubs?.find((c) => c.id === clubId)
-    || {
-      name: user?.club_name || 'Champions Club',
-      city: 'Ahmedabad',
-      code: 'LDCE',
-    };
+  const activeClub = useMemo(() => {
+    return (activeClubSlug && clubs?.find((c) => c.slug === activeClubSlug || c.id === activeClubSlug))
+      || clubs?.find((c) => c.id === clubId)
+      || {
+        name: user?.club_name || 'Champions Club',
+        city: 'Ahmedabad',
+        code: 'LDCE',
+      };
+  }, [activeClubSlug, clubs, clubId, user?.club_name]);
 
-  const handleLogout = async () => {
+  const handleLogout = useCallback(async () => {
     navigate('/', { replace: true });
     await logout();
-  };
-
-  // Base staff sections
-  const staffSections = NAVIGATION_SECTIONS.map((section) => ({
-    ...section,
-    items: section.items
-      .filter((item) => item.roles.includes(userRole))
-      .map((item) => {
-        if (item.label === 'Dashboard' && isNormalUser) {
-          return { ...item, label: 'My Clubs & Directory', path: '/user/dashboard' };
-        }
-        if (item.path === '/bar' && userRole === 'kitchen') {
-          return { ...item, label: 'Kitchen Display (KDS)', icon: ChefHat };
-        }
-        return item;
-      }),
-  })).filter((section) => section.items.length > 0);
-
-  // Scoped Club-specific routes for joined member inside a club
-  const clubSpecificSections = activeClubSlug ? [
-    {
-      title: activeClub.name,
-      items: [
-        {
-          label: 'Club Portal',
-          path: `/club/${activeClubSlug}`,
-          icon: LayoutDashboard,
-        },
-        {
-          label: 'Courts',
-          path: `/club/${activeClubSlug}/courts`,
-          icon: Trophy,
-        },
-        {
-          label: 'Bookings',
-          path: `/club/${activeClubSlug}/bookings`,
-          icon: Calendar,
-        },
-        {
-          label: 'POS',
-          path: `/club/${activeClubSlug}/pos`,
-          icon: Coffee,
-        },
-        {
-          label: 'Shop',
-          path: `/club/${activeClubSlug}/shop`,
-          icon: ShoppingBag,
-        },
-        {
-          label: 'Orders',
-          path: `/club/${activeClubSlug}/orders`,
-          icon: Warehouse,
-        },
-        {
-          label: 'My Membership',
-          path: `/club/${activeClubSlug}/membership`,
-          icon: IdCard,
-        },
-      ],
-    },
-    {
-      title: 'Navigation',
-      items: [
-        {
-          label: 'All Clubs Directory',
-          path: '/user/dashboard',
-          icon: ArrowLeft,
-        },
-        {
-          label: 'My Profile',
-          path: '/profile',
-          icon: Users,
-        },
-      ],
-    },
-  ] : null;
+  }, [navigate, logout]);
 
   // Select appropriate navigation hierarchy
-  const filteredSections = isNormalUser
-    ? (activeClubSlug
-        ? clubSpecificSections
-        : [
+  const filteredSections = useMemo(() => {
+    // Base staff sections
+    const staffSections = NAVIGATION_SECTIONS.map((section) => ({
+      ...section,
+      items: section.items
+        .filter((item) => item.roles.includes(userRole))
+        .map((item) => {
+          if (item.label === 'Dashboard' && isNormalUser) {
+            return { ...item, label: 'My Clubs & Directory', path: '/user/dashboard' };
+          }
+          if (item.path === '/bar' && userRole === 'kitchen') {
+            return { ...item, label: 'Kitchen Display (KDS)', icon: ChefHat };
+          }
+          return item;
+        }),
+    })).filter((section) => section.items.length > 0);
+
+    // Scoped Club-specific routes for joined member inside a club
+    const clubSpecificSections = activeClubSlug ? [
+      {
+        title: activeClub.name,
+        items: [
+          {
+            label: 'Club Portal',
+            path: `/club/${activeClubSlug}`,
+            icon: LayoutDashboard,
+          },
+          {
+            label: 'Courts',
+            path: `/club/${activeClubSlug}/courts`,
+            icon: Trophy,
+          },
+          {
+            label: 'Bookings',
+            path: `/club/${activeClubSlug}/bookings`,
+            icon: Calendar,
+          },
+          {
+            label: 'POS',
+            path: `/club/${activeClubSlug}/pos`,
+            icon: Coffee,
+          },
+          {
+            label: 'Shop',
+            path: `/club/${activeClubSlug}/shop`,
+            icon: ShoppingBag,
+          },
+          {
+            label: 'Orders',
+            path: `/club/${activeClubSlug}/orders`,
+            icon: Warehouse,
+          },
+          {
+            label: 'My Membership',
+            path: `/club/${activeClubSlug}/membership`,
+            icon: IdCard,
+          },
+        ],
+      },
+      {
+        title: 'Navigation',
+        items: [
+          {
+            label: 'All Clubs Directory',
+            path: '/user/dashboard',
+            icon: ArrowLeft,
+          },
+          {
+            label: 'My Profile',
+            path: '/profile',
+            icon: Users,
+          },
+        ],
+      },
+    ] : null;
+
+    if (isNormalUser) {
+      if (activeClubSlug) {
+        return clubSpecificSections || [];
+      }
+      return [
+        {
+          title: 'Main Menu',
+          items: [
             {
-              title: 'Main Menu',
-              items: [
-                {
-                  label: 'My Clubs & Directory',
-                  path: '/user/dashboard',
-                  icon: LayoutDashboard,
-                },
-              ],
+              label: 'My Clubs & Directory',
+              path: '/user/dashboard',
+              icon: LayoutDashboard,
             },
-            ...(clubs && clubs.length > 0
-              ? [
-                  {
-                    title: 'Joined Clubs',
-                    items: clubs.map((c) => ({
-                      label: c.name,
-                      path: `/club/${c.slug || c.id}`,
-                      icon: Building2,
-                    })),
-                  },
-                ]
-              : []),
+          ],
+        },
+        ...(clubs && clubs.length > 0
+          ? [
+              {
+                title: 'Joined Clubs',
+                items: clubs.map((c) => ({
+                  label: c.name,
+                  path: `/club/${c.slug || c.id}`,
+                  icon: Building2,
+                })),
+              },
+            ]
+          : []),
+        {
+          title: 'Account',
+          items: [
             {
-              title: 'Account',
-              items: [
-                {
-                  label: 'My Profile',
-                  path: '/profile',
-                  icon: IdCard,
-                },
-              ],
+              label: 'My Profile',
+              path: '/profile',
+              icon: IdCard,
             },
-          ])
-    : staffSections;
+          ],
+        },
+      ];
+    }
+
+    return staffSections;
+  }, [userRole, isNormalUser, activeClubSlug, activeClub.name, clubs]);
 
   return (
     <aside className={`cl-app-layout__sidebar ${isOpen ? 'cl-app-layout__sidebar--mobile-open' : ''}`}>
@@ -381,3 +388,5 @@ export default function Sidebar({ isOpen, onClose }) {
     </aside>
   );
 }
+
+export default React.memo(Sidebar);

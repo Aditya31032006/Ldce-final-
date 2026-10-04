@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router';
 import {
   Search,
@@ -19,7 +19,7 @@ import useUserDashboard from '../../clubs/hooks/useUserDashboard.js';
 import apiClient from '../../../shared/services/api.js';
 import '../styles/user-dashboard.scss';
 
-export default function UserDashboard() {
+function UserDashboard() {
   const { user, changeClub } = useAuth();
   const navigate = useNavigate();
 
@@ -89,14 +89,14 @@ export default function UserDashboard() {
   }, [availableSports]);
 
   // Joined club IDs for quick lookup
-  const joinedClubIds = new Set(myClubs.map((c) => c.id));
+  const joinedClubIds = useMemo(() => new Set(myClubs.map((c) => c.id)), [myClubs]);
 
-  const handleSelectClub = (club) => {
+  const handleSelectClub = useCallback((club) => {
     if (changeClub) {
       changeClub(club.id, club.user_role || 'member');
     }
     navigate(`/club/${club.slug || club.id}`);
-  };
+  }, [changeClub, navigate]);
 
   // Time-of-day greeting (memoized)
   const greeting = useMemo(() => {
@@ -526,3 +526,5 @@ export default function UserDashboard() {
     </div>
   );
 }
+
+export default React.memo(UserDashboard);

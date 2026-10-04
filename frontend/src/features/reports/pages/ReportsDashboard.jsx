@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import useAuth from '../../auth/hook/useAuth.js';
 import reportsApi from '../services/reports.api.js';
@@ -58,7 +58,7 @@ import {
 } from 'lucide-react';
 
 // Custom dark styled tooltip for all Recharts visualizations
-const CustomChartTooltip = ({ active, payload, label, prefix = '', suffix = '' }) => {
+const CustomChartTooltip = React.memo(({ active, payload, label, prefix = '', suffix = '' }) => {
   if (active && payload && payload.length) {
     return (
       <div style={{
@@ -91,9 +91,9 @@ const CustomChartTooltip = ({ active, payload, label, prefix = '', suffix = '' }
     );
   }
   return null;
-};
+});
 
-export default function ReportsDashboard() {
+function ReportsDashboard() {
   const { user, role, clubId, clubs, changeClub } = useAuth();
   const { toast } = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -101,7 +101,9 @@ export default function ReportsDashboard() {
   const queryClubId = searchParams.get('clubId') || searchParams.get('club');
   const effectiveClubId = queryClubId || clubId || (clubs && (clubs[0]?.id || clubs[0]?.club_id));
 
-  const activeClubObj = clubs?.find(c => (c.club_id === effectiveClubId || c.id === effectiveClubId)) || clubs?.[0];
+  const activeClubObj = useMemo(() => {
+    return clubs?.find(c => (c.club_id === effectiveClubId || c.id === effectiveClubId)) || clubs?.[0];
+  }, [clubs, effectiveClubId]);
   const clubName = activeClubObj?.name || 'Club Facility';
 
   const [timeRange, setTimeRange] = useState('all'); // 'all', '30d', '7d', 'today'
@@ -115,7 +117,7 @@ export default function ReportsDashboard() {
   const [sportMetricMode, setSportMetricMode] = useState('hours'); // 'hours' | 'reservations'
   const [hourlyChartType, setHourlyChartType] = useState('area'); // 'area' | 'bar'
 
-  const fetchAnalytics = async (isManual = false) => {
+  const fetchAnalytics = useCallback(async (isManual = false) => {
     if (!effectiveClubId) {
       setLoading(false);
       return;
@@ -136,11 +138,11 @@ export default function ReportsDashboard() {
       setLoading(false);
       setRefreshing(false);
     }
-  };
+  }, [effectiveClubId, timeRange, toast]);
 
   useEffect(() => {
     fetchAnalytics();
-  }, [effectiveClubId, timeRange]);
+  }, [fetchAnalytics]);
 
   const kpi = analyticsData?.kpi || {};
   const revBySource = analyticsData?.revenueBySource || {};
@@ -1253,3 +1255,5 @@ export default function ReportsDashboard() {
     </div>
   );
 }
+
+export default React.memo(ReportsDashboard);

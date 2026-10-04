@@ -13,7 +13,7 @@ import '../styles/assistant.scss';
  * - Blockquotes (> note)
  * - Key-value metric chips
  */
-export default function MarkdownRenderer({ content, isStreaming = false }) {
+function MarkdownRenderer({ content, isStreaming = false }) {
   if (!content && !isStreaming) return null;
 
   // Auto-close unclosed formatting tags during active streaming
@@ -348,3 +348,5 @@ function renderInline(text) {
 
   return parts.length > 0 ? parts : cleaned;
 }
+
+export default React.memo(MarkdownRenderer);

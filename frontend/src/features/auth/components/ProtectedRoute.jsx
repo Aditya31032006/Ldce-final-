@@ -10,7 +10,7 @@ import RouteLoader from '../../../shared/components/RouteLoader.jsx';
  * redirects unauthenticated visitors to /login, prompts for profile setup if required fields are missing,
  * and renders AppLayout (Sidebar, Navbar, Mobile Dock, and child views) for authenticated users.
  */
-export default function ProtectedRoute() {
+function ProtectedRoute() {
   const { isAuthenticated, isProfileComplete, loading } = useAuth();
   const location = useLocation();
 
@@ -29,4 +29,6 @@ export default function ProtectedRoute() {
 
   return <AppLayout />;
 }
+
+export default React.memo(ProtectedRoute);
 

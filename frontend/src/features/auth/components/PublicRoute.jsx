@@ -9,7 +9,7 @@ import RouteLoader from '../../../shared/components/RouteLoader.jsx';
  * If the user is already authenticated, redirects them to '/dashboard' (or '/setup-profile' if incomplete).
  * If unauthenticated, renders the guest page via Outlet.
  */
-export default function PublicRoute() {
+function PublicRoute() {
   const { isAuthenticated, isProfileComplete, role, loading } = useAuth();
 
   if (loading) {
@@ -33,3 +33,5 @@ export default function PublicRoute() {
     </Suspense>
   );
 }
+
+export default React.memo(PublicRoute);

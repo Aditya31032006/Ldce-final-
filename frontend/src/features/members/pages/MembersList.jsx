@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import {
   Users,
@@ -19,7 +19,7 @@ import membersApi from '../services/members.api.js';
 
 import useDebounce from '../../../shared/hooks/useDebounce.js';
 
-export default function MembersList() {
+function MembersList() {
   const dispatch = useDispatch();
   const { membersList = [], loading, error } = useSelector((state) => state.members);
 
@@ -38,10 +38,10 @@ export default function MembersList() {
     status: 'active',
   });
 
-  const showToast = (msg, type = 'success') => {
+  const showToast = useCallback((msg, type = 'success') => {
     setNotification({ msg, type });
     setTimeout(() => setNotification(null), 3500);
-  };
+  }, []);
 
   useEffect(() => {
     dispatch(fetchMembers({
@@ -50,13 +50,13 @@ export default function MembersList() {
     }));
   }, [dispatch, statusFilter, debouncedSearch]);
 
-  const handleRefresh = () => {
+  const handleRefresh = useCallback(() => {
     dispatch(fetchMembers({
       status: statusFilter === 'all' ? undefined : statusFilter,
       search: debouncedSearch.trim() || undefined,
     }));
     showToast('Refreshing live directory from database...', 'info');
-  };
+  }, [dispatch, statusFilter, debouncedSearch, showToast]);
 
   // Strictly live data from DB - Backend fuzzy search & filter
   const liveMembers = useMemo(() => {
@@ -77,7 +77,7 @@ export default function MembersList() {
   }, [liveMembers]);
 
   // Handle Add Member
-  const handleCreateMember = async (e) => {
+  const handleCreateMember = useCallback(async (e) => {
     e.preventDefault();
     if (!newMember.first_name.trim() || (!newMember.email && !newMember.phone)) {
       showToast('First name and either email or phone are required', 'error');
@@ -108,7 +108,7 @@ export default function MembersList() {
     } finally {
       setActionLoading(false);
     }
-  };
+  }, [newMember, showToast, dispatch]);
 
   return (
     <div className="df-page-wrapper" style={{ background: '#FAF9F6', minHeight: '100vh', padding: '1.75rem 2rem' }}>
@@ -693,3 +693,5 @@ export default function MembersList() {
     </div>
   );
 }
+
+export default React.memo(MembersList);

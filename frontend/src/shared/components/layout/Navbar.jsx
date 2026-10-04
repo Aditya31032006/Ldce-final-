@@ -1,19 +1,19 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import { Menu } from 'lucide-react';
 import { Link } from 'react-router';
 import useAuth from '../../../features/auth/hook/useAuth.js';
 
-export default function Navbar({ onToggleSidebar }) {
+function Navbar({ onToggleSidebar }) {
   const { user, role, clubs, clubId, changeClub } = useAuth();
   const userRole = (role || 'public').toLowerCase();
 
-  const handleClubChange = (e) => {
+  const handleClubChange = useCallback((e) => {
     const selectedId = e.target.value;
     const targetClub = clubs?.find((c) => c.id === selectedId);
     if (targetClub) {
       changeClub(targetClub.id, targetClub.role || role);
     }
-  };
+  }, [clubs, changeClub, role]);
 
   return (
     <header className="cl-app-layout__navbar">
@@ -107,3 +107,5 @@ export default function Navbar({ onToggleSidebar }) {
     </header>
   );
 }
+
+export default React.memo(Navbar);

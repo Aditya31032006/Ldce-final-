@@ -28,7 +28,7 @@ const DEFAULT_SPORT_IMAGES = {
 
 // ─── Razorpay Simulation & Gateway Modal (For Non-Members) ─────────────────────────────
 // ─── Razorpay Official Gateway Modal ─────────────────────────────
-function RazorpayModal({ club, plan, user, onClose, onSuccess }) {
+const RazorpayModal = React.memo(function RazorpayModal({ club, plan, user, onClose, onSuccess }) {
   const [method, setMethod] = useState('razorpay');
   const [processing, setProcessing] = useState(false);
   const [errorMsg, setErrorMsg] = useState(null);
@@ -227,10 +227,10 @@ function RazorpayModal({ club, plan, user, onClose, onSuccess }) {
       </div>
     </div>
   );
-}
+});
 
 // ─── Court Slot Booking Modal (Inside Scoped Club) ───────────────────────────
-function CourtBookingModal({ club, court, memberId, user, onClose, onBookingComplete }) {
+const CourtBookingModal = React.memo(function CourtBookingModal({ club, court, memberId, user, onClose, onBookingComplete }) {
   const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [selectedHour, setSelectedHour] = useState('09:00');
   const [bookedSlots, setBookedSlots] = useState([]);
@@ -664,10 +664,10 @@ function CourtBookingModal({ club, court, memberId, user, onClose, onBookingComp
       </div>
     </div>
   );
-}
+});
 
 // ─── Main Club Page (Member Portal vs Non-Member Showcase) ───────────────────
-export default function ClubDetailsPage() {
+function ClubDetailsPage() {
   const { clubId, slug, tab } = useParams();
   const identifier = clubId || slug;
   const navigate = useNavigate();
@@ -2686,3 +2686,5 @@ export default function ClubDetailsPage() {
     </div>
   );
 }
+
+export default React.memo(ClubDetailsPage);
