@@ -2,8 +2,23 @@ export const GET_STAFF = `
   SELECT cs.user_id, cs.role, cs.is_active, cs.created_at, u.full_name, u.email, u.phone, u.avatar_url
   FROM app.club_staff cs
   JOIN app.users u ON cs.user_id = u.id
-  WHERE cs.club_id = $1 AND ($2::boolean IS NULL OR cs.is_active = $2)
-  ORDER BY cs.created_at ASC;
+  WHERE cs.club_id = $1 
+    AND ($2::boolean IS NULL OR cs.is_active = $2)
+    AND (
+      $3::text IS NULL OR $3::text = '' OR
+      u.full_name ILIKE '%' || $3 || '%' OR
+      u.email ILIKE '%' || $3 || '%' OR
+      u.phone ILIKE '%' || $3 || '%' OR
+      cs.role::text ILIKE '%' || $3 || '%' OR
+      similarity(u.full_name, $3) > 0.15 OR
+      similarity(COALESCE(u.email, ''), $3) > 0.15
+    )
+  ORDER BY 
+    CASE WHEN $3::text IS NOT NULL AND $3::text != '' 
+      THEN similarity(u.full_name, $3)
+      ELSE 0
+    END DESC,
+    cs.created_at ASC;
 `;
 
 export const ADD_STAFF = `
@@ -27,7 +42,24 @@ export const GET_EMPLOYEES = `
   FROM app.employees e
   LEFT JOIN app.users u ON e.user_id = u.id
   WHERE e.club_id = $1
-  ORDER BY e.is_active DESC, e.full_name ASC;
+    AND (
+      $2::text IS NULL OR $2::text = '' OR
+      e.full_name ILIKE '%' || $2 || '%' OR
+      e.employee_code ILIKE '%' || $2 || '%' OR
+      e.designation ILIKE '%' || $2 || '%' OR
+      e.department ILIKE '%' || $2 || '%' OR
+      e.email ILIKE '%' || $2 || '%' OR
+      e.phone ILIKE '%' || $2 || '%' OR
+      similarity(e.full_name, $2) > 0.15 OR
+      similarity(COALESCE(e.designation, ''), $2) > 0.15 OR
+      similarity(COALESCE(e.department, ''), $2) > 0.15
+    )
+  ORDER BY 
+    CASE WHEN $2::text IS NOT NULL AND $2::text != '' 
+      THEN similarity(e.full_name, $2)
+      ELSE 0
+    END DESC,
+    e.is_active DESC, e.full_name ASC;
 `;
 
 export const GET_EMPLOYEE_BY_ID = `
@@ -91,6 +123,14 @@ export const GET_LEAVE_REQUESTS = `
   JOIN app.leave_types lt ON lr.leave_type_id = lt.id
   LEFT JOIN app.users u ON lr.decided_by = u.id
   WHERE lr.club_id = $1
+    AND (
+      $2::text IS NULL OR $2::text = '' OR
+      e.full_name ILIKE '%' || $2 || '%' OR
+      lt.name ILIKE '%' || $2 || '%' OR
+      lr.status::text ILIKE '%' || $2 || '%' OR
+      lr.reason ILIKE '%' || $2 || '%' OR
+      similarity(e.full_name, $2) > 0.15
+    )
   ORDER BY lr.created_at DESC;
 `;
 

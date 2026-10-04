@@ -17,11 +17,14 @@ import {
 import { fetchMembers } from '../members.slice.js';
 import membersApi from '../services/members.api.js';
 
+import useDebounce from '../../../shared/hooks/useDebounce.js';
+
 export default function MembersList() {
   const dispatch = useDispatch();
   const { membersList = [], loading, error } = useSelector((state) => state.members);
 
   const [search, setSearch] = useState('');
+  const debouncedSearch = useDebounce(search, 300);
   const [statusFilter, setStatusFilter] = useState('all');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
@@ -41,43 +44,27 @@ export default function MembersList() {
   };
 
   useEffect(() => {
-    dispatch(fetchMembers());
-  }, [dispatch]);
+    dispatch(fetchMembers({
+      status: statusFilter === 'all' ? undefined : statusFilter,
+      search: debouncedSearch.trim() || undefined,
+    }));
+  }, [dispatch, statusFilter, debouncedSearch]);
 
   const handleRefresh = () => {
-    dispatch(fetchMembers());
+    dispatch(fetchMembers({
+      status: statusFilter === 'all' ? undefined : statusFilter,
+      search: debouncedSearch.trim() || undefined,
+    }));
     showToast('Refreshing live directory from database...', 'info');
   };
 
-  // Strictly live data from DB - No mock fallbacks!
+  // Strictly live data from DB - Backend fuzzy search & filter
   const liveMembers = useMemo(() => {
     return Array.isArray(membersList) ? membersList : [];
   }, [membersList]);
 
-  // Filtered members by search and status
-  const filteredMembers = useMemo(() => {
-    return liveMembers.filter((m) => {
-      const fullName = (m.full_name || `${m.first_name || ''} ${m.last_name || ''}`).toLowerCase();
-      const email = (m.email || '').toLowerCase();
-      const phone = (m.phone || '').toLowerCase();
-      const code = (m.member_code || '').toLowerCase();
-      const plan = (m.plan_name || '').toLowerCase();
-
-      const q = search.trim().toLowerCase();
-      const matchesSearch =
-        !q ||
-        fullName.includes(q) ||
-        email.includes(q) ||
-        phone.includes(q) ||
-        code.includes(q) ||
-        plan.includes(q);
-
-      const memberStatus = (m.status || m.membership_status || 'active').toLowerCase();
-      const matchesStatus = statusFilter === 'all' || memberStatus === statusFilter;
-
-      return matchesSearch && matchesStatus;
-    });
-  }, [liveMembers, search, statusFilter]);
+  // Backend returned filtered members directly
+  const filteredMembers = liveMembers;
 
   // Statistics
   const stats = useMemo(() => {
@@ -295,6 +282,16 @@ export default function MembersList() {
               color: '#1A1A18',
             }}
           />
+          {search && (
+            <button
+              type="button"
+              onClick={() => setSearch('')}
+              style={{ border: 'none', background: 'transparent', cursor: 'pointer', padding: 0, color: '#6B6B66', display: 'flex' }}
+              aria-label="Clear search"
+            >
+              <X size={15} />
+            </button>
+          )}
         </div>
 
         {/* Status Filters */}

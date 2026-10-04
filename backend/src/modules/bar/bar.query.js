@@ -59,7 +59,21 @@ export const GET_MENU_ITEMS = `
     AND ($2::uuid IS NULL OR mi.category_id = $2)
     AND ($3::boolean IS NULL OR mi.is_active = $3)
     AND ($4::boolean IS NULL OR mi.is_available = $4)
-  ORDER BY mi.sort_order ASC, mi.name ASC;
+    AND (
+      $5::text IS NULL OR $5::text = '' OR
+      mi.name ILIKE '%' || $5 || '%' OR
+      mi.description ILIKE '%' || $5 || '%' OR
+      c.name ILIKE '%' || $5 || '%' OR
+      similarity(mi.name, $5) > 0.15 OR
+      similarity(COALESCE(mi.description, ''), $5) > 0.15 OR
+      similarity(COALESCE(c.name, ''), $5) > 0.15
+    )
+  ORDER BY 
+    CASE WHEN $5::text IS NOT NULL AND $5::text != '' 
+      THEN similarity(mi.name, $5)
+      ELSE 0
+    END DESC,
+    mi.sort_order ASC, mi.name ASC;
 `;
 
 export const INSERT_MENU_CATEGORY = `

@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
 import useAuth from '../../auth/hook/useAuth.js';
 import inventoryApi from '../services/inventory.api.js';
 import ordersApi from '../../orders/services/orders.api.js';
 import { useToast } from '../../../shared/context/ToastContext.jsx';
+import useDebounce from '../../../shared/hooks/useDebounce.js';
 import { fileToBase64 } from '../../../shared/utils/image.util.js';
 import { 
   Package, 
@@ -55,6 +56,7 @@ export default function InventoryList() {
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const debouncedSearch = useDebounce(searchQuery, 300);
   const [selectedCategory, setSelectedCategory] = useState('ALL');
   const [stockFilter, setStockFilter] = useState('ALL'); // 'ALL' | 'IN_STOCK' | 'LOW_STOCK' | 'OUT_OF_STOCK'
   const [viewMode, setViewMode] = useState(isStaff ? 'table' : 'grid'); // 'grid' | 'table'
@@ -96,7 +98,7 @@ export default function InventoryList() {
   const [formData, setFormData] = useState(initialForm);
   const fileInputRef = useRef(null);
 
-  const loadInventory = async () => {
+  const loadInventory = useCallback(async () => {
     if (!effectiveClubId) {
       setLoading(false);
       return;
@@ -104,7 +106,10 @@ export default function InventoryList() {
     setLoading(true);
     try {
       const [prodRes, catRes] = await Promise.all([
-        inventoryApi.getProducts({ clubId: effectiveClubId }),
+        inventoryApi.getProducts({ 
+          clubId: effectiveClubId, 
+          search: debouncedSearch.trim() || undefined 
+        }),
         inventoryApi.getCategories({ clubId: effectiveClubId }).catch(() => ({ categories: [] }))
       ]);
       setProducts(prodRes.products || []);
@@ -115,14 +120,14 @@ export default function InventoryList() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [effectiveClubId, debouncedSearch]);
 
   useEffect(() => {
     if (queryClubId && queryClubId !== clubId && changeClub) {
       changeClub(queryClubId);
     }
     loadInventory();
-  }, [effectiveClubId, queryClubId]);
+  }, [loadInventory, effectiveClubId, queryClubId]);
 
   // Image Upload Handler
   const handleImageFileChange = async (e) => {
@@ -326,13 +331,8 @@ export default function InventoryList() {
   }).length;
   const outOfStockCount = products.filter(p => (Number(p.stock_qty) || 0) === 0).length;
 
-  // Filter Products
+  // Filter Products (Search executed by backend fuzzy search)
   const filteredProducts = products.filter(p => {
-    const matchesSearch = 
-      p.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.sku?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.variants?.some(v => v.sku?.toLowerCase().includes(searchQuery.toLowerCase()));
-
     const matchesCategory = 
       selectedCategory === 'ALL' || 
       (p.category_name && p.category_name.toLowerCase() === selectedCategory.toLowerCase());
@@ -344,7 +344,7 @@ export default function InventoryList() {
     if (stockFilter === 'LOW_STOCK') matchesStock = qty > 0 && qty <= reorder;
     if (stockFilter === 'OUT_OF_STOCK') matchesStock = qty === 0;
 
-    return matchesSearch && matchesCategory && matchesStock;
+    return matchesCategory && matchesStock;
   });
 
   return (
@@ -663,7 +663,7 @@ export default function InventoryList() {
               onChange={(e) => setSearchQuery(e.target.value)}
               style={{
                 width: '100%',
-                padding: '0.6rem 0.75rem 0.6rem 2.25rem',
+                padding: '0.6rem 2.2rem 0.6rem 2.25rem',
                 border: '1px solid #cbd5e1',
                 borderRadius: '0.5rem',
                 fontSize: '0.875rem',
@@ -671,6 +671,19 @@ export default function InventoryList() {
                 background: '#f8fafc'
               }}
             />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery('')}
+                style={{
+                  position: 'absolute', right: '0.75rem', top: '50%', transform: 'translateY(-50%)',
+                  border: 'none', background: 'transparent', cursor: 'pointer', padding: 0, color: '#94a3b8'
+                }}
+                aria-label="Clear search"
+              >
+                <X size={15} />
+              </button>
+            )}
           </div>
 
           {/* Filter Dropdowns */}

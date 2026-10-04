@@ -71,9 +71,9 @@ export async function createShopOrder(userId, clubId, orderData, items) {
   });
 }
 
-export async function getShopOrders(userId, clubId, customerUserId = null) {
+export async function getShopOrders(userId, clubId, customerUserId = null, search = null) {
   return withTenantTransaction(userId, clubId, async (client) => {
-    const res = await client.query(queries.GET_SHOP_ORDERS, [clubId, customerUserId]);
+    const res = await client.query(queries.GET_SHOP_ORDERS, [clubId, customerUserId, search ? search.trim() : null]);
     return res.rows || [];
   });
 }

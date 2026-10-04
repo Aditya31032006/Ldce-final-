@@ -39,7 +39,9 @@ export async function getShopOrdersController(req, res, next) {
     const isClubStaff = ['owner', 'manager', 'admin', 'shop_staff'].includes(req.user?.role);
     // If user is owner or shop staff, fetch all orders in club; otherwise only fetch customer's orders
     const customerUserId = isClubStaff ? null : req.user?.id;
-    const orders = await ordersRepo.getShopOrders(req.user?.id, req.clubId, customerUserId);
+    const { search, q } = req.query;
+    const searchQuery = search || q || null;
+    const orders = await ordersRepo.getShopOrders(req.user?.id, req.clubId, customerUserId, searchQuery);
     return res.status(200).json({ 
       orders, 
       isClubStaff,

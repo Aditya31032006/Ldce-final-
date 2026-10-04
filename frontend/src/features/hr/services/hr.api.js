@@ -2,8 +2,8 @@ import apiClient from '../../../shared/services/api.js';
 
 export const hrApi = {
   // ─── Staff Access ──────────────────────────────────────────────────────────
-  async getStaff() {
-    const res = await apiClient.get('/hr');
+  async getStaff(params = {}) {
+    const res = await apiClient.get('/hr', { params });
     return res.data;
   },
   async addStaff(staffData) {
@@ -16,8 +16,8 @@ export const hrApi = {
   },
 
   // ─── Employees & Salary Decider ───────────────────────────────────────────
-  async getEmployees() {
-    const res = await apiClient.get('/hr/employees');
+  async getEmployees(params = {}) {
+    const res = await apiClient.get('/hr/employees', { params });
     return res.data;
   },
   async createEmployee(employeeData) {
@@ -42,8 +42,8 @@ export const hrApi = {
     const res = await apiClient.post('/hr/leave-types', leaveTypeData);
     return res.data;
   },
-  async getLeaves() {
-    const res = await apiClient.get('/hr/leaves');
+  async getLeaves(params = {}) {
+    const res = await apiClient.get('/hr/leaves', { params });
     return res.data;
   },
   async createLeave(leaveData) {

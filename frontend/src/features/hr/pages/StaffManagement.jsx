@@ -4,6 +4,7 @@ import { fetchStaff } from '../hr.slice.js';
 import hrApi from '../services/hr.api.js';
 import useAuth from '../../auth/hook/useAuth.js';
 import { useToast } from '../../../shared/context/ToastContext.jsx';
+import useDebounce from '../../../shared/hooks/useDebounce.js';
 import {
   Users,
   UserPlus,
@@ -70,6 +71,7 @@ export default function StaffManagement() {
 
   // Search & Filters
   const [searchQuery, setSearchQuery] = useState('');
+  const debouncedSearch = useDebounce(searchQuery, 300);
 
   // ─── Data States ────────────────────────────────────────────────────────────
   const [employees, setEmployees] = useState([]);
@@ -129,11 +131,12 @@ export default function StaffManagement() {
   const loadAllHRData = useCallback(async () => {
     setLoading(true);
     try {
-      dispatch(fetchStaff());
+      const searchParam = debouncedSearch.trim() ? { search: debouncedSearch.trim() } : {};
+      dispatch(fetchStaff(searchParam));
       const [empRes, ltRes, lrRes, prRes, diagRes] = await Promise.all([
-        hrApi.getEmployees().catch(() => ({ employees: [] })),
+        hrApi.getEmployees(searchParam).catch(() => ({ employees: [] })),
         hrApi.getLeaveTypes().catch(() => ({ leaveTypes: [] })),
-        hrApi.getLeaves().catch(() => ({ leaveRequests: [] })),
+        hrApi.getLeaves(searchParam).catch(() => ({ leaveRequests: [] })),
         hrApi.getPayrollRuns().catch(() => ({ payrollRuns: [] })),
         hrApi.getDiagnostics().catch(() => ({ diagnostics: null })),
       ]);
@@ -148,7 +151,7 @@ export default function StaffManagement() {
     } finally {
       setLoading(false);
     }
-  }, [dispatch]);
+  }, [dispatch, debouncedSearch]);
 
   useEffect(() => {
     loadAllHRData();
@@ -373,39 +376,10 @@ export default function StaffManagement() {
     }
   };
 
-  // ─── Filtered Lists ─────────────────────────────────────────────────────────
-  const q = searchQuery.toLowerCase().trim();
-
-  const filteredEmployees = employees.filter(e => {
-    if (!q) return true;
-    return (
-      (e.full_name || '').toLowerCase().includes(q) ||
-      (e.employee_code || '').toLowerCase().includes(q) ||
-      (e.designation || '').toLowerCase().includes(q) ||
-      (e.department || '').toLowerCase().includes(q) ||
-      (e.email || '').toLowerCase().includes(q)
-    );
-  });
-
-  const filteredLeaves = leaveRequests.filter(l => {
-    if (!q) return true;
-    return (
-      (l.employee_name || '').toLowerCase().includes(q) ||
-      (l.leave_type_name || '').toLowerCase().includes(q) ||
-      (l.status || '').toLowerCase().includes(q) ||
-      (l.reason || '').toLowerCase().includes(q)
-    );
-  });
-
-  const filteredStaff = (staffList || []).filter((s) => {
-    if (!q) return true;
-    const name = (s.full_name || s.name || '').toLowerCase();
-    const email = (s.email || '').toLowerCase();
-    const phone = (s.phone || '').toLowerCase();
-    const staffRole = (s.role || '').toLowerCase();
-    const dept = (s.department || ROLE_DEPARTMENTS[s.role] || '').toLowerCase();
-    return name.includes(q) || email.includes(q) || phone.includes(q) || staffRole.includes(q) || dept.includes(q);
-  });
+  // ─── Filtered Lists (Backend-powered fuzzy search) ────────────────────────
+  const filteredEmployees = employees;
+  const filteredLeaves = leaveRequests;
+  const filteredStaff = staffList || [];
 
   // Calculate quick metrics
   const totalEmployeesCount = employees.length;
@@ -627,11 +601,24 @@ export default function StaffManagement() {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 style={{
-                  width: '100%', padding: '0.55rem 0.85rem 0.55rem 2.4rem',
+                  width: '100%', padding: '0.55rem 2.2rem 0.55rem 2.4rem',
                   border: '1px solid #E7E5DF', borderRadius: '6px', fontSize: '0.85rem',
                   background: '#FAF9F6', outline: 'none'
                 }}
               />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery('')}
+                  style={{
+                    position: 'absolute', right: '0.75rem', top: '50%', transform: 'translateY(-50%)',
+                    border: 'none', background: 'transparent', cursor: 'pointer', padding: 0, color: '#6B6B66'
+                  }}
+                  aria-label="Clear search"
+                >
+                  <X size={15} />
+                </button>
+              )}
             </div>
 
             {activeTab === 'payroll' && isAuthorized && (

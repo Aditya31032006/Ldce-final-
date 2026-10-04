@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
 import useAuth from '../../auth/hook/useAuth.js';
 import ordersApi from '../services/orders.api.js';
 import { useToast } from '../../../shared/context/ToastContext.jsx';
+import useDebounce from '../../../shared/hooks/useDebounce.js';
 import {
   ShoppingBag,
   Package,
@@ -113,6 +114,7 @@ export default function OrdersList() {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const debouncedSearch = useDebounce(searchQuery, 300);
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [updatingId, setUpdatingId] = useState(null);
@@ -122,14 +124,17 @@ export default function OrdersList() {
   const [draggedOrderId, setDraggedOrderId] = useState(null);
   const [dragOverCol, setDragOverCol] = useState(null);
 
-  const loadOrders = async () => {
+  const loadOrders = useCallback(async () => {
     if (!effectiveClubId) {
       setLoading(false);
       return;
     }
     try {
       setLoading(true);
-      const res = await ordersApi.getOrders({ clubId: effectiveClubId });
+      const res = await ordersApi.getOrders({ 
+        clubId: effectiveClubId,
+        search: debouncedSearch.trim() || undefined
+      });
       const list = res.orders || (Array.isArray(res) ? res : []);
       setOrders(list);
     } catch (err) {
@@ -137,14 +142,14 @@ export default function OrdersList() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [effectiveClubId, debouncedSearch]);
 
   useEffect(() => {
     if (queryClubId && queryClubId !== clubId && changeClub) {
       changeClub(queryClubId);
     }
     loadOrders();
-  }, [effectiveClubId, queryClubId]);
+  }, [loadOrders, effectiveClubId, queryClubId]);
 
   const normalizeStatus = (status) => {
     const s = (status || 'pending').toLowerCase();
@@ -201,19 +206,10 @@ export default function OrdersList() {
     await handleUpdateStatus(orderId, targetStatus);
   };
 
-  // Filtered orders
+  // Filtered orders (Search is handled on backend via debounced fuzzy query; status is filtered by tabs)
   const filteredOrders = orders.filter((order) => {
     const norm = normalizeStatus(order.status);
-    const matchesStatus = statusFilter === 'ALL' || norm === statusFilter.toLowerCase();
-    const query = searchQuery.toLowerCase().trim();
-    if (!query) return matchesStatus;
-
-    const matchesNo = (order.order_no || '').toLowerCase().includes(query);
-    const matchesCustomer = (order.customer_name || '').toLowerCase().includes(query);
-    const matchesEmail = (order.customer_email || '').toLowerCase().includes(query);
-    const matchesItems = Array.isArray(order.items) && order.items.some(i => (i.item_name || '').toLowerCase().includes(query));
-
-    return matchesStatus && (matchesNo || matchesCustomer || matchesEmail || matchesItems);
+    return statusFilter === 'ALL' || norm === statusFilter.toLowerCase();
   });
 
   // Calculate metrics
@@ -609,7 +605,7 @@ export default function OrdersList() {
               onChange={(e) => setSearchQuery(e.target.value)}
               style={{
                 width: '100%',
-                padding: '0.6rem 0.75rem 0.6rem 2.25rem',
+                padding: '0.6rem 2.2rem 0.6rem 2.25rem',
                 border: '1px solid #cbd5e1',
                 borderRadius: '0.5rem',
                 fontSize: '0.875rem',
@@ -618,6 +614,19 @@ export default function OrdersList() {
                 background: '#f8fafc'
               }}
             />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery('')}
+                style={{
+                  position: 'absolute', right: '0.75rem', top: '50%', transform: 'translateY(-50%)',
+                  border: 'none', background: 'transparent', cursor: 'pointer', padding: 0, color: '#94a3b8'
+                }}
+                aria-label="Clear search"
+              >
+                <XCircle size={15} />
+              </button>
+            )}
           </div>
 
           {/* Status Tabs (used in Table mode or to focus columns) */}

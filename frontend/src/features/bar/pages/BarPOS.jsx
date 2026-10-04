@@ -31,6 +31,7 @@ import {
 } from 'lucide-react';
 import barApi from '../services/bar.api.js';
 import { openRazorpayCheckout } from '../../../shared/utils/razorpay.util.js';
+import useDebounce from '../../../shared/hooks/useDebounce.js';
 
 export default function BarPOS() {
   const { user, role } = useSelector((state) => state.auth);
@@ -100,6 +101,7 @@ export default function BarPOS() {
   // Filter & Search states
   const [activeCategory, setActiveCategory] = useState('all');
   const [itemSearchQuery, setItemSearchQuery] = useState('');
+  const debouncedItemSearch = useDebounce(itemSearchQuery, 300);
   const [vegOnly, setVegOnly] = useState(false);
   const [selectedZone, setSelectedZone] = useState('all');
   const [kdsStation, setKdsStation] = useState(isKitchen ? 'kitchen' : isBarStaff ? 'bar' : null);
@@ -152,7 +154,7 @@ export default function BarPOS() {
     }
   }, [activeClubId, kdsStation]);
 
-  // Load Initial Data
+  // Load Initial Data (Menu search handled by backend fuzzy similarity)
   const loadPOSData = useCallback(async () => {
     if (isKitchen) {
       setRefreshing(true);
@@ -165,7 +167,7 @@ export default function BarPOS() {
       setRefreshing(true);
       const [tablesData, menuData] = await Promise.all([
         barApi.getTables(activeClubId).catch(() => []),
-        barApi.getMenu(activeClubId).catch(() => ({ categories: [], items: [] })),
+        barApi.getMenu(activeClubId, null, null, debouncedItemSearch.trim() || null).catch(() => ({ categories: [], items: [] })),
       ]);
 
       setTables(tablesData || []);
@@ -177,7 +179,7 @@ export default function BarPOS() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [activeClubId, isKitchen, loadKdsData]);
+  }, [activeClubId, isKitchen, loadKdsData, debouncedItemSearch]);
 
   const loadTabsData = useCallback(async (filterOverride) => {
     try {
@@ -250,21 +252,16 @@ export default function BarPOS() {
     }
   }, [activeTab, loadKdsData, loadTabsData, loadDailyClosing]);
 
-  // Filtered Menu Items
+  // Filtered Menu Items (Search handled by backend fuzzy similarity)
   const filteredMenuItems = useMemo(() => {
     return menuItems.filter((item) => {
       if (item.is_active === false) return false;
       const matchesCategory =
         activeCategory === 'all' || item.category_id === activeCategory;
-      const matchesSearch =
-        !itemSearchQuery.trim() ||
-        item.name.toLowerCase().includes(itemSearchQuery.toLowerCase()) ||
-        (item.description &&
-          item.description.toLowerCase().includes(itemSearchQuery.toLowerCase()));
       const matchesVeg = !vegOnly || item.is_veg === true;
-      return matchesCategory && matchesSearch && matchesVeg;
+      return matchesCategory && matchesVeg;
     });
-  }, [menuItems, activeCategory, itemSearchQuery, vegOnly]);
+  }, [menuItems, activeCategory, vegOnly]);
 
   // Distinct Zones
   const zones = useMemo(() => {
@@ -972,6 +969,18 @@ export default function BarPOS() {
                     color: '#1A1A18',
                   }}
                 />
+                {itemSearchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setItemSearchQuery('')}
+                    style={{
+                      border: 'none', background: 'transparent', cursor: 'pointer', padding: 0, color: '#6B6B66', display: 'flex'
+                    }}
+                    aria-label="Clear search"
+                  >
+                    <X size={15} />
+                  </button>
+                )}
               </div>
 
               <button

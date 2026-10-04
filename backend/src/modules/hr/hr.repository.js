@@ -2,9 +2,9 @@ import * as queries from './hr.query.js';
 import { withTenantTransaction } from '../../shared/utils/transaction.util.js';
 
 // ─── Staff Access & Roles ───────────────────────────────────────────────────
-export async function getStaff(userId, clubId, activeOnly = null) {
+export async function getStaff(userId, clubId, activeOnly = null, search = null) {
   return withTenantTransaction(userId, clubId, async (client) => {
-    const res = await client.query(queries.GET_STAFF, [clubId, activeOnly]);
+    const res = await client.query(queries.GET_STAFF, [clubId, activeOnly, search ? search.trim() : null]);
     return res.rows;
   });
 }
@@ -28,9 +28,9 @@ export async function removeStaff(userId, clubId, staffUserId) {
 }
 
 // ─── Employees & Salary Management ──────────────────────────────────────────
-export async function getEmployees(userId, clubId) {
+export async function getEmployees(userId, clubId, search = null) {
   return withTenantTransaction(userId, clubId, async (client) => {
-    const res = await client.query(queries.GET_EMPLOYEES, [clubId]);
+    const res = await client.query(queries.GET_EMPLOYEES, [clubId, search ? search.trim() : null]);
     return res.rows;
   });
 }
@@ -105,9 +105,9 @@ export async function createLeaveType(userId, clubId, data) {
   });
 }
 
-export async function getLeaveRequests(userId, clubId) {
+export async function getLeaveRequests(userId, clubId, search = null) {
   return withTenantTransaction(userId, clubId, async (client) => {
-    const res = await client.query(queries.GET_LEAVE_REQUESTS, [clubId]);
+    const res = await client.query(queries.GET_LEAVE_REQUESTS, [clubId, search ? search.trim() : null]);
     return res.rows;
   });
 }

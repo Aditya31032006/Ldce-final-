@@ -49,10 +49,10 @@ export async function updateTable(userId, clubId, tableId, data) {
   });
 }
 
-export async function getMenu(userId, clubId, categoryId = null, activeOnly = null, availableOnly = null) {
+export async function getMenu(userId, clubId, categoryId = null, activeOnly = null, availableOnly = null, search = null) {
   return withTenantTransaction(userId, clubId, async (client) => {
     const catsResult = await client.query(queries.GET_MENU_CATEGORIES, [clubId, activeOnly]);
-    const itemsResult = await client.query(queries.GET_MENU_ITEMS, [clubId, categoryId, activeOnly, availableOnly]);
+    const itemsResult = await client.query(queries.GET_MENU_ITEMS, [clubId, categoryId, activeOnly, availableOnly, search ? search.trim() : null]);
     return {
       categories: catsResult.rows,
       items: itemsResult.rows,

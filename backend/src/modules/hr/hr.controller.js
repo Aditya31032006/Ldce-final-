@@ -5,7 +5,9 @@ import * as authRepo from '../auth/auth.repository.js';
 export async function getStaffController(req, res, next) {
   try {
     const activeOnly = (req.user.role !== 'owner' && req.user.role !== 'manager') ? true : null;
-    const staff = await hrRepo.getStaff(req.user.id, req.clubId, activeOnly);
+    const { search, q } = req.query;
+    const searchQuery = search || q || null;
+    const staff = await hrRepo.getStaff(req.user.id, req.clubId, activeOnly, searchQuery);
     return res.status(200).json({ staff });
   } catch (error) {
     next(error);
@@ -62,7 +64,9 @@ export async function removeStaffController(req, res, next) {
 // ─── Employees & Salary Controllers ─────────────────────────────────────────
 export async function getEmployeesController(req, res, next) {
   try {
-    const employees = await hrRepo.getEmployees(req.user.id, req.clubId);
+    const { search, q } = req.query;
+    const searchQuery = search || q || null;
+    const employees = await hrRepo.getEmployees(req.user.id, req.clubId, searchQuery);
     return res.status(200).json({ employees });
   } catch (error) { 
     next(error); 
@@ -149,7 +153,9 @@ export async function createLeaveTypeController(req, res, next) {
 
 export async function getLeaveRequestsController(req, res, next) {
   try {
-    const leaveRequests = await hrRepo.getLeaveRequests(req.user.id, req.clubId);
+    const { search, q } = req.query;
+    const searchQuery = search || q || null;
+    const leaveRequests = await hrRepo.getLeaveRequests(req.user.id, req.clubId, searchQuery);
     return res.status(200).json({ leaveRequests });
   } catch (error) {
     next(error);

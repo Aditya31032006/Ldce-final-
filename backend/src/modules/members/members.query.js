@@ -23,7 +23,25 @@ export const GET_MEMBERS = `
   LEFT JOIN app.plans p ON p.id = ms.plan_id
   WHERE m.club_id = $1
     AND ($2::text IS NULL OR m.status::text = $2)
-  ORDER BY m.created_at DESC
+    AND (
+      $3::text IS NULL OR $3::text = '' OR
+      m.first_name ILIKE '%' || $3 || '%' OR
+      m.last_name ILIKE '%' || $3 || '%' OR
+      (m.first_name || ' ' || COALESCE(m.last_name, '')) ILIKE '%' || $3 || '%' OR
+      m.email ILIKE '%' || $3 || '%' OR
+      m.phone ILIKE '%' || $3 || '%' OR
+      m.member_code ILIKE '%' || $3 || '%' OR
+      p.name ILIKE '%' || $3 || '%' OR
+      similarity(m.first_name || ' ' || COALESCE(m.last_name, ''), $3) > 0.15 OR
+      similarity(COALESCE(m.email, ''), $3) > 0.15 OR
+      similarity(COALESCE(m.member_code, ''), $3) > 0.15
+    )
+  ORDER BY 
+    CASE WHEN $3::text IS NOT NULL AND $3::text != '' 
+      THEN similarity(m.first_name || ' ' || COALESCE(m.last_name, ''), $3)
+      ELSE 0
+    END DESC,
+    m.created_at DESC
   LIMIT 100;
 `;
 
